@@ -40,3 +40,7 @@ coverage/
 # Misc
 .cache/
 .turbo/
+
+PROJECT_CONTEXT.md
+ROADMAP.md
+SESSION_HANDOFF.md
