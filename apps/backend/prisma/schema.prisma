@@ -1,26 +1,52 @@
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "postgresql"
-    url = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-enum Role{
-    ADMIN
-    CANDIDATE
+enum Role {
+  ADMIN
+  CANDIDATE
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ProgrammingLanguage {
+  CPP
+  JAVA
+  PYTHON
+}
+
+enum SubmissionStatus {
+  PENDING
+  RUNNING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  MEMORY_LIMIT_EXCEEDED
+  RUNTIME_ERROR
+  COMPILATION_ERROR
+  INTERNAL_ERROR
 }
 
 model User {
-  id           String         @id @default(cuid())
-  email        String         @unique
-  passwordHash String
-  role         Role           @default(CANDIDATE)
-  name         String
-  createdAt    DateTime       @default(now())
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  role          Role           @default(CANDIDATE)
+  name          String
+  createdAt     DateTime       @default(now())
   refreshTokens RefreshToken[]
+  submissions   Submission[]
 }
+
 model RefreshToken {
   id        String   @id @default(cuid())
   tokenHash String   @unique
@@ -28,5 +54,75 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
   @@index([userId])
+}
+
+model Problem {
+  id              String       @id @default(cuid())
+  slug            String       @unique
+  title           String
+  description     String       @db.Text
+  inputFormat     String?      @db.Text
+  outputFormat    String?      @db.Text
+  constraints     String?      @db.Text
+  examples        Json?
+  difficulty      Difficulty
+  topics          String[]     @default([])
+  timeLimitMs     Int          @default(2000)
+  memoryLimitKb   Int          @default(256000)
+  starterCode     Json?
+  solutionCode    Json?
+  hints           String[]     @default([])
+  acceptanceRate  Float?
+  isPublished     Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  testCases       TestCase[]
+  submissions     Submission[]
+
+  @@index([difficulty])
+  @@index([isPublished])
+}
+
+model TestCase {
+  id             String   @id @default(cuid())
+  problemId      String
+  problem        Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  input          String   @db.Text
+  expectedOutput String   @db.Text
+  explanation    String?  @db.Text
+  isHidden       Boolean  @default(true)
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([problemId])
+}
+
+model Submission {
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId        String
+  problem          Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  language         ProgrammingLanguage
+  sourceCode       String           @db.Text
+  status           SubmissionStatus @default(PENDING)
+  passedTests      Int              @default(0)
+  totalTests       Int              @default(0)
+  testResults      Json?
+  judge0Token      String?
+  stdout           String?          @db.Text
+  stderr           String?          @db.Text
+  compileOutput    String?          @db.Text
+  executionTimeMs  Float?
+  memoryKb         Int?
+  isSampleRun      Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([problemId])
+  @@index([userId, problemId])
+  @@index([createdAt])
 }
