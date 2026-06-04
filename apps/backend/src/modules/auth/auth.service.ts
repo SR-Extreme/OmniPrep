@@ -4,7 +4,7 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import type { Role } from '@prisma/client';
 import { prisma } from '../../config/db.js';
 import { env } from '../../config/env.js';
-import type { LoginInput, RefreshTokenInput, RegisterInput } from './auth.validation.js';
+import type { LoginInput, RefreshTokenInput, SignupInput } from './auth.validation.js';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -19,7 +19,7 @@ export interface AuthUser {
     id: string;
     email: string,
     role: Role,
-    name: string | null;
+    name: string;
 }
 
 export interface AuthTokens {
@@ -69,7 +69,7 @@ function toAuthUser(user: {
     id: string;
     email: string;
     role: Role;
-    name: string | null;
+    name: string;
 }): AuthUser {
     return {
         id: user.id,
@@ -79,7 +79,7 @@ function toAuthUser(user: {
     };
 }
 
-async function issueTokens(user: { id: string; email: string; role: Role; name: string | null; }): Promise<AuthResult> {
+async function issueTokens(user: { id: string; email: string; role: Role; name: string; }): Promise<AuthResult> {
     const signOptions: SignOptions = {
         expiresIn: env.JWT_ACCESS_EXPIRY as SignOptions['expiresIn'],
     };
@@ -111,13 +111,13 @@ async function issueTokens(user: { id: string; email: string; role: Role; name: 
     };
 }
 
-export async function register(input: RegisterInput): Promise<AuthResult> {
+export async function signup(input: SignupInput): Promise<AuthResult> {
     const existing = await prisma.user.findUnique({
         where: { email: input.email },
     });
 
     if (existing) {
-        throw new AuthError('Email already registered', 'EMAIL_EXISTS');
+        throw new AuthError('An account with this email already exists', 'EMAIL_EXISTS');
     }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);

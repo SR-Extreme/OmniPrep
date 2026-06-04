@@ -1,7 +1,7 @@
 # ROADMAP.md
 
-> **Last updated:** 2026-06-01  
-> **Overall progress:** ~10% (Phase 0 complete)  
+> **Last updated:** 2026-06-04  
+> **Overall progress:** ~22% (Phase 0 complete; Phase 1 ~95% complete)  
 > Sync with `PROJECT_CONTEXT.md` and `SESSION_HANDOFF.md` after each session.
 
 ---
@@ -21,7 +21,7 @@
 * [x] `.env.example` (Neon + Upstash)
 * [x] `apps/frontend/.env.local` with `NEXT_PUBLIC_API_URL`
 * [x] `apps/backend/.env` with `PORT`, `DATABASE_URL`, `REDIS_URL`
-* [ ] Commit Phase 0 to git
+* [ ] Commit Phase 0 + Phase 1 to git
 * [ ] Optional: `README.md` run instructions
 
 **Deliverables:**
@@ -37,33 +37,36 @@
 
 ## Phase 1 — Foundation & Authentication
 
-**Goal:** Database connected to Neon; users can register, login, refresh, logout.
+**Goal:** Database connected to Neon; users can sign up, login, refresh, logout.
 
-**Description:** Prisma schema (User, RefreshToken), auth module, protected routes, login/register UI, env validation.
+**Description:** Prisma schema (User, RefreshToken), auth module, protected routes, login/signup UI, env validation.
 
 **Tasks:**
 
-* [ ] Add Prisma + `@prisma/client` to backend
-* [ ] Create `prisma/schema.prisma` (User, RefreshToken, enums)
-* [ ] Run `prisma migrate dev` against Neon
-* [ ] `src/config/env.ts` — Zod validate `DATABASE_URL`, `PORT`, JWT vars
-* [ ] `src/config/db.ts` — Prisma singleton
-* [ ] `src/modules/auth/` — routes, controller, service, validation
-* [ ] bcrypt password hashing, JWT access + refresh (DB-stored refresh)
-* [ ] `authMiddleware`, mount routes under `/api`
-* [ ] CORS restricted to `FRONTEND_URL`
-* [ ] Frontend: `src/lib/api/client.ts`, auth API helpers
-* [ ] Frontend: `app/(auth)/login`, `register` pages
-* [ ] Zustand `authStore` (or equivalent)
-* [ ] Verify Neon connection; defer Upstash wiring to Phase 3
+* [x] Add Prisma + `@prisma/client` to backend
+* [x] Create `prisma/schema.prisma` (User, RefreshToken, enums)
+* [x] Run `prisma migrate dev` against Neon
+* [x] `src/config/env.ts` — Zod validate `DATABASE_URL`, `PORT`, JWT vars
+* [x] `src/config/db.ts` — Prisma singleton
+* [x] `src/modules/auth/` — routes, controller, service, validation
+* [x] bcrypt password hashing, JWT access + refresh (DB-stored refresh)
+* [x] `authMiddleware`, mount routes under `/api`
+* [x] CORS restricted to `FRONTEND_URL`
+* [x] Frontend: `src/lib/api/client.ts`, auth API helpers
+* [x] Frontend: `app/(auth)/login`, `signup` pages
+* [x] Zustand `authStore` (signup, login, logout + persist)
+* [x] Home page auth-aware UI
+* [x] `User.name` required (migration `require_user_name`)
+* [x] Verify Neon connection; defer Upstash wiring to Phase 3
+* [ ] Optional: `authStore.refresh()` + auto-refresh on 401
 
 **Deliverables:**
 
-* Working register/login from UI
-* Protected test route returns 401 without token
+* [x] Working signup/login from UI
+* [x] Protected test route returns 401 without token (`GET /api/me`)
 
-**Status:** Not Started  
-**Progress:** 0%
+**Status:** Completed (optional refresh UX remaining)  
+**Progress:** 95%
 
 ---
 
@@ -226,7 +229,7 @@
 | Milestone | Target Phase | Status |
 |-----------|--------------|--------|
 | M0 — Repo runs locally | Phase 0 | **Done** |
-| M1 — Auth + DB live | Phase 1 | Pending |
+| M1 — Auth + DB live | Phase 1 | **Done** (refresh UX optional) |
 | M2 — First AI feedback on code | Phase 3 | Pending |
 | M3 — Mock interview E2E | Phase 6 | Pending |
 | M4 — Production deploy | Phase 8 | Pending |
@@ -238,7 +241,7 @@
 | Version | Scope | Phase |
 |---------|--------|-------|
 | **v0.1** | Monorepo scaffold, health + home | Phase 0 ✅ |
-| **v0.2** | Auth + Prisma on Neon | Phase 1 |
+| **v0.2** | Auth + Prisma on Neon | Phase 1 ✅ (refresh UX optional) |
 | **v0.3** | DSA + Judge0 | Phase 2 |
 | **v0.4** | AI DSA evaluation | Phase 3 |
 | **v0.5** | System design + behavioral | Phase 4–5 |
@@ -252,10 +255,10 @@
 
 ### Critical
 
-* Authentication (JWT + refresh)
+* Authentication (JWT + refresh) — **backend done**
 * DSA module + Judge0
 * AI evaluation pipeline
-* Prisma + Neon integration
+* Prisma + Neon integration — **Phase 1 models done**
 
 ### High Priority
 
@@ -313,7 +316,7 @@
 
 | Dependency | Required from phase |
 |------------|----------------------|
-| Neon account | Phase 1 |
+| Neon account | Phase 1 ✅ |
 | Upstash account | Phase 3 (URLs already in `.env`) |
 | OpenAI API key | Phase 3 |
 | Judge0 API | Phase 2 |

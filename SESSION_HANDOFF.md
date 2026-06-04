@@ -1,29 +1,33 @@
 # SESSION_HANDOFF.md
 
-> **Last session date:** 2026-06-01  
+> **Last session date:** 2026-06-04  
 > **Update this file at the end of every development session.**
 
 ---
 
 # Last Session Summary
 
-This session established **OmniPrep** from an empty/scaffold repo through **complete Phase 0**, using a **learning-focused, one-file-at-a-time** workflow (user types code; agent reviews).
+Completed **Phase 1 — Foundation & Authentication** (~95%) using a **one-file-at-a-time** workflow, with selective batch edits for signup rename and required `name`.
 
 ### Completed work
 
-1. **Project analysis** from `AI_Interview_Platform_Blueprint (1).pdf` — six modules, architecture, 8-week blueprint mapped to Next.js + TypeScript rebuild.
-2. **Phase 0 backend:** `apps/backend` with ESM Express, `app.ts` (`GET /health`), `server.ts`, `PORT` via dotenv, builds with `tsc`.
-3. **Phase 0 frontend:** `apps/frontend` with Next.js 14, Tailwind, App Router (`layout.tsx`, `page.tsx`), `next.config.mjs` (fixed `.ts` unsupported error).
-4. **Infrastructure decision:** **Neon PostgreSQL + Upstash Redis only** — Docker/`docker-compose.yml` explicitly skipped.
-5. **Env files:** Updated root `.env.example` for Neon/Upstash; created `apps/frontend/.env.local` with `NEXT_PUBLIC_API_URL`.
-6. **Phase 0 audit** — builds pass; recommended env/doc updates applied.
-7. **Project memory system** — created `PROJECT_CONTEXT.md`, `ROADMAP.md`, `SESSION_HANDOFF.md`.
+1. **Prisma on Neon** — `@prisma/client`, `prisma`, schema (`User`, `RefreshToken`, `Role`), migrations `init` + `require_user_name`.
+2. **Backend config** — `config/env.ts` (Zod), `config/db.ts` (singleton), `server.ts` loads validated env.
+3. **Auth module** — validation, service (bcrypt, JWT, refresh rotation), controller, routes (`/api/auth/signup|login|refresh|logout`).
+4. **Middleware** — `authMiddleware`, `adminMiddleware`; `GET /api/me` protected.
+5. **Express app** — CORS → `FRONTEND_URL`, `/api/auth` mounted; `/health` unchanged at root.
+6. **Frontend API** — `lib/api/client.ts`, `lib/api/auth.ts`.
+7. **Frontend auth UI** — Zustand `authStore` (persist), `/login`, `/signup`, home page with sign out.
+8. **Naming** — `register` → **`signup`** across API, routes, and UI.
+9. **User model** — `name` **required** (DB + validation + signup form).
+10. **Dev fixes** — `@esbuild/win32-x64` for `tsx` on Windows; documented `EADDRINUSE` / CORS / Prisma cwd notes.
+11. **Documentation** — updated `PROJECT_CONTEXT.md`, `ROADMAP.md`, `SESSION_HANDOFF.md` (this file).
 
 ### Mentoring model
 
 - User prefers workspace names **`frontend`** / **`backend`**.
 - User prefers backend **ESM** (`import`/`export`), not `require`.
-- One file per iteration unless user asks agent to apply changes.
+- One file per iteration unless user asks agent to edit directly.
 
 ---
 
@@ -31,57 +35,61 @@ This session established **OmniPrep** from an empty/scaffold repo through **comp
 
 | Area | State |
 |------|--------|
-| **Phase** | Phase 0 **complete** → ready for **Phase 1 (Auth + Prisma)** |
-| **Backend** | Running `npm run dev:backend` → `http://localhost:4000/health` |
-| **Frontend** | Running `npm run dev:frontend` → `http://localhost:3000` or **3001** if 3000 busy |
-| **Database** | Neon `DATABASE_URL` in `apps/backend/.env` — **Prisma not installed** |
-| **Redis** | Upstash `REDIS_URL` in `apps/backend/.env` — **not used in code yet** |
-| **Git** | Phase 0 files largely **untracked** — commit recommended |
+| **Phase** | Phase 1 **~95% complete** → ready for **Phase 2 (DSA)** |
+| **Backend** | `npm run dev` in `apps/backend` → `:4000` — `/health`, `/api/auth/*`, `/api/me` |
+| **Frontend** | `npm run dev` in `apps/frontend` → `:3000` or `:3001` — `/`, `/login`, `/signup` |
+| **Database** | Neon connected; Prisma migrations applied (`User`, `RefreshToken`) |
+| **Redis** | Upstash `REDIS_URL` in `.env` — **not used in code** (Phase 3) |
+| **Auth** | Signup/login/logout UI + JWT; backend refresh API works; **no frontend refresh in store yet** |
+| **Git** | Commit recommended (include `prisma/migrations/`) |
 
 ---
 
 # Files Modified This Session
 
-### Created / updated (committed to disk)
+### Backend — created / updated
 
 | File |
 |------|
-| `package.json` (root) |
-| `.gitignore` |
-| `.env.example` |
-| `PROJECT_CONTEXT.md` |
-| `ROADMAP.md` |
-| `SESSION_HANDOFF.md` |
-| `apps/backend/package.json` |
-| `apps/backend/tsconfig.json` |
-| `apps/backend/.env` (gitignored) |
+| `apps/backend/package.json` (prisma, bcrypt, jsonwebtoken, zod, @esbuild/win32-x64) |
+| `apps/backend/prisma/schema.prisma` |
+| `apps/backend/prisma/migrations/20260602154035_init/` |
+| `apps/backend/prisma/migrations/20260604160104_require_user_name/` |
+| `apps/backend/src/config/env.ts` |
+| `apps/backend/src/config/db.ts` |
+| `apps/backend/src/modules/auth/auth.validation.ts` |
+| `apps/backend/src/modules/auth/auth.service.ts` |
+| `apps/backend/src/modules/auth/auth.controller.ts` |
+| `apps/backend/src/modules/auth/auth.routes.ts` |
+| `apps/backend/src/middleware/auth.middleware.ts` |
 | `apps/backend/src/app.ts` |
 | `apps/backend/src/server.ts` |
-| `apps/frontend/package.json` |
-| `apps/frontend/tsconfig.json` |
-| `apps/frontend/next.config.mjs` |
-| `apps/frontend/postcss.config.mjs` |
-| `apps/frontend/tailwind.config.ts` |
-| `apps/frontend/next-env.d.ts` |
-| `apps/frontend/.env.local` (gitignored) |
-| `apps/frontend/src/app/globals.css` |
-| `apps/frontend/src/app/layout.tsx` |
+
+### Frontend — created / updated
+
+| File |
+|------|
+| `apps/frontend/package.json` (zustand) |
+| `apps/frontend/src/lib/api/client.ts` |
+| `apps/frontend/src/lib/api/auth.ts` |
+| `apps/frontend/src/store/authStore.ts` |
+| `apps/frontend/src/app/(auth)/login/page.tsx` |
+| `apps/frontend/src/app/(auth)/signup/page.tsx` |
 | `apps/frontend/src/app/page.tsx` |
-| `package-lock.json` |
 
 ### Deleted
 
 | File | Reason |
 |------|--------|
-| `apps/frontend/next.config.ts` | Next 14.2 does not support it |
+| `apps/frontend/src/app/(auth)/register/page.tsx` | Renamed to `signup` |
 
-### Not created (by design)
+### Documentation — updated
 
-| File | Reason |
-|------|--------|
-| `docker-compose.yml` | User chose Neon + Upstash only |
-| `prisma/schema.prisma` | Phase 1 |
-| `src/modules/*` | Phase 1+ |
+| File |
+|------|
+| `PROJECT_CONTEXT.md` |
+| `ROADMAP.md` |
+| `SESSION_HANDOFF.md` |
 
 ---
 
@@ -91,9 +99,16 @@ This session established **OmniPrep** from an empty/scaffold repo through **comp
 |---------|-------|
 | Monorepo workspaces | `dev:frontend`, `dev:backend`, `build` |
 | Backend health endpoint | `GET /health` |
-| Frontend home page | Tailwind dark theme, Phase 0 message |
-| Env documentation | `.env.example` + `.env.local` |
-| Production builds | Both workspaces `npm run build` OK |
+| Prisma + Neon | `User`, `RefreshToken`; 2 migrations |
+| JWT auth API | signup, login, refresh, logout |
+| Protected route | `GET /api/me` → 401 without Bearer |
+| Env validation | Zod in `config/env.ts` |
+| CORS | Restricted to `FRONTEND_URL` |
+| Frontend API client | `apiRequest`, `ApiError` |
+| Auth UI | `/login`, `/signup`, home session panel |
+| Zustand auth store | Persisted tokens + user |
+| Signup naming | `/api/auth/signup`, `/signup` route |
+| Required user name | Schema + validation + form |
 
 ---
 
@@ -101,24 +116,23 @@ This session established **OmniPrep** from an empty/scaffold repo through **comp
 
 | Feature | Progress | Notes |
 |---------|----------|-------|
-| Neon PostgreSQL | ~30% | URL configured; Prisma pending |
-| Upstash Redis | ~20% | URL configured; client pending Phase 3 |
+| Phase 1 polish | ~5% | Frontend `authStore.refresh()` not wired |
+| Upstash Redis | ~20% | URL in `.env`; client pending Phase 3 |
+| Git commit | ~0% | Phase 0 + Phase 1 files still largely uncommitted |
 
 ---
 
 # Pending Tasks
 
-**Priority order:**
+**Priority order (Phase 2):**
 
-1. **Phase 1 — Add Prisma to backend `package.json`** (first file of Phase 1)
-2. Create `prisma/schema.prisma` with `User` + `RefreshToken`
-3. Run `prisma migrate dev` against Neon
-4. Add `src/config/env.ts` + `src/config/db.ts`
-5. Implement `modules/auth/` (register, login, refresh, logout)
-6. Mount `/api` routes + CORS with `FRONTEND_URL`
-7. Frontend login/register pages + API client
-8. Git commit Phase 0 (+ memory docs)
-9. Optional README
+1. **Optional Phase 1 polish** — `authStore.refresh()` + call on 401 (if desired before DSA)
+2. **Git commit** — Phase 0 + Phase 1 + `prisma/migrations/` (exclude `.env`)
+3. **Optional README** — run instructions, ports, Prisma cwd note
+4. **Phase 2 — Prisma models** — `Problem`, `TestCase`, `Submission` + migrate
+5. **Phase 2 — `modules/problems/`** — list, get by id
+6. **Phase 2 — Judge0** — `services/Judge0Service.ts`, submissions module
+7. **Phase 2 — Frontend** — `app/problems`, Monaco editor
 
 ---
 
@@ -126,12 +140,13 @@ This session established **OmniPrep** from an empty/scaffold repo through **comp
 
 | Blocker | Severity | Notes |
 |---------|----------|-------|
-| None critical | — | Phase 1 can start immediately |
+| None critical | — | Phase 2 can start |
 
 **Watch items:**
 
-- If Neon/Upstash URLs invalid, `prisma migrate` will fail — verify in Neon/Upstash dashboards.
-- `FRONTEND_URL` must match actual Next port (3000 vs 3001) when enabling CORS.
+- `FRONTEND_URL` must match Next port (`3000` vs `3001`).
+- Run Prisma commands from `apps/backend`, not repo root.
+- Stop duplicate backend dev processes to avoid `EADDRINUSE` on port 4000.
 
 ---
 
@@ -140,58 +155,59 @@ This session established **OmniPrep** from an empty/scaffold repo through **comp
 | Bug | Status |
 |-----|--------|
 | `next.config.ts` unsupported | **Fixed** → `next.config.mjs` |
+| CORS allows all origins | **Fixed** → `FRONTEND_URL` |
+| `tsx` / esbuild win32 optional dep | **Fixed** → `@esbuild/win32-x64` |
 | Windows `npm run dev` (`&`) unreliable | Open — use two terminals |
-| CORS allows all origins | Open — fix Phase 1 |
+| Port 4000 already in use | Open — kill prior `npm run dev` |
+| Unused `PORT` in `server.ts` | Open — cosmetic cleanup |
 
 ---
 
 # Important Context
 
 1. **Blueprint PDF** on Desktop defines full product; rebuild uses **Next.js** not React Router + Redux.
-2. **Do not use Docker** for this project — use Neon + Upstash connection strings in `apps/backend/.env`.
-3. **Backend ESM:** local imports must use `.js` extension (e.g. `import app from './app.js'`).
-4. **Next.js env:** only `NEXT_PUBLIC_*` exposed to browser; secrets stay in backend `.env`.
-5. **Teaching workflow:** default to one file at a time; user implements unless they ask agent to edit.
-6. **`/health` is not under `/api`** yet — consolidate under `/api` in Phase 1 if desired.
-7. **Zustand** planned instead of Redux for client state.
+2. **Do not use Docker** — Neon + Upstash connection strings in `apps/backend/.env`.
+3. **Backend ESM:** local imports use `.js` extension (e.g. `import app from './app.js'`).
+4. **Auth route naming:** **`signup`** not `register` — `/api/auth/signup`, `/signup`.
+5. **`User.name` is required** — min 1 char, max 100, trimmed.
+6. **`/health` stays at root** — auth under `/api/auth/*`.
+7. **Zustand** `omniprep-auth` key in `localStorage` for session persist.
+8. **Logout** sends `{ refreshToken }` in body; clears local store even if API fails.
 
 ---
 
 # Next Recommended Task
 
-**Phase 1, File 1:** Add Prisma dependencies to `apps/backend/package.json` (`prisma`, `@prisma/client`) and install from repo root.
+**Phase 2, File 1:** Extend `apps/backend/prisma/schema.prisma` with `Problem`, `TestCase`, and `Submission` models (per blueprint), then run `npx prisma migrate dev` from `apps/backend`.
 
 ---
 
-# Suggested Development Order
+# Suggested Development Order (Phase 2)
 
-1. Add Prisma deps to `apps/backend/package.json`
-2. Create `apps/backend/prisma/schema.prisma` (User, RefreshToken, Role enum)
-3. Run `npx prisma migrate dev --name init` from `apps/backend`
-4. Create `apps/backend/src/config/db.ts` (Prisma singleton)
-5. Create `apps/backend/src/config/env.ts` (Zod validation)
-6. Create `apps/backend/src/modules/auth/auth.validation.ts` (Zod schemas)
-7. Create `auth.service.ts` (register, login, bcrypt, JWT)
-8. Create `auth.controller.ts` + `auth.routes.ts`
-9. Wire routes in `app.ts` under `/api/auth`
-10. Frontend: `src/lib/api/client.ts` + login page
+1. Add DSA models to `schema.prisma` + migrate
+2. `modules/problems/` — routes, controller, service
+3. `services/Judge0Service.ts` + env vars
+4. `modules/submissions/` — submit + Judge0
+5. Seed or admin CRUD for sample problems
+6. Frontend `app/problems` + `app/problems/[id]`
+7. Monaco editor component
 
 ---
 
 # Quick Resume Prompt
 
 ```
-Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Continue development from the current state. Do not redesign completed systems. Follow all documented architecture decisions and continue with the Next Recommended Task.
+Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Continue development from the current state. Phase 1 is complete except optional refresh UX. Start Phase 2 (DSA module) with the Next Recommended Task. Do not redesign completed auth. Follow documented architecture decisions.
 ```
 
 ---
 
 ## Maintenance checklist (end of each session)
 
-- [ ] Update `PROJECT_CONTEXT.md` (features, %, API, decisions)
-- [ ] Update `ROADMAP.md` (task checkboxes, phase progress)
-- [ ] Update this file (session summary, files changed, next task)
-- [ ] Verify the three files agree on phase and next step
+- [x] Update `PROJECT_CONTEXT.md` (features, %, API, decisions)
+- [x] Update `ROADMAP.md` (task checkboxes, phase progress)
+- [x] Update this file (session summary, files changed, next task)
+- [x] Verify the three files agree on phase and next step
 
 ---
 

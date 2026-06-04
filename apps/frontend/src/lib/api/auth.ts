@@ -5,7 +5,7 @@ export interface AuthUser {
     id: string;
     email: string;
     role: Role;
-    name: string | null;
+    name: string;
 }
 
 export interface AuthTokens {
@@ -18,10 +18,10 @@ export interface AuthResult {
     tokens: AuthTokens;
 }
 
-export interface RegisterBody {
+export interface SignupBody {
     email: string;
     password: string;
-    name?: string;
+    name: string;
 }
 
 export interface LoginBody {
@@ -41,8 +41,8 @@ export interface MeResponse {
     };
 }
 
-export function register(body: RegisterBody): Promise<AuthResult> {
-    return apiRequest<AuthResult>('/api/auth/register', { method: 'POST', body });
+export function signup(body: SignupBody): Promise<AuthResult> {
+    return apiRequest<AuthResult>('/api/auth/signup', { method: 'POST', body });
 }
 
 export function login(body: LoginBody): Promise<AuthResult> {

@@ -1,6 +1,6 @@
 # PROJECT_CONTEXT.md
 
-> **Last updated:** 2026-06-01  
+> **Last updated:** 2026-06-04  
 > **Project:** OmniPrep (interview-prep-platform)  
 > **Maintainer note:** Update this file whenever architecture, features, or env vars change.
 
@@ -15,7 +15,7 @@
 | **Description** | Production-grade, AI-powered adaptive interview preparation platform — evaluates reasoning, system design, behavioral communication, and generates personalized study plans. |
 | **Problem Being Solved** | Most platforms test syntax only. OmniPrep evaluates conceptual depth, trade-offs, scalability thinking, and communication — then adapts learning paths from performance data. |
 | **Target Users** | **Candidates** preparing for technical interviews; **Admins** managing questions, users, and platform analytics. |
-| **Current Completion %** | **~10%** (Phase 0 monorepo scaffold complete; no auth, DB, or feature modules yet) |
+| **Current Completion %** | **~22%** (Phase 0 complete; Phase 1 auth + Prisma on Neon ~95% complete) |
 
 **Source of truth for full product spec:** `AI_Interview_Platform_Blueprint (1).pdf` (Desktop).  
 **Rebuild stack:** Next.js 14 + TypeScript + Tailwind (frontend); Express + TypeScript + ESM (backend) — *not* original blueprint’s React/Redux/Vite stack.
@@ -38,7 +38,7 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 ### Key User Journeys
 
-1. **Register / login** → JWT access + refresh tokens  
+1. **Sign up / login** → JWT access + refresh tokens  
 2. **DSA practice** → Monaco editor → Judge0 → AI evaluation → topic performance update  
 3. **System design** → text + optional diagram → multimodal GPT-4o → follow-ups  
 4. **Behavioral** → STAR-style conversation with AI follow-ups  
@@ -52,11 +52,11 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 | Layer | Technology | Status |
 |-------|------------|--------|
-| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3 | Scaffolded |
-| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | Scaffolded |
-| **Database** | PostgreSQL via **Neon** + **Prisma ORM** | URLs in `.env`; Prisma **not installed** |
+| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3, Zustand 5 | Active — auth UI + API client |
+| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | Active — auth module + Prisma |
+| **Database** | PostgreSQL via **Neon** + **Prisma ORM** 6 | Active — `User`, `RefreshToken` migrated |
 | **Cache / queues** | **Upstash Redis** + BullMQ (planned) | URL in `.env`; not wired in code |
-| **Authentication** | JWT + bcrypt + refresh tokens (planned) | Not started |
+| **Authentication** | JWT + bcrypt + DB-stored refresh tokens | **Implemented** (Phase 1) |
 | **AI** | OpenAI GPT-4o (planned) | Not started |
 | **Code execution** | Judge0 API (planned) | Not started |
 | **File storage** | Cloudinary (planned) | Not started |
@@ -65,10 +65,10 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 | **Monorepo** | npm workspaces (`apps/frontend`, `apps/backend`) | Active |
 | **Local dev** | **No Docker** — cloud DB/Redis only (team decision 2026-06-01) | Active |
 
-### Frontend state management (planned)
+### Frontend state management
 
-- **Zustand** for client global state (auth, interview session, UI) — replaces blueprint’s Redux Toolkit  
-- Server Components + fetch for page-level data where appropriate  
+- **Zustand** (`authStore`) — auth session persisted to `localStorage` (`omniprep-auth`)  
+- Server Components by default; `"use client"` for auth forms and home session UI  
 
 ---
 
@@ -78,59 +78,78 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 ```
 apps/frontend/
-├── src/app/              # App Router (file-based routes)
-│   ├── layout.tsx        # Root layout, metadata, globals.css
-│   ├── page.tsx          # Home /
-│   └── (future routes)
-├── src/components/       # (planned)
-├── src/lib/api/          # (planned) API client
-├── src/hooks/            # (planned)
-├── src/store/            # (planned) Zustand
-└── src/types/            # (planned)
+├── src/app/
+│   ├── layout.tsx
+│   ├── page.tsx              # Home — sign in / sign up / signed-in panel
+│   ├── globals.css
+│   └── (auth)/
+│       ├── login/page.tsx
+│       └── signup/page.tsx
+├── src/lib/api/
+│   ├── client.ts             # apiRequest, ApiError
+│   └── auth.ts               # signup, login, refresh, logout, getMe
+├── src/store/
+│   └── authStore.ts          # Zustand + persist
+├── src/components/           # (planned)
+├── src/hooks/                # (planned)
+└── src/types/                # (planned)
 ```
 
-- **Server Components** by default; `"use client"` for Monaco, sockets, forms  
 - **Tailwind** via `globals.css` + PostCSS + `tailwind.config.ts`  
 - **Config:** `next.config.mjs` (Next 14.2 does **not** support `next.config.ts`)  
 
-### Backend Architecture (target — modular, not MVC)
+### Backend Architecture (modular, not MVC)
 
 ```
-apps/backend/src/
-├── server.ts             # HTTP listen + dotenv
-├── app.ts                # Express app, middleware
-├── config/               # (planned) env, db, redis
-├── modules/              # (planned) feature folders
-│   ├── auth/
-│   ├── problems/
-│   ├── submissions/
-│   ├── systemDesign/
-│   ├── behavioral/
-│   ├── mockInterview/
-│   ├── analytics/
-│   ├── plans/
-│   └── admin/
-├── services/             # (planned) AIService, Judge0, Cache, Queue
-├── workers/              # (planned) BullMQ workers
-├── middleware/           # (planned)
-└── socket/               # (planned)
+apps/backend/
+├── prisma/
+│   ├── schema.prisma
+│   └── migrations/           # init + require_user_name
+├── src/
+│   ├── server.ts             # dotenv + env validation + listen
+│   ├── app.ts                # CORS, JSON, /health, /api/*
+│   ├── config/
+│   │   ├── env.ts            # Zod-validated env
+│   │   └── db.ts             # Prisma singleton
+│   ├── middleware/
+│   │   └── auth.middleware.ts
+│   ├── modules/
+│   │   └── auth/
+│   │       ├── auth.validation.ts
+│   │       ├── auth.service.ts
+│   │       ├── auth.controller.ts
+│   │       └── auth.routes.ts
+│   ├── services/             # (planned) AIService, Judge0, Cache, Queue
+│   ├── workers/              # (planned) BullMQ workers
+│   └── socket/               # (planned)
 ```
 
 **Principle:** Controllers thin; business logic in services; workers decoupled from HTTP.
 
-### Database Architecture (planned — Prisma on Neon)
+### Database Architecture (Prisma on Neon)
 
-~16 models per blueprint. **Not migrated yet.** See [Database Documentation](#database-documentation).
+**Implemented models:** `User`, `RefreshToken`, enum `Role` (`ADMIN`, `CANDIDATE`).  
+**Planned (blueprint):** ~14 additional models — see [Database Documentation](#database-documentation).
+
+**Migrations applied:**
+
+| Migration | Purpose |
+|-----------|---------|
+| `20260602154035_init` | `User`, `RefreshToken` tables |
+| `20260604160104_require_user_name` | `User.name` required (NOT NULL) |
 
 ### API Flow (current vs target)
 
 **Current:**
 
 ```
-Browser → GET http://localhost:4000/health → JSON { status, message }
+Browser → Next.js (Zustand auth)
+       → fetch NEXT_PUBLIC_API_URL
+       → Express /health, /api/auth/*, /api/me
+       → Prisma → Neon PostgreSQL
 ```
 
-**Target:**
+**Target (later phases):**
 
 ```
 Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
@@ -139,13 +158,16 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
                               → Redis (Upstash) cache + sessions
 ```
 
-### Authentication Flow (planned)
+### Authentication Flow (implemented)
 
-1. `POST /api/auth/register` → bcrypt hash → User in DB  
-2. `POST /api/auth/login` → access JWT (15m) + refresh token (7d, DB)  
-3. Axios/fetch interceptor refreshes on 401  
-4. `authMiddleware` attaches `req.user`  
-5. `adminMiddleware` checks `role === 'ADMIN'`  
+1. `POST /api/auth/signup` → bcrypt hash → `User` in DB (role `CANDIDATE`, name required)  
+2. `POST /api/auth/login` → access JWT (`JWT_ACCESS_EXPIRY`) + refresh token (hashed in DB)  
+3. `POST /api/auth/refresh` → rotate refresh token, issue new pair  
+4. `POST /api/auth/logout` → delete refresh token row (body: `{ refreshToken }`)  
+5. `authMiddleware` on protected routes — `Authorization: Bearer <accessToken>`  
+6. `adminMiddleware` — checks `role === 'ADMIN'` (ready; no admin routes yet)  
+
+**Frontend gap:** `refresh()` exists in `auth.ts` but `authStore` does not expose refresh / auto-refresh on 401 yet.
 
 ### Deployment Flow (planned)
 
@@ -177,41 +199,55 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 
 | Path | Responsibility |
 |------|----------------|
-| `package.json` | `name: backend`, ESM, Express deps |
+| `package.json` | ESM, Express, Prisma, bcrypt, jsonwebtoken, zod |
 | `tsconfig.json` | `NodeNext` module resolution |
-| `.env` | **Gitignored** — `PORT`, `DATABASE_URL`, `REDIS_URL` |
-| `src/app.ts` | Express app, CORS, JSON, `/health` |
-| `src/server.ts` | `dotenv`, `app.listen(PORT)` |
+| `.env` | **Gitignored** — `PORT`, `DATABASE_URL`, `REDIS_URL`, JWT, `FRONTEND_URL` |
+| `prisma/schema.prisma` | `User`, `RefreshToken`, `Role` |
+| `prisma/migrations/` | **Commit** — Neon migration history |
+| `src/server.ts` | `dotenv`, `env`, `app.listen(env.PORT)` |
+| `src/app.ts` | CORS, `/health`, `/api/auth`, `/api/me` |
+| `src/config/env.ts` | Zod env validation |
+| `src/config/db.ts` | Prisma client singleton |
+| `src/middleware/auth.middleware.ts` | JWT + admin guards |
+| `src/modules/auth/*` | Auth feature module |
 | `dist/` | **Gitignored** — `tsc` output |
 
 ### `apps/frontend/`
 
 | Path | Responsibility |
 |------|----------------|
-| `package.json` | `name: frontend`, Next.js 14 |
+| `package.json` | Next.js 14, Zustand 5 |
 | `tsconfig.json` | Next + `@/*` → `./src/*` |
 | `next.config.mjs` | Next config (`reactStrictMode`) |
 | `postcss.config.mjs` | Tailwind + Autoprefixer |
 | `tailwind.config.ts` | Content paths for class scanning |
 | `next-env.d.ts` | Next TypeScript refs — **commit** |
 | `.env.local` | **Gitignored** — `NEXT_PUBLIC_API_URL` |
-| `src/app/globals.css` | `@tailwind` directives |
-| `src/app/layout.tsx` | Root layout |
-| `src/app/page.tsx` | Home page |
+| `src/app/page.tsx` | Home — auth-aware |
+| `src/app/(auth)/login/page.tsx` | Login form |
+| `src/app/(auth)/signup/page.tsx` | Signup form (name required) |
+| `src/lib/api/client.ts` | HTTP client wrapper |
+| `src/lib/api/auth.ts` | Auth API helpers |
+| `src/store/authStore.ts` | Zustand auth state |
 | `.next/` | **Gitignored** — Next build cache |
 
 ---
 
 ## Database Documentation
 
-**Status:** Schema designed in blueprint; **not implemented in repo.**
+**Status:** Phase 1 schema **implemented and migrated** on Neon. Remaining blueprint models not added.
 
-### Planned models (Prisma / PostgreSQL)
+### Implemented models (Prisma / PostgreSQL)
 
 | Model | Purpose |
 |-------|---------|
 | `User` | Auth, profile, role (`ADMIN` \| `CANDIDATE`) |
-| `RefreshToken` | Refresh token rotation / revocation |
+| `RefreshToken` | Hashed refresh token, expiry, cascade delete with user |
+
+### Planned models (not yet in schema)
+
+| Model | Purpose |
+|-------|---------|
 | `Problem` | DSA question bank |
 | `TestCase` | Visible/hidden test cases per problem |
 | `Submission` | User code submissions + Judge0 results |
@@ -227,20 +263,20 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 | `StudyPlan` | AI-generated weekly plans |
 | `AIUsageLog` | Token/cost tracking |
 
-### User (planned fields)
+### User (implemented fields)
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | String (cuid) | PK |
 | `email` | String | unique |
 | `passwordHash` | String | bcrypt |
-| `role` | Enum | `ADMIN`, `CANDIDATE` |
-| `name` | String? | optional |
+| `role` | Enum | `ADMIN`, `CANDIDATE` (default `CANDIDATE`) |
+| `name` | String | **required** |
 | `createdAt` | DateTime | |
 
-**Relationships:** submissions, mockInterviews, topicPerformance, studyPlans
+**Relationships:** `refreshTokens RefreshToken[]`
 
-*Full field lists for all models: see blueprint PDF §04.*
+*Full field lists for future models: see blueprint PDF §04.*
 
 ---
 
@@ -251,17 +287,15 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 | Method | Route | Auth | Purpose | Response |
 |--------|-------|------|---------|----------|
 | `GET` | `/health` | Public | Health check | `{ "status": "ok", "message": "OmniPrep API is running" }` |
+| `POST` | `/api/auth/signup` | Public | Create account | `201` `{ user, tokens }` |
+| `POST` | `/api/auth/login` | Public | Login | `200` `{ user, tokens }` |
+| `POST` | `/api/auth/refresh` | Public | Rotate refresh token | `200` `{ user, tokens }` |
+| `POST` | `/api/auth/logout` | Public* | Revoke refresh token | `204` empty |
+| `GET` | `/api/me` | Bearer access JWT | Current user payload | `200` `{ user }` or `401` |
+
+\*Logout validates `{ refreshToken }` in body (not Bearer).
 
 ### Planned (blueprint — prefix `/api`)
-
-**Auth**
-
-| Method | Route | Auth |
-|--------|-------|------|
-| POST | `/api/auth/register` | Public |
-| POST | `/api/auth/login` | Public |
-| POST | `/api/auth/refresh` | Public |
-| POST | `/api/auth/logout` | Auth |
 
 **Problems & submissions**
 
@@ -308,10 +342,11 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 |---------|--------|------------|-------|
 | Monorepo setup | Completed | 100% | npm workspaces |
 | Backend Express scaffold | Completed | 100% | ESM, `/health` |
-| Frontend Next.js scaffold | Completed | 100% | Tailwind, home page |
-| Neon PostgreSQL | In Progress | 30% | URL in `.env`; Prisma not added |
-| Upstash Redis | In Progress | 20% | URL in `.env`; not used in code |
-| Authentication (JWT) | Not Started | 0% | Phase 1 |
+| Frontend Next.js scaffold | Completed | 100% | Tailwind, App Router |
+| Neon PostgreSQL + Prisma | Completed | 100% | Migrated; 2 migrations |
+| Authentication (JWT) | Completed | 95% | Backend complete; frontend refresh UX pending |
+| Auth UI (login/signup/home) | Completed | 100% | Zustand persist |
+| Upstash Redis | In Progress | 20% | URL in `.env`; client Phase 3 |
 | DSA module | Not Started | 0% | Phase 2 |
 | AI evaluation pipeline | Not Started | 0% | Phase 3 |
 | System design module | Not Started | 0% | Phase 4 |
@@ -327,8 +362,8 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 
 | Service | Purpose | Status |
 |---------|---------|--------|
-| **Neon** | PostgreSQL hosting | Account + `DATABASE_URL` expected |
-| **Upstash** | Redis (cache, BullMQ, sessions) | Account + `REDIS_URL` expected |
+| **Neon** | PostgreSQL hosting | **Connected** — migrations applied |
+| **Upstash** | Redis (cache, BullMQ, sessions) | Account + `REDIS_URL` in `.env`; not used in code |
 | **OpenAI GPT-4o** | DSA/SD/behavioral eval, study plans | Not integrated |
 | **Judge0** | Sandboxed code execution | Not integrated |
 | **Cloudinary** | Diagram/image uploads | Not integrated |
@@ -343,23 +378,23 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | Yes | API port (default `4000`) |
-| `DATABASE_URL` | Yes (Phase 1+) | Neon PostgreSQL connection string |
-| `REDIS_URL` | Yes (Phase 3+) | Upstash Redis TLS URL (`rediss://`) |
-| `JWT_ACCESS_SECRET` | Phase 1+ | Access token signing |
-| `JWT_REFRESH_SECRET` | Phase 1+ | Refresh token signing |
-| `JWT_ACCESS_EXPIRY` | Phase 1+ | e.g. `15m` |
-| `JWT_REFRESH_EXPIRY` | Phase 1+ | e.g. `7d` |
+| `DATABASE_URL` | Yes | Neon PostgreSQL connection string |
+| `REDIS_URL` | Phase 3+ | Upstash Redis TLS URL (`rediss://`) |
+| `JWT_ACCESS_SECRET` | Yes | Access token signing (min 32 chars) |
+| `JWT_REFRESH_SECRET` | Yes | Refresh token signing (min 32 chars) |
+| `JWT_ACCESS_EXPIRY` | Yes | e.g. `15m` |
+| `JWT_REFRESH_EXPIRY` | Yes | e.g. `7d` |
+| `FRONTEND_URL` | Yes | CORS origin (e.g. `http://localhost:3000`) |
 | `OPENAI_API_KEY` | Phase 3+ | GPT-4o |
 | `JUDGE0_API_KEY` | Phase 2+ | Code execution |
 | `JUDGE0_BASE_URL` | Phase 2+ | Judge0 endpoint |
 | `CLOUDINARY_*` | Phase 4+ | Image uploads |
-| `FRONTEND_URL` | Phase 1+ | CORS origin (e.g. `http://localhost:3000`) |
 
 ### `apps/frontend/.env.local` (gitignored)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Yes (Phase 1+) | Backend base URL (`http://localhost:4000`) |
+| `NEXT_PUBLIC_API_URL` | Yes | Backend base URL (`http://localhost:4000`) |
 
 ### Root `.env.example`
 
@@ -376,9 +411,11 @@ Committed template — no real secrets. Copy to app-specific env files.
 | 2026-06-01 | Backend modules | ESM (`type: module`, `NodeNext`) | User preference over CommonJS | CommonJS |
 | 2026-06-01 | Next config | `next.config.mjs` not `.ts` | Next 14.2 error on `.ts` | Upgrade Next 15+ later |
 | 2026-06-01 | Infrastructure | Neon + Upstash only, **no Docker** | User preference, matches production | docker-compose local |
-| 2026-06-01 | State management | Zustand (planned) vs Redux | Simpler with Next.js App Router | Redux Toolkit |
+| 2026-06-01 | State management | Zustand vs Redux | Simpler with Next.js App Router | Redux Toolkit |
 | 2026-06-01 | Dev process | One file at a time, user types code | Learning-focused mentoring | Agent writes all |
-| 2026-06-01 | API health route | `/health` not `/api/health` | Phase 0 simplicity | Mount all under `/api` in Phase 1 |
+| 2026-06-01 | API health route | `/health` not `/api/health` | Phase 0 simplicity | Move under `/api` later |
+| 2026-06-04 | Auth UX naming | **`signup`** not `register` | User preference | `/register` route |
+| 2026-06-04 | User profile | **`name` required** on signup | User preference | Optional name |
 
 ---
 
@@ -387,9 +424,11 @@ Committed template — no real secrets. Copy to app-specific env files.
 | Bug | Severity | Status | Fix Plan |
 |-----|----------|--------|----------|
 | `next.config.ts` unsupported on Next 14.2 | Medium | **Fixed** | Use `next.config.mjs` |
-| Port 3000 in use → Next uses 3001 | Low | Open | Document in README; set `FRONTEND_URL` accordingly |
+| Port 3000 in use → Next uses 3001 | Low | Open | Set `FRONTEND_URL` to match actual port |
 | `npm run dev` with `&` fails on Windows PowerShell | Low | Open | Use two terminals or add `concurrently` |
-| CORS wide open `cors()` | Low | Open | Restrict to `FRONTEND_URL` in Phase 1 |
+| CORS wide open `cors()` | Low | **Fixed** | `FRONTEND_URL` in `app.ts` |
+| `tsx` missing `@esbuild/win32-x64` on Windows | Medium | **Fixed** | `npm install @esbuild/win32-x64 -w backend` |
+| `EADDRINUSE` port 4000 | Low | Open | Stop duplicate `npm run dev` processes |
 
 ---
 
@@ -397,13 +436,14 @@ Committed template — no real secrets. Copy to app-specific env files.
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Mount Express routes under `/api` | Medium | Align with blueprint |
-| Add `src/config/env.ts` (Zod) | High | Phase 1 |
+| Wire `authStore.refresh()` + optional 401 retry | Medium | Phase 1 polish |
+| Remove unused `PORT` in `server.ts` | Low | Uses `env.PORT` for listen |
 | Root `lint` script | Low | Cross-workspace lint |
 | Rename root package to `omniprep` | Low | Cosmetic |
 | Upgrade Next.js 15+ for `next.config.ts` | Low | Optional |
 | Add README with run instructions | Medium | Onboarding |
-| Commit Phase 0 to git | Medium | Currently untracked |
+| Git commit Phase 0 + Phase 1 | Medium | Include `prisma/migrations/` |
+| API client env guard (`NEXT_PUBLIC_API_URL`) | Low | Fail fast if missing |
 
 ---
 
@@ -414,7 +454,7 @@ Committed template — no real secrets. Copy to app-specific env files.
 | Unit tests | Not Started | Jest for services (planned) |
 | API integration | Not Started | Supertest (planned) |
 | E2E | Not Started | Playwright (planned) |
-| Manual | Ad hoc | `npm run build` passes both workspaces |
+| Manual | In progress | Signup/login/logout UI; `npm run build` passes both workspaces |
 
 ---
 
@@ -435,6 +475,7 @@ Committed template — no real secrets. Copy to app-specific env files.
 - Workspaces: `"frontend"`, `"backend"` (must match folder `package.json` `name`)
 - Backend files: `feature.routes.ts`, `feature.controller.ts`, `feature.service.ts`
 - Frontend routes: `src/app/<route>/page.tsx`
+- Auth route: **`/api/auth/signup`** (not `register`)
 
 ### Folders
 
@@ -461,6 +502,7 @@ Committed template — no real secrets. Copy to app-specific env files.
 - `NEXT_PUBLIC_*` only for non-secret client config
 - Never commit `.env` or `.env.local`
 - Follow one-file-at-a-time mentoring unless user asks agent to edit
+- Run Prisma CLI from `apps/backend` (not repo root)
 
 ---
 

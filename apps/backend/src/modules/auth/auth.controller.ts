@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import { loginSchema, refreshTokenSchema, registerSchema } from "./auth.validation.js";
-import { AuthError, login, logout, refresh, register } from "./auth.service.js";
+import { loginSchema, refreshTokenSchema, signupSchema } from "./auth.validation.js";
+import { AuthError, login, logout, refresh, signup } from "./auth.service.js";
 
 function sendValidationError(res: Response, details: unknown): void {
     res.status(400).json({ error: 'Validation failed', details });
@@ -22,8 +22,8 @@ function handleAuthError(err: unknown, res: Response): void {
     res.status(500).json({ error: 'Internal server error' });
 }
 
-export async function registerHandler(req: Request, res: Response): Promise<void> {
-    const parsed = registerSchema.safeParse(req.body);
+export async function signupHandler(req: Request, res: Response): Promise<void> {
+    const parsed = signupSchema.safeParse(req.body);
 
     if (!parsed.success) {
         sendValidationError(res, parsed.error.flatten().fieldErrors);
@@ -31,7 +31,7 @@ export async function registerHandler(req: Request, res: Response): Promise<void
     }
 
     try {
-        const result = await register(parsed.data);
+        const result = await signup(parsed.data);
         res.status(201).json(result);
     } catch (err) {
         handleAuthError(err, res);
