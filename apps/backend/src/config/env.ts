@@ -13,6 +13,11 @@ const envSchema = z.object({
     JWT_REFRESH_EXPIRY: z.string().default('7d'),
     FRONTEND_URL: z.string().url(),
     REDIS_URL: z.string().min(1).optional(),
+    JUDGE0_API_KEY: z.preprocess(
+        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+        z.string().min(1).optional(),
+    ),
+    JUDGE0_BASE_URL: z.string().url(),
 });
 
 export type Env = z.infer<typeof envSchema>;
