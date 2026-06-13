@@ -7,27 +7,26 @@
 
 # Last Session Summary
 
-Completed **Phase 1 — Foundation & Authentication** (~95%) using a **one-file-at-a-time** workflow, with selective batch edits for signup rename and required `name`.
+Completed **Phase 2 backend (DSA module)** — problems API, submissions API, Judge0 integration, and 100-problem seed with multi-language reference solutions. Updated project documentation to reflect current state.
 
-### Completed work
+### Completed work (Phase 2 backend)
 
-1. **Prisma on Neon** — `@prisma/client`, `prisma`, schema (`User`, `RefreshToken`, `Role`), migrations `init` + `require_user_name`.
-2. **Backend config** — `config/env.ts` (Zod), `config/db.ts` (singleton), `server.ts` loads validated env.
-3. **Auth module** — validation, service (bcrypt, JWT, refresh rotation), controller, routes (`/api/auth/signup|login|refresh|logout`).
-4. **Middleware** — `authMiddleware`, `adminMiddleware`; `GET /api/me` protected.
-5. **Express app** — CORS → `FRONTEND_URL`, `/api/auth` mounted; `/health` unchanged at root.
-6. **Frontend API** — `lib/api/client.ts`, `lib/api/auth.ts`.
-7. **Frontend auth UI** — Zustand `authStore` (persist), `/login`, `/signup`, home page with sign out.
-8. **Naming** — `register` → **`signup`** across API, routes, and UI.
-9. **User model** — `name` **required** (DB + validation + signup form).
-10. **Dev fixes** — `@esbuild/win32-x64` for `tsx` on Windows; documented `EADDRINUSE` / CORS / Prisma cwd notes.
-11. **Documentation** — updated `PROJECT_CONTEXT.md`, `ROADMAP.md`, `SESSION_HANDOFF.md` (this file).
+1. **Prisma DSA models** — `Problem`, `TestCase`, `Submission`; enums `Difficulty`, `ProgrammingLanguage`, `SubmissionStatus`; migration `add_dsa_models`.
+2. **`src/types/dsa.types.ts`** — JSON field types, language ↔ Judge0 ID mapping, test result redaction.
+3. **Problems module** — list (filters, pagination), get by id/slug; strips `solutionCode` and hidden test I/O for candidates.
+4. **Submissions module** — create (full submit + sample run), get by id, list me; Judge0 loop per test case; updates `acceptanceRate`.
+5. **`Judge0Service.ts`** — submit, poll, status mapping; env-agnostic (local Docker + Railway).
+6. **Judge0 local dev** — `docker-compose.judge0.yml`, `infra/judge0/judge0.conf`; `JUDGE0_BASE_URL=http://localhost:2358`.
+7. **Env** — `JUDGE0_BASE_URL` required; `JUDGE0_API_KEY` optional (local CE has no auth).
+8. **Seed system** — 100 problems (35 EASY / 45 MEDIUM / 20 HARD), 1000 test cases (2 visible + 8 hidden each).
+9. **Multi-lang solutions** — Python + Java + C++ reference in `solutionCode` via `multi-lang-solutions/batch-*.ts`.
+10. **Seed scripts** — `npm run seed:generate`, `npm run seed`; generated JSON gitignored.
+11. **Documentation** — full refresh of `PROJECT_CONTEXT.md`, `ROADMAP.md`, `SESSION_HANDOFF.md`.
 
-### Mentoring model
+### Prior sessions (still valid)
 
-- User prefers workspace names **`frontend`** / **`backend`**.
-- User prefers backend **ESM** (`import`/`export`), not `require`.
-- One file per iteration unless user asks agent to edit directly.
+- Phase 0 monorepo scaffold — complete.
+- Phase 1 auth (JWT, Neon, login/signup UI) — ~95% (optional refresh UX open).
 
 ---
 
@@ -35,61 +34,76 @@ Completed **Phase 1 — Foundation & Authentication** (~95%) using a **one-file-
 
 | Area | State |
 |------|--------|
-| **Phase** | Phase 1 **~95% complete** → ready for **Phase 2 (DSA)** |
-| **Backend** | `npm run dev` in `apps/backend` → `:4000` — `/health`, `/api/auth/*`, `/api/me` |
-| **Frontend** | `npm run dev` in `apps/frontend` → `:3000` or `:3001` — `/`, `/login`, `/signup` |
-| **Database** | Neon connected; Prisma migrations applied (`User`, `RefreshToken`) |
-| **Redis** | Upstash `REDIS_URL` in `.env` — **not used in code** (Phase 3) |
-| **Auth** | Signup/login/logout UI + JWT; backend refresh API works; **no frontend refresh in store yet** |
-| **Git** | Commit recommended (include `prisma/migrations/`) |
+| **Phase** | **Phase 2 — 50%** (backend done; frontend not started) |
+| **Overall** | **~48%** of full MVP roadmap |
+| **Backend** | `:4000` — `/health`, `/api/auth/*`, `/api/me`, `/api/problems/*`, `/api/submissions/*` |
+| **Frontend** | `:3000` or `:3001` — `/`, `/login`, `/signup` only |
+| **Database** | Neon — 3 migrations; **100 problems**, **1000 test cases** seeded |
+| **Judge0** | Local Docker `:2358` for dev; Railway planned for prod (Phase 8) |
+| **Redis** | Upstash URL in `.env` — unused until Phase 3 |
+| **Auth gap** | `authStore.refresh()` not wired on 401 |
+| **Git** | Large uncommitted Phase 0–2 backend work; docs currently listed in `.gitignore` (should be removed) |
 
 ---
 
-# Files Modified This Session
+# Files Created / Updated (Phase 2 — cumulative)
 
-### Backend — created / updated
+### Backend — schema & config
 
 | File |
 |------|
-| `apps/backend/package.json` (prisma, bcrypt, jsonwebtoken, zod, @esbuild/win32-x64) |
 | `apps/backend/prisma/schema.prisma` |
-| `apps/backend/prisma/migrations/20260602154035_init/` |
-| `apps/backend/prisma/migrations/20260604160104_require_user_name/` |
-| `apps/backend/src/config/env.ts` |
-| `apps/backend/src/config/db.ts` |
-| `apps/backend/src/modules/auth/auth.validation.ts` |
-| `apps/backend/src/modules/auth/auth.service.ts` |
-| `apps/backend/src/modules/auth/auth.controller.ts` |
-| `apps/backend/src/modules/auth/auth.routes.ts` |
-| `apps/backend/src/middleware/auth.middleware.ts` |
+| `apps/backend/prisma/migrations/20260604205409_add_dsa_models/` |
+| `apps/backend/src/config/env.ts` (Judge0 vars) |
+| `apps/backend/src/types/dsa.types.ts` |
+
+### Backend — problems & submissions
+
+| File |
+|------|
+| `apps/backend/src/modules/problems/problems.validation.ts` |
+| `apps/backend/src/modules/problems/problems.service.ts` |
+| `apps/backend/src/modules/problems/problems.controller.ts` |
+| `apps/backend/src/modules/problems/problems.routes.ts` |
+| `apps/backend/src/modules/submissions/submissions.validation.ts` |
+| `apps/backend/src/modules/submissions/submissions.service.ts` |
+| `apps/backend/src/modules/submissions/submissions.controller.ts` |
+| `apps/backend/src/modules/submissions/submissions.routes.ts` |
+| `apps/backend/src/services/Judge0Service.ts` |
 | `apps/backend/src/app.ts` |
-| `apps/backend/src/server.ts` |
 
-### Frontend — created / updated
-
-| File |
-|------|
-| `apps/frontend/package.json` (zustand) |
-| `apps/frontend/src/lib/api/client.ts` |
-| `apps/frontend/src/lib/api/auth.ts` |
-| `apps/frontend/src/store/authStore.ts` |
-| `apps/frontend/src/app/(auth)/login/page.tsx` |
-| `apps/frontend/src/app/(auth)/signup/page.tsx` |
-| `apps/frontend/src/app/page.tsx` |
-
-### Deleted
-
-| File | Reason |
-|------|--------|
-| `apps/frontend/src/app/(auth)/register/page.tsx` | Renamed to `signup` |
-
-### Documentation — updated
+### Backend — seed pipeline
 
 | File |
 |------|
-| `PROJECT_CONTEXT.md` |
-| `ROADMAP.md` |
-| `SESSION_HANDOFF.md` |
+| `apps/backend/prisma/seed.ts` |
+| `apps/backend/prisma/seeds/types.ts` |
+| `apps/backend/prisma/seeds/build-test-cases.ts` |
+| `apps/backend/prisma/seeds/solution-wrappers.ts` |
+| `apps/backend/prisma/seeds/problem-definitions.ts` |
+| `apps/backend/prisma/seeds/generate-json-files.ts` |
+| `apps/backend/prisma/seeds/multi-lang-solutions/batch-01.ts` … `batch-04.ts` |
+| `apps/backend/prisma/seeds/multi-lang-solutions/index.ts` |
+| `apps/backend/package.json` (`seed`, `seed:generate`, prisma seed config) |
+
+### Infrastructure (Judge0 dev only)
+
+| File |
+|------|
+| `docker-compose.judge0.yml` |
+| `infra/judge0/judge0.conf` |
+
+### Gitignore
+
+| Change |
+|--------|
+| Added `apps/backend/prisma/seeds/problems/` (generated JSON) |
+
+### Generated (gitignored, local only)
+
+| Path |
+|------|
+| `apps/backend/prisma/seeds/problems/*.json` (100 files) |
 
 ---
 
@@ -97,18 +111,14 @@ Completed **Phase 1 — Foundation & Authentication** (~95%) using a **one-file-
 
 | Feature | Notes |
 |---------|-------|
-| Monorepo workspaces | `dev:frontend`, `dev:backend`, `build` |
-| Backend health endpoint | `GET /health` |
-| Prisma + Neon | `User`, `RefreshToken`; 2 migrations |
-| JWT auth API | signup, login, refresh, logout |
-| Protected route | `GET /api/me` → 401 without Bearer |
-| Env validation | Zod in `config/env.ts` |
-| CORS | Restricted to `FRONTEND_URL` |
-| Frontend API client | `apiRequest`, `ApiError` |
-| Auth UI | `/login`, `/signup`, home session panel |
-| Zustand auth store | Persisted tokens + user |
-| Signup naming | `/api/auth/signup`, `/signup` route |
-| Required user name | Schema + validation + form |
+| Phase 0 scaffold | Monorepo, health, home |
+| Phase 1 auth | JWT, signup/login, Zustand |
+| DSA Prisma models | Problem, TestCase, Submission |
+| Problems API | List + detail; admin sees unpublished + all test cases |
+| Submissions API | Judge0 execution; sample run vs full submit |
+| Judge0Service | Local Docker; optional API key |
+| 100-problem seed | JSON I/O protocol; topics across DSA curriculum |
+| Multi-lang solutionCode | Python, Java, C++ (admin reference) |
 
 ---
 
@@ -116,23 +126,31 @@ Completed **Phase 1 — Foundation & Authentication** (~95%) using a **one-file-
 
 | Feature | Progress | Notes |
 |---------|----------|-------|
-| Phase 1 polish | ~5% | Frontend `authStore.refresh()` not wired |
-| Upstash Redis | ~20% | URL in `.env`; client pending Phase 3 |
-| Git commit | ~0% | Phase 0 + Phase 1 files still largely uncommitted |
+| Phase 2 frontend | 0% | Monaco, `/problems` pages |
+| Phase 1 refresh UX | ~5% | Optional |
+| Git commit | ~0% | Recommended before frontend work |
+| Doc tracking in git | **Fixed** | Removed doc lines from `.gitignore` |
 
 ---
 
 # Pending Tasks
 
-**Priority order (Phase 2):**
+**Priority order (Phase 2 frontend — one file at a time):**
 
-1. **Optional Phase 1 polish** — `authStore.refresh()` + call on 401 (if desired before DSA)
-2. **Git commit** — Phase 0 + Phase 1 + `prisma/migrations/` (exclude `.env`)
-3. **Optional README** — run instructions, ports, Prisma cwd note
-4. **Phase 2 — Prisma models** — `Problem`, `TestCase`, `Submission` + migrate
-5. **Phase 2 — `modules/problems/`** — list, get by id
-6. **Phase 2 — Judge0** — `services/Judge0Service.ts`, submissions module
-7. **Phase 2 — Frontend** — `app/problems`, Monaco editor
+1. `apps/frontend/package.json` — add `@monaco-editor/react`
+2. `apps/frontend/src/types/dsa.ts` — mirror backend types
+3. `apps/frontend/src/lib/api/problems.ts`
+4. `apps/frontend/src/lib/api/submissions.ts`
+5. `apps/frontend/src/components/MonacoEditor.tsx`
+6. `apps/frontend/src/app/problems/page.tsx`
+7. `apps/frontend/src/app/problems/[id]/page.tsx`
+8. `apps/frontend/src/app/page.tsx` — link to `/problems` when signed in
+
+**Housekeeping (when ready):**
+
+- Remove `PROJECT_CONTEXT.md`, `ROADMAP.md`, `SESSION_HANDOFF.md` from `.gitignore` — **done**
+- Git commit Phases 0–2 backend + migrations + seed tooling
+- Optional README (Neon, Judge0 Docker, seed commands)
 
 ---
 
@@ -140,13 +158,14 @@ Completed **Phase 1 — Foundation & Authentication** (~95%) using a **one-file-
 
 | Blocker | Severity | Notes |
 |---------|----------|-------|
-| None critical | — | Phase 2 can start |
+| None critical | — | Frontend can start immediately |
 
 **Watch items:**
 
-- `FRONTEND_URL` must match Next port (`3000` vs `3001`).
-- Run Prisma commands from `apps/backend`, not repo root.
-- Stop duplicate backend dev processes to avoid `EADDRINUSE` on port 4000.
+- Start Judge0 before testing submissions: `docker compose -f docker-compose.judge0.yml up -d`
+- `FRONTEND_URL` must match Next port (`3000` vs `3001`)
+- Run Prisma/seed from `apps/backend`
+- `prisma generate` may EPERM on Windows if backend dev server is running
 
 ---
 
@@ -154,60 +173,65 @@ Completed **Phase 1 — Foundation & Authentication** (~95%) using a **one-file-
 
 | Bug | Status |
 |-----|--------|
-| `next.config.ts` unsupported | **Fixed** → `next.config.mjs` |
-| CORS allows all origins | **Fixed** → `FRONTEND_URL` |
-| `tsx` / esbuild win32 optional dep | **Fixed** → `@esbuild/win32-x64` |
-| Windows `npm run dev` (`&`) unreliable | Open — use two terminals |
-| Port 4000 already in use | Open — kill prior `npm run dev` |
-| Unused `PORT` in `server.ts` | Open — cosmetic cleanup |
+| `next.config.ts` unsupported | **Fixed** |
+| CORS wide open | **Fixed** |
+| `tsx` / esbuild win32 | **Fixed** |
+| `getProblemHandler` missing return after validation | **Fixed** |
+| `submissions.service` Prisma Json typing | **Fixed** |
+| `prisma generate` EPERM (Windows) | Open — stop Node processes first |
+| `.gitignore` excluded project docs | **Fixed** |
+| Windows `npm run dev` (`&`) | Open — use two terminals |
 
 ---
 
 # Important Context
 
-1. **Blueprint PDF** on Desktop defines full product; rebuild uses **Next.js** not React Router + Redux.
-2. **Do not use Docker** — Neon + Upstash connection strings in `apps/backend/.env`.
-3. **Backend ESM:** local imports use `.js` extension (e.g. `import app from './app.js'`).
-4. **Auth route naming:** **`signup`** not `register` — `/api/auth/signup`, `/signup`.
-5. **`User.name` is required** — min 1 char, max 100, trimmed.
-6. **`/health` stays at root** — auth under `/api/auth/*`.
-7. **Zustand** `omniprep-auth` key in `localStorage` for session persist.
-8. **Logout** sends `{ refreshToken }` in body; clears local store even if API fails.
+1. **Blueprint PDF** on Desktop — full product spec.
+2. **No Docker for app stack** — Neon + Upstash; **exception: Judge0 CE via Docker locally**.
+3. **Backend ESM** — imports use `.js` extension.
+4. **Auth:** `signup` not `register`; `User.name` required.
+5. **DSA I/O:** JSON object on stdin, JSON value on stdout (all 100 problems).
+6. **Languages:** `CPP`, `JAVA`, `PYTHON`; Judge0 IDs 54, 62, 71.
+7. **Sample run:** `isSampleRun: true` → visible test cases only.
+8. **Admin CRUD for problems:** deferred to Phase 7; edit `problem-definitions.ts` + re-seed until then.
+9. **Seed workflow:** `seed:generate` → `seed`; JSON folder gitignored.
+10. **`solutionCode` never returned** to candidates via problems API.
 
 ---
 
 # Next Recommended Task
 
-**Phase 2, File 1:** Extend `apps/backend/prisma/schema.prisma` with `Problem`, `TestCase`, and `Submission` models (per blueprint), then run `npx prisma migrate dev` from `apps/backend`.
+**Phase 2 frontend, File 1:** Add `@monaco-editor/react` to `apps/frontend/package.json`, then run `npm install` from repo root.
 
----
+**Prerequisites for local DSA testing:**
 
-# Suggested Development Order (Phase 2)
+```bash
+# Terminal 1 — Judge0
+docker compose -f docker-compose.judge0.yml up -d
 
-1. Add DSA models to `schema.prisma` + migrate
-2. `modules/problems/` — routes, controller, service
-3. `services/Judge0Service.ts` + env vars
-4. `modules/submissions/` — submit + Judge0
-5. Seed or admin CRUD for sample problems
-6. Frontend `app/problems` + `app/problems/[id]`
-7. Monaco editor component
+# Terminal 2 — Backend
+cd apps/backend && npm run dev
+
+# Terminal 3 — Frontend (after Monaco installed)
+cd apps/frontend && npm run dev
+```
 
 ---
 
 # Quick Resume Prompt
 
 ```
-Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Continue development from the current state. Phase 1 is complete except optional refresh UX. Start Phase 2 (DSA module) with the Next Recommended Task. Do not redesign completed auth. Follow documented architecture decisions.
+Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Phase 2 backend is complete (problems, submissions, Judge0, 100-problem seed). Continue Phase 2 frontend: Monaco editor + /problems pages. One file at a time. Do not redesign completed backend.
 ```
 
 ---
 
-## Maintenance checklist (end of each session)
+## Maintenance checklist (end of session)
 
-- [x] Update `PROJECT_CONTEXT.md` (features, %, API, decisions)
-- [x] Update `ROADMAP.md` (task checkboxes, phase progress)
-- [x] Update this file (session summary, files changed, next task)
-- [x] Verify the three files agree on phase and next step
+- [x] Update `PROJECT_CONTEXT.md`
+- [x] Update `ROADMAP.md`
+- [x] Update this file
+- [x] Verify all three agree on phase and next step
 
 ---
 

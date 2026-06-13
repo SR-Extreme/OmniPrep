@@ -15,7 +15,7 @@
 | **Description** | Production-grade, AI-powered adaptive interview preparation platform — evaluates reasoning, system design, behavioral communication, and generates personalized study plans. |
 | **Problem Being Solved** | Most platforms test syntax only. OmniPrep evaluates conceptual depth, trade-offs, scalability thinking, and communication — then adapts learning paths from performance data. |
 | **Target Users** | **Candidates** preparing for technical interviews; **Admins** managing questions, users, and platform analytics. |
-| **Current Completion %** | **~22%** (Phase 0 complete; Phase 1 auth + Prisma on Neon ~95% complete) |
+| **Current Completion %** | **~48%** (Phases 0–1 complete; Phase 2 backend complete; Phase 2 frontend not started) |
 
 **Source of truth for full product spec:** `AI_Interview_Platform_Blueprint (1).pdf` (Desktop).  
 **Rebuild stack:** Next.js 14 + TypeScript + Tailwind (frontend); Express + TypeScript + ESM (backend) — *not* original blueprint’s React/Redux/Vite stack.
@@ -34,7 +34,7 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 - GPT-4o for structured evaluations (JSON scores)
 - BullMQ workers for long-running AI jobs
 - Real-time mock interviews with Redis session state
-- Deployed on Vercel (frontend) + Railway (API/workers) + Neon + Upstash + Cloudinary
+- Deployed on Vercel (frontend) + Railway (API/workers/Judge0) + Neon + Upstash + Cloudinary
 
 ### Key User Journeys
 
@@ -52,18 +52,18 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 | Layer | Technology | Status |
 |-------|------------|--------|
-| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3, Zustand 5 | Active — auth UI + API client |
-| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | Active — auth module + Prisma |
-| **Database** | PostgreSQL via **Neon** + **Prisma ORM** 6 | Active — `User`, `RefreshToken` migrated |
-| **Cache / queues** | **Upstash Redis** + BullMQ (planned) | URL in `.env`; not wired in code |
+| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3, Zustand 5 | Active — auth UI only; DSA UI pending |
+| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | Active — auth + problems + submissions |
+| **Database** | PostgreSQL via **Neon** + **Prisma ORM** 6 | Active — User, RefreshToken, Problem, TestCase, Submission |
+| **Cache / queues** | **Upstash Redis** + BullMQ (planned) | URL in `.env`; not wired in code (Phase 3) |
 | **Authentication** | JWT + bcrypt + DB-stored refresh tokens | **Implemented** (Phase 1) |
-| **AI** | OpenAI GPT-4o (planned) | Not started |
-| **Code execution** | Judge0 API (planned) | Not started |
-| **File storage** | Cloudinary (planned) | Not started |
-| **Real-time** | Socket.io (planned) | Not started |
-| **Deployment** | Vercel, Railway, Neon, Upstash, Cloudinary (planned) | Not started |
+| **Code execution** | **Judge0 CE** | **Implemented** — local Docker dev; Railway planned for prod |
+| **AI** | OpenAI GPT-4o (planned) | Not started (Phase 3) |
+| **File storage** | Cloudinary (planned) | Not started (Phase 4) |
+| **Real-time** | Socket.io (planned) | Not started (Phase 6) |
+| **Deployment** | Vercel, Railway, Neon, Upstash, Cloudinary (planned) | Not started (Phase 8) |
 | **Monorepo** | npm workspaces (`apps/frontend`, `apps/backend`) | Active |
-| **Local dev** | **No Docker** — cloud DB/Redis only (team decision 2026-06-01) | Active |
+| **Local dev** | Neon + Upstash cloud; **Judge0 via Docker only** | Active |
 
 ### Frontend state management
 
@@ -90,9 +90,9 @@ apps/frontend/
 │   └── auth.ts               # signup, login, refresh, logout, getMe
 ├── src/store/
 │   └── authStore.ts          # Zustand + persist
-├── src/components/           # (planned)
+├── src/components/           # (planned) MonacoEditor
 ├── src/hooks/                # (planned)
-└── src/types/                # (planned)
+└── src/types/                # (planned) dsa.ts
 ```
 
 - **Tailwind** via `globals.css` + PostCSS + `tailwind.config.ts`  
@@ -104,32 +104,54 @@ apps/frontend/
 apps/backend/
 ├── prisma/
 │   ├── schema.prisma
-│   └── migrations/           # init + require_user_name
+│   ├── seed.ts
+│   ├── migrations/           # init, require_user_name, add_dsa_models
+│   └── seeds/
+│       ├── problem-definitions.ts    # 100 problems (source of truth)
+│       ├── multi-lang-solutions/     # C++ + Java reference solutions
+│       ├── generate-json-files.ts
+│       └── problems/                 # generated JSON (gitignored)
 ├── src/
-│   ├── server.ts             # dotenv + env validation + listen
-│   ├── app.ts                # CORS, JSON, /health, /api/*
+│   ├── server.ts
+│   ├── app.ts                # /health, /api/auth, /api/problems, /api/submissions, /api/me
 │   ├── config/
-│   │   ├── env.ts            # Zod-validated env
-│   │   └── db.ts             # Prisma singleton
+│   │   ├── env.ts
+│   │   └── db.ts
 │   ├── middleware/
 │   │   └── auth.middleware.ts
+│   ├── types/
+│   │   └── dsa.types.ts      # JSON field types, language maps, Judge0 IDs
+│   ├── services/
+│   │   └── Judge0Service.ts
 │   ├── modules/
-│   │   └── auth/
-│   │       ├── auth.validation.ts
-│   │       ├── auth.service.ts
-│   │       ├── auth.controller.ts
-│   │       └── auth.routes.ts
-│   ├── services/             # (planned) AIService, Judge0, Cache, Queue
+│   │   ├── auth/
+│   │   ├── problems/         # list + get by id/slug
+│   │   └── submissions/      # create, get, list me + Judge0 loop
 │   ├── workers/              # (planned) BullMQ workers
 │   └── socket/               # (planned)
 ```
 
 **Principle:** Controllers thin; business logic in services; workers decoupled from HTTP.
 
+### Judge0 Architecture (Phase 2)
+
+```
+Development:
+  Express API → JUDGE0_BASE_URL=http://localhost:2358
+             → docker-compose.judge0.yml (Judge0 CE + its own Postgres/Redis)
+
+Production (Phase 8):
+  Railway API → JUDGE0_BASE_URL=https://<judge0-service>.railway.app
+             → Railway-hosted Judge0 CE
+```
+
+Judge0’s internal Postgres/Redis are **separate** from Neon and Upstash.
+
 ### Database Architecture (Prisma on Neon)
 
-**Implemented models:** `User`, `RefreshToken`, enum `Role` (`ADMIN`, `CANDIDATE`).  
-**Planned (blueprint):** ~14 additional models — see [Database Documentation](#database-documentation).
+**Implemented models:** `User`, `RefreshToken`, `Problem`, `TestCase`, `Submission`, enums `Role`, `Difficulty`, `ProgrammingLanguage`, `SubmissionStatus`.
+
+**Planned (blueprint):** DSAEvaluation, SystemDesign*, Behavioral*, MockInterview*, TopicPerformance, StudyPlan, AIUsageLog — see [Database Documentation](#database-documentation).
 
 **Migrations applied:**
 
@@ -137,6 +159,9 @@ apps/backend/
 |-----------|---------|
 | `20260602154035_init` | `User`, `RefreshToken` tables |
 | `20260604160104_require_user_name` | `User.name` required (NOT NULL) |
+| `20260604205409_add_dsa_models` | `Problem`, `TestCase`, `Submission` + enums |
+
+**Seed data (Neon):** 100 published problems, 1000 test cases (10 per problem: 2 visible, 8 hidden).
 
 ### API Flow (current vs target)
 
@@ -145,8 +170,9 @@ apps/backend/
 ```
 Browser → Next.js (Zustand auth)
        → fetch NEXT_PUBLIC_API_URL
-       → Express /health, /api/auth/*, /api/me
+       → Express /health, /api/auth/*, /api/me, /api/problems/*, /api/submissions/*
        → Prisma → Neon PostgreSQL
+       → Judge0 CE (submissions only)
 ```
 
 **Target (later phases):**
@@ -161,7 +187,7 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 ### Authentication Flow (implemented)
 
 1. `POST /api/auth/signup` → bcrypt hash → `User` in DB (role `CANDIDATE`, name required)  
-2. `POST /api/auth/login` → access JWT (`JWT_ACCESS_EXPIRY`) + refresh token (hashed in DB)  
+2. `POST /api/auth/login` → access JWT + refresh token (hashed in DB)  
 3. `POST /api/auth/refresh` → rotate refresh token, issue new pair  
 4. `POST /api/auth/logout` → delete refresh token row (body: `{ refreshToken }`)  
 5. `authMiddleware` on protected routes — `Authorization: Bearer <accessToken>`  
@@ -169,14 +195,24 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 
 **Frontend gap:** `refresh()` exists in `auth.ts` but `authStore` does not expose refresh / auto-refresh on 401 yet.
 
+### DSA Problem I/O Protocol (seed + submissions)
+
+All 100 seeded problems use **JSON stdin/stdout**:
+
+- **stdin:** one JSON object (e.g. `{"nums":[2,7,11,15],"target":9}`)  
+- **stdout:** one JSON value (e.g. `[0,1]`)  
+
+`ProgrammingLanguage` enum: `CPP`, `JAVA`, `PYTHON`. Judge0 language IDs in `dsa.types.ts` (54, 62, 71).
+
 ### Deployment Flow (planned)
 
 | Component | Platform |
 |-----------|----------|
 | Frontend | Vercel |
 | API + workers | Railway |
-| PostgreSQL | Neon |
-| Redis | Upstash |
+| Judge0 CE | Railway (prod); Docker locally |
+| PostgreSQL (app) | Neon |
+| Redis (app) | Upstash |
 | Images | Cloudinary |
 
 ---
@@ -188,151 +224,120 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 | Path | Responsibility |
 |------|----------------|
 | `package.json` | npm workspaces, `dev:frontend`, `dev:backend`, `build` |
-| `package-lock.json` | Locked dependencies |
-| `.gitignore` | Ignore `node_modules`, `.env*`, `.next`, `dist` |
-| `.env.example` | Documented env template (Neon + Upstash) |
-| `PROJECT_CONTEXT.md` | This file — full project state |
+| `docker-compose.judge0.yml` | Local Judge0 CE stack (dev only) |
+| `infra/judge0/judge0.conf` | Judge0 CE config (dev passwords) |
+| `.gitignore` | Ignore `node_modules`, `.env*`, `.next`, generated seed JSON |
+| `.env.example` | Documented env template |
+| `PROJECT_CONTEXT.md` | This file |
 | `ROADMAP.md` | Phased implementation plan |
-| `SESSION_HANDOFF.md` | Per-session continuity for AI/humans |
+| `SESSION_HANDOFF.md` | Per-session continuity |
 
 ### `apps/backend/`
 
 | Path | Responsibility |
 |------|----------------|
-| `package.json` | ESM, Express, Prisma, bcrypt, jsonwebtoken, zod |
-| `tsconfig.json` | `NodeNext` module resolution |
-| `.env` | **Gitignored** — `PORT`, `DATABASE_URL`, `REDIS_URL`, JWT, `FRONTEND_URL` |
-| `prisma/schema.prisma` | `User`, `RefreshToken`, `Role` |
-| `prisma/migrations/` | **Commit** — Neon migration history |
-| `src/server.ts` | `dotenv`, `env`, `app.listen(env.PORT)` |
-| `src/app.ts` | CORS, `/health`, `/api/auth`, `/api/me` |
-| `src/config/env.ts` | Zod env validation |
-| `src/config/db.ts` | Prisma client singleton |
-| `src/middleware/auth.middleware.ts` | JWT + admin guards |
-| `src/modules/auth/*` | Auth feature module |
-| `dist/` | **Gitignored** — `tsc` output |
+| `package.json` | ESM, Express, Prisma, bcrypt, JWT, zod; scripts `seed`, `seed:generate` |
+| `prisma/schema.prisma` | User, RefreshToken, Problem, TestCase, Submission |
+| `prisma/seed.ts` | Upserts from `seeds/problems/*.json` |
+| `prisma/seeds/` | Problem catalog + multi-lang solutions + generator |
+| `src/app.ts` | Mounts auth, problems, submissions routers |
+| `src/services/Judge0Service.ts` | Submit, poll, status mapping |
+| `src/modules/problems/*` | List/filter + detail (strips `solutionCode`, hidden tests) |
+| `src/modules/submissions/*` | Create submission, Judge0 per test case, acceptance rate |
+| `src/types/dsa.types.ts` | Example, StarterCode, SubmissionTestResult, language helpers |
 
 ### `apps/frontend/`
 
 | Path | Responsibility |
 |------|----------------|
-| `package.json` | Next.js 14, Zustand 5 |
-| `tsconfig.json` | Next + `@/*` → `./src/*` |
-| `next.config.mjs` | Next config (`reactStrictMode`) |
-| `postcss.config.mjs` | Tailwind + Autoprefixer |
-| `tailwind.config.ts` | Content paths for class scanning |
-| `next-env.d.ts` | Next TypeScript refs — **commit** |
-| `.env.local` | **Gitignored** — `NEXT_PUBLIC_API_URL` |
-| `src/app/page.tsx` | Home — auth-aware |
-| `src/app/(auth)/login/page.tsx` | Login form |
-| `src/app/(auth)/signup/page.tsx` | Signup form (name required) |
-| `src/lib/api/client.ts` | HTTP client wrapper |
-| `src/lib/api/auth.ts` | Auth API helpers |
-| `src/store/authStore.ts` | Zustand auth state |
-| `.next/` | **Gitignored** — Next build cache |
+| Auth pages + home | Implemented |
+| `app/problems/` | **Not started** |
+| `@monaco-editor/react` | **Not installed** |
 
 ---
 
 ## Database Documentation
-
-**Status:** Phase 1 schema **implemented and migrated** on Neon. Remaining blueprint models not added.
 
 ### Implemented models (Prisma / PostgreSQL)
 
 | Model | Purpose |
 |-------|---------|
 | `User` | Auth, profile, role (`ADMIN` \| `CANDIDATE`) |
-| `RefreshToken` | Hashed refresh token, expiry, cascade delete with user |
+| `RefreshToken` | Hashed refresh token, expiry, cascade delete |
+| `Problem` | DSA bank — slug, difficulty, topics, JSON examples/starter/solution code, limits |
+| `TestCase` | Per-problem I/O; `isHidden`, `order` |
+| `Submission` | User code, Judge0 results, `testResults` JSON, `isSampleRun` |
+
+### Problem JSON fields (in DB)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `examples` | Json | `Example[]` — `{ input, output, explanation? }` |
+| `starterCode` | Json | `StarterCode` — `{ cpp, java, python }` |
+| `solutionCode` | Json | `SolutionCode` — admin reference only; never returned to candidates |
+
+### Submission JSON fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `testResults` | Json | `SubmissionTestResult[]` — hidden case I/O redacted on API response |
 
 ### Planned models (not yet in schema)
 
 | Model | Purpose |
 |-------|---------|
-| `Problem` | DSA question bank |
-| `TestCase` | Visible/hidden test cases per problem |
-| `Submission` | User code submissions + Judge0 results |
-| `DSAEvaluation` | GPT-4o scores per submission |
-| `SystemDesignQuestion` | SD prompts + rubric |
-| `SystemDesignSubmission` | User SD answers + diagram URL |
-| `SystemDesignEvaluation` | SD scores |
-| `BehavioralQuestion` | Behavioral prompts |
-| `BehavioralSession` | Multi-turn behavioral flow |
-| `MockInterview` | Live interview session state |
-| `MockInterviewReport` | 20-point final report |
-| `TopicPerformance` | Per-topic weakness tracking |
-| `StudyPlan` | AI-generated weekly plans |
-| `AIUsageLog` | Token/cost tracking |
-
-### User (implemented fields)
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `id` | String (cuid) | PK |
-| `email` | String | unique |
-| `passwordHash` | String | bcrypt |
-| `role` | Enum | `ADMIN`, `CANDIDATE` (default `CANDIDATE`) |
-| `name` | String | **required** |
-| `createdAt` | DateTime | |
-
-**Relationships:** `refreshTokens RefreshToken[]`
-
-*Full field lists for future models: see blueprint PDF §04.*
+| `DSAEvaluation` | GPT-4o scores per submission (Phase 3) |
+| `SystemDesignQuestion` / `SystemDesignSubmission` / `SystemDesignEvaluation` | Phase 4 |
+| `BehavioralQuestion` / `BehavioralSession` | Phase 5 |
+| `MockInterview` / `MockInterviewReport` | Phase 6 |
+| `TopicPerformance` / `StudyPlan` / `AIUsageLog` | Phase 7 |
 
 ---
 
 ## API Documentation
 
-### Implemented
+### Implemented — Public
 
 | Method | Route | Auth | Purpose | Response |
 |--------|-------|------|---------|----------|
-| `GET` | `/health` | Public | Health check | `{ "status": "ok", "message": "OmniPrep API is running" }` |
+| `GET` | `/health` | Public | Health check | `{ status, message }` |
+
+### Implemented — Auth
+
+| Method | Route | Auth | Purpose | Response |
+|--------|-------|------|---------|----------|
 | `POST` | `/api/auth/signup` | Public | Create account | `201` `{ user, tokens }` |
 | `POST` | `/api/auth/login` | Public | Login | `200` `{ user, tokens }` |
 | `POST` | `/api/auth/refresh` | Public | Rotate refresh token | `200` `{ user, tokens }` |
-| `POST` | `/api/auth/logout` | Public* | Revoke refresh token | `204` empty |
-| `GET` | `/api/me` | Bearer access JWT | Current user payload | `200` `{ user }` or `401` |
+| `POST` | `/api/auth/logout` | Public* | Revoke refresh token | `204` |
+| `GET` | `/api/me` | Bearer | Current user | `200` `{ user }` |
 
-\*Logout validates `{ refreshToken }` in body (not Bearer).
+### Implemented — Problems (Bearer required)
 
-### Planned (blueprint — prefix `/api`)
+| Method | Route | Purpose | Query / params |
+|--------|-------|---------|----------------|
+| `GET` | `/api/problems` | List published (admin: all) | `?difficulty=&topic=&search=&page=&limit=` |
+| `GET` | `/api/problems/:idOrSlug` | Problem detail | id or slug; visible test cases only for candidates |
 
-**Problems & submissions**
+**Never exposed to candidates:** `solutionCode`, hidden test case inputs/outputs.
 
-| Method | Route | Auth |
-|--------|-------|------|
-| GET | `/api/problems` | Auth |
-| GET | `/api/problems/:id` | Auth |
-| POST | `/api/submissions` | Auth |
-| GET | `/api/submissions/:id` | Auth |
-| GET | `/api/submissions/me` | Auth |
+### Implemented — Submissions (Bearer required)
 
-**System design & behavioral**
+| Method | Route | Purpose | Body / notes |
+|--------|-------|---------|--------------|
+| `POST` | `/api/submissions` | Run/submit code | `{ problemId, language, sourceCode, isSampleRun? }` → `201` `{ submission }` |
+| `GET` | `/api/submissions/me` | User history | `?problemId=&page=&limit=` |
+| `GET` | `/api/submissions/:id` | Single submission | Owner or admin; redacted hidden test I/O |
 
-| Method | Route | Auth |
-|--------|-------|------|
-| GET | `/api/sd/questions` | Auth |
-| POST | `/api/sd/submit` | Auth |
-| POST | `/api/sd/followup` | Auth |
-| GET | `/api/behavioral/questions` | Auth |
-| POST | `/api/behavioral/submit` | Auth |
-| POST | `/api/behavioral/followup` | Auth |
+**Submission behavior:**
 
-**Mock interview & analytics**
+- `isSampleRun: true` → visible test cases only  
+- Full submit → all test cases via Judge0; updates `Problem.acceptanceRate`  
+- Compile error → stops early; stores partial `testResults`  
 
-| Method | Route | Auth |
-|--------|-------|------|
-| POST | `/api/mock/start` | Auth |
-| GET | `/api/mock/:id` | Auth |
-| GET | `/api/mock/:id/report` | Auth |
-| GET | `/api/analytics/me` | Auth |
-| GET | `/api/analytics/heatmap` | Auth |
-| GET | `/api/plans/current` | Auth |
-| POST | `/api/plans/generate` | Auth |
+### Planned (blueprint)
 
-**Admin** — all require `ADMIN` role.
-
-*WebSocket events: namespace `/interview` — see blueprint §13.*
+System design, behavioral, mock interview, analytics, admin — see blueprint PDF §13.
 
 ---
 
@@ -343,17 +348,21 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 | Monorepo setup | Completed | 100% | npm workspaces |
 | Backend Express scaffold | Completed | 100% | ESM, `/health` |
 | Frontend Next.js scaffold | Completed | 100% | Tailwind, App Router |
-| Neon PostgreSQL + Prisma | Completed | 100% | Migrated; 2 migrations |
-| Authentication (JWT) | Completed | 95% | Backend complete; frontend refresh UX pending |
-| Auth UI (login/signup/home) | Completed | 100% | Zustand persist |
-| Upstash Redis | In Progress | 20% | URL in `.env`; client Phase 3 |
-| DSA module | Not Started | 0% | Phase 2 |
+| Neon PostgreSQL + Prisma | Completed | 100% | 3 migrations |
+| Authentication (JWT) | Completed | 95% | Frontend refresh UX optional |
+| Auth UI | Completed | 100% | login, signup, home |
+| DSA Prisma models | Completed | 100% | Problem, TestCase, Submission |
+| Problems API | Completed | 100% | list + detail |
+| Submissions API + Judge0 | Completed | 100% | Judge0Service integrated |
+| Problem seed (100) | Completed | 100% | Python + Java + C++ solutions in DB |
+| Judge0 local Docker | Completed | 100% | `docker-compose.judge0.yml` |
+| DSA frontend (Monaco, pages) | Not Started | 0% | Phase 2 remaining |
+| Upstash Redis | Not Started | 0% | Phase 3 |
 | AI evaluation pipeline | Not Started | 0% | Phase 3 |
 | System design module | Not Started | 0% | Phase 4 |
 | Behavioral module | Not Started | 0% | Phase 5 |
 | Full mock interview | Not Started | 0% | Phase 6 |
-| Adaptive learning engine | Not Started | 0% | Phase 7 |
-| Admin dashboard | Not Started | 0% | Phase 7–8 |
+| Admin dashboard + CRUD | Not Started | 0% | Phase 7 (seed until then) |
 | Deployment CI/CD | Not Started | 0% | Phase 8 |
 
 ---
@@ -362,10 +371,10 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 
 | Service | Purpose | Status |
 |---------|---------|--------|
-| **Neon** | PostgreSQL hosting | **Connected** — migrations applied |
-| **Upstash** | Redis (cache, BullMQ, sessions) | Account + `REDIS_URL` in `.env`; not used in code |
-| **OpenAI GPT-4o** | DSA/SD/behavioral eval, study plans | Not integrated |
-| **Judge0** | Sandboxed code execution | Not integrated |
+| **Neon** | App PostgreSQL | **Connected** — 3 migrations; 100 problems seeded |
+| **Judge0 CE** | Code execution | **Local Docker** `:2358`; Railway planned Phase 8 |
+| **Upstash** | Redis (cache, BullMQ, sessions) | URL in `.env`; not used in code |
+| **OpenAI GPT-4o** | AI evaluations | Not integrated |
 | **Cloudinary** | Diagram/image uploads | Not integrated |
 | **Socket.io** | Mock interview real-time | Not integrated |
 
@@ -373,32 +382,27 @@ Browser → Next.js → REST /api/* → Express modules → Prisma (Neon)
 
 ## Environment Variables
 
-### `apps/backend/.env` (gitignored — real values)
+### `apps/backend/.env` (gitignored)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | Yes | API port (default `4000`) |
-| `DATABASE_URL` | Yes | Neon PostgreSQL connection string |
-| `REDIS_URL` | Phase 3+ | Upstash Redis TLS URL (`rediss://`) |
-| `JWT_ACCESS_SECRET` | Yes | Access token signing (min 32 chars) |
-| `JWT_REFRESH_SECRET` | Yes | Refresh token signing (min 32 chars) |
+| `DATABASE_URL` | Yes | Neon PostgreSQL |
+| `JWT_ACCESS_SECRET` | Yes | min 32 chars |
+| `JWT_REFRESH_SECRET` | Yes | min 32 chars |
 | `JWT_ACCESS_EXPIRY` | Yes | e.g. `15m` |
 | `JWT_REFRESH_EXPIRY` | Yes | e.g. `7d` |
-| `FRONTEND_URL` | Yes | CORS origin (e.g. `http://localhost:3000`) |
+| `FRONTEND_URL` | Yes | CORS origin |
+| `JUDGE0_BASE_URL` | Yes | Dev: `http://localhost:2358`; prod: Railway URL |
+| `JUDGE0_API_KEY` | Optional | Empty for local CE; set if auth enabled on Railway |
+| `REDIS_URL` | Phase 3+ | Upstash Redis |
 | `OPENAI_API_KEY` | Phase 3+ | GPT-4o |
-| `JUDGE0_API_KEY` | Phase 2+ | Code execution |
-| `JUDGE0_BASE_URL` | Phase 2+ | Judge0 endpoint |
-| `CLOUDINARY_*` | Phase 4+ | Image uploads |
 
 ### `apps/frontend/.env.local` (gitignored)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Yes | Backend base URL (`http://localhost:4000`) |
-
-### Root `.env.example`
-
-Committed template — no real secrets. Copy to app-specific env files.
+| `NEXT_PUBLIC_API_URL` | Yes | e.g. `http://localhost:4000` |
 
 ---
 
@@ -406,16 +410,21 @@ Committed template — no real secrets. Copy to app-specific env files.
 
 | Date | Context | Decision | Reason | Alternatives |
 |------|---------|----------|--------|--------------|
-| 2026-06-01 | Stack rebuild | Next.js + TS + Tailwind instead of React + JS | User learning goals, modern SSR/routing | CRA, Vite |
-| 2026-06-01 | Workspace names | `frontend` / `backend` folders | User preference | `web` / `api` |
-| 2026-06-01 | Backend modules | ESM (`type: module`, `NodeNext`) | User preference over CommonJS | CommonJS |
-| 2026-06-01 | Next config | `next.config.mjs` not `.ts` | Next 14.2 error on `.ts` | Upgrade Next 15+ later |
-| 2026-06-01 | Infrastructure | Neon + Upstash only, **no Docker** | User preference, matches production | docker-compose local |
-| 2026-06-01 | State management | Zustand vs Redux | Simpler with Next.js App Router | Redux Toolkit |
-| 2026-06-01 | Dev process | One file at a time, user types code | Learning-focused mentoring | Agent writes all |
-| 2026-06-01 | API health route | `/health` not `/api/health` | Phase 0 simplicity | Move under `/api` later |
-| 2026-06-04 | Auth UX naming | **`signup`** not `register` | User preference | `/register` route |
-| 2026-06-04 | User profile | **`name` required** on signup | User preference | Optional name |
+| 2026-06-01 | Stack rebuild | Next.js + TS + Tailwind | User learning goals | CRA, Vite |
+| 2026-06-01 | Workspace names | `frontend` / `backend` | User preference | `web` / `api` |
+| 2026-06-01 | Backend modules | ESM + `NodeNext` | User preference | CommonJS |
+| 2026-06-01 | Next config | `next.config.mjs` | Next 14.2 rejects `.ts` | Upgrade Next 15+ |
+| 2026-06-01 | App infra | Neon + Upstash, no Docker for app | User preference | docker-compose |
+| 2026-06-01 | State management | Zustand | Simpler with App Router | Redux |
+| 2026-06-01 | Dev process | One file at a time | Learning-focused | Agent writes all |
+| 2026-06-01 | Health route | `/health` at root | Phase 0 simplicity | `/api/health` |
+| 2026-06-04 | Auth UX | **`signup`** not `register` | User preference | `/register` |
+| 2026-06-04 | User profile | **`name` required** | User preference | Optional name |
+| 2026-06-04 | Judge0 hosting | **Docker locally**, **Railway in prod** | Dev/prod parity without RapidAPI | RapidAPI |
+| 2026-06-04 | Problem content | **100-problem seed**; admin CRUD in Phase 7 | Solo dev scope | Admin CRUD now |
+| 2026-06-04 | DSA I/O | **JSON stdin/stdout** for all problems | Consistent Judge0 + multi-lang | Per-problem text formats |
+| 2026-06-04 | Seed git | **`seeds/problems/*.json` gitignored** | Regenerate via `seed:generate` | Commit 100 JSON files |
+| 2026-06-04 | Solutions | **Python + Java + C++** in `solutionCode` | Admin reference; Python primary for Judge0 | Python only |
 
 ---
 
@@ -423,12 +432,15 @@ Committed template — no real secrets. Copy to app-specific env files.
 
 | Bug | Severity | Status | Fix Plan |
 |-----|----------|--------|----------|
-| `next.config.ts` unsupported on Next 14.2 | Medium | **Fixed** | Use `next.config.mjs` |
-| Port 3000 in use → Next uses 3001 | Low | Open | Set `FRONTEND_URL` to match actual port |
-| `npm run dev` with `&` fails on Windows PowerShell | Low | Open | Use two terminals or add `concurrently` |
-| CORS wide open `cors()` | Low | **Fixed** | `FRONTEND_URL` in `app.ts` |
-| `tsx` missing `@esbuild/win32-x64` on Windows | Medium | **Fixed** | `npm install @esbuild/win32-x64 -w backend` |
-| `EADDRINUSE` port 4000 | Low | Open | Stop duplicate `npm run dev` processes |
+| `next.config.ts` unsupported | Medium | **Fixed** | `next.config.mjs` |
+| CORS wide open | Low | **Fixed** | `FRONTEND_URL` |
+| `tsx` / esbuild win32 | Medium | **Fixed** | `@esbuild/win32-x64` |
+| `prisma generate` EPERM on Windows | Medium | Open | Stop dev server before `prisma generate` |
+| Port 3000/3001 vs `FRONTEND_URL` | Low | Open | Match CORS to actual Next port |
+| `npm run dev` with `&` on PowerShell | Low | Open | Two terminals or `concurrently` |
+| `EADDRINUSE` port 4000 | Low | Open | Kill duplicate backend processes |
+| `.gitignore` excluded project docs | Medium | **Fixed** | Removed doc lines from `.gitignore` |
+| Java/C++ starters use Gson/nlohmann | Low | Open | Judge0 may not include libs; Python primary for MVP |
 
 ---
 
@@ -436,14 +448,13 @@ Committed template — no real secrets. Copy to app-specific env files.
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Wire `authStore.refresh()` + optional 401 retry | Medium | Phase 1 polish |
-| Remove unused `PORT` in `server.ts` | Low | Uses `env.PORT` for listen |
-| Root `lint` script | Low | Cross-workspace lint |
-| Rename root package to `omniprep` | Low | Cosmetic |
-| Upgrade Next.js 15+ for `next.config.ts` | Low | Optional |
-| Add README with run instructions | Medium | Onboarding |
-| Git commit Phase 0 + Phase 1 | Medium | Include `prisma/migrations/` |
-| API client env guard (`NEXT_PUBLIC_API_URL`) | Low | Fail fast if missing |
+| Phase 2 frontend (Monaco, `/problems`) | **High** | Blocks E2E DSA deliverable |
+| Wire `authStore.refresh()` on 401 | Medium | Phase 1 polish |
+| Git commit Phases 0–2 backend | Medium | Include migrations + seed tooling |
+| Remove doc files from `.gitignore` | Medium | Docs must be tracked |
+| README with run instructions | Medium | Judge0 Docker + seed steps |
+| `problem-definitions.ts` size (~14k lines) | Low | Acceptable; JSON generated separately |
+| Upgrade Next.js 15+ | Low | Optional |
 
 ---
 
@@ -451,10 +462,10 @@ Committed template — no real secrets. Copy to app-specific env files.
 
 | Type | Status | Notes |
 |------|--------|-------|
-| Unit tests | Not Started | Jest for services (planned) |
-| API integration | Not Started | Supertest (planned) |
-| E2E | Not Started | Playwright (planned) |
-| Manual | In progress | Signup/login/logout UI; `npm run build` passes both workspaces |
+| Unit tests | Not Started | Planned Jest |
+| API integration | Not Started | Planned Supertest |
+| E2E | Not Started | Planned Playwright |
+| Manual | In progress | Auth UI; seed 100 problems; API via curl/Postman |
 
 ---
 
@@ -462,7 +473,7 @@ Committed template — no real secrets. Copy to app-specific env files.
 
 | Environment | Status |
 |-------------|--------|
-| Development | Local monorepo — backend `:4000`, frontend `:3000` or `:3001` |
+| Development | Local monorepo + Neon + Judge0 Docker |
 | Staging | Not configured |
 | Production | Not configured |
 
@@ -472,37 +483,30 @@ Committed template — no real secrets. Copy to app-specific env files.
 
 ### Naming
 
-- Workspaces: `"frontend"`, `"backend"` (must match folder `package.json` `name`)
-- Backend files: `feature.routes.ts`, `feature.controller.ts`, `feature.service.ts`
-- Frontend routes: `src/app/<route>/page.tsx`
+- Workspaces: `"frontend"`, `"backend"`
+- Backend: `feature.routes.ts`, `feature.controller.ts`, `feature.service.ts`
 - Auth route: **`/api/auth/signup`** (not `register`)
 
 ### Folders
 
-- Backend: **feature modules** under `src/modules/`, shared logic in `src/services/`
-- Frontend: App Router under `src/app/`, UI in `src/components/`
+- Backend modules under `src/modules/`; shared logic in `src/services/`
+- Frontend App Router under `src/app/`; UI in `src/components/`
 
 ### Code style
 
-- TypeScript **strict** mode both apps
-- Backend: **ESM** only — local imports use `.js` extension in import paths
-- Frontend: Server Components default; client only when needed
+- TypeScript strict; backend ESM with `.js` import paths
 - Thin controllers; fat services
+- Never expose `solutionCode` or hidden test I/O to candidates
 
-### Design patterns
+### Seed workflow
 
-- Prisma singleton in `config/db.ts`
-- Redis only via `CacheService` (when built)
-- BullMQ queues centralized in `jobs/queues.ts`
-- Never block HTTP for long AI jobs — use workers
+```bash
+cd apps/backend
+npm run seed:generate   # problem-definitions → seeds/problems/*.json
+npm run seed            # JSON → Neon upsert
+```
 
-### Architectural constraints
-
-- Do not penalize non-native English, missing diagrams, or accent in AI prompts (blueprint)
-- `NEXT_PUBLIC_*` only for non-secret client config
-- Never commit `.env` or `.env.local`
-- Follow one-file-at-a-time mentoring unless user asks agent to edit
-- Run Prisma CLI from `apps/backend` (not repo root)
+Run Prisma CLI from `apps/backend`, not repo root.
 
 ---
 

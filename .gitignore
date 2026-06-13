@@ -43,7 +43,3 @@ coverage/
 
 # Generated problem JSON (regenerate: npm run seed:generate -w backend)
 apps/backend/prisma/seeds/problems/
-
-PROJECT_CONTEXT.md
-ROADMAP.md
-SESSION_HANDOFF.md
