@@ -3,6 +3,7 @@ import cors from 'cors';
 import { env } from './config/env.js';
 import authRouter from './modules/auth/auth.routes.js';
 import problemsRouter from './modules/problems/problems.routes.js';
+import submissionsRouter from './modules/submissions/submissions.routes.js';
 import { authMiddleware, type AuthenticatedRequest } from './middleware/auth.middleware.js';
 
 const app = express();
@@ -23,6 +24,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/problems', authMiddleware, problemsRouter);
+app.use('/api/submissions', authMiddleware, submissionsRouter);
 
 //tells the current user logged in
 app.get('/api/me', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
