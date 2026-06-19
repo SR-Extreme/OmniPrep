@@ -35,15 +35,16 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function CodeBlock({ value }: { value: string }) {
     return (
-        <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-200">
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-200">
             <code>{value}</code>
         </pre>
     );
 }
 
-function ExampleCard({ example }: { example: Example }) {
+function ExampleCard({ example, index }: { example: Example; index: number }) {
     return (
         <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <p className="mb-3 text-sm font-medium text-white">Example {index + 1}</p>
             <div className='space-y-3'>
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Input</p>
@@ -164,6 +165,7 @@ export default function ProblemSolverPage() {
 
         setIsRunning(true);
         setRunError(null);
+        setLastSubmission(null);
 
         try {
             const res = await createSubmission(accessToken, {
@@ -313,7 +315,7 @@ export default function ProblemSolverPage() {
                                                 <SectionTitle>Examples</SectionTitle>
                                                 <div className="mt-3 space-y-3">
                                                     {problem.examples.map((ex, idx) => (
-                                                        <ExampleCard key={idx} example={ex} />
+                                                        <ExampleCard key={idx} example={ex} index={idx} />
                                                     ))}
                                                 </div>
                                             </div>

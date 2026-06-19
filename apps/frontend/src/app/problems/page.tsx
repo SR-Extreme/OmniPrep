@@ -27,10 +27,10 @@ function difficultyBadgeClass(difficulty: Difficulty): string {
 
 function formatAcceptance(rate: number | null): string {
     if (rate == null) {
-        return '-';
+        return 'N/A';
     }
 
-    return `${(rate * 100).toFixed(2)}%`;
+    return `${rate.toFixed(2)}%`;
 }
 
 export default function ProblemsPage() {
@@ -313,7 +313,7 @@ export default function ProblemsPage() {
                                         </div>
                                         <div className="flex shrink-0 flex-wrap items-center gap-4 text-sm">
                                             <span className="text-slate-400">
-                                                Acceptance{' '}
+                                                Acceptance:{' '}
                                                 <span className="font-medium text-slate-200">
                                                     {formatAcceptance(problem.acceptanceRate)}
                                                 </span>

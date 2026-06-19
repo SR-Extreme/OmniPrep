@@ -18,23 +18,28 @@ name: omniprep-judge0
 
 services:
   server:
-    image: judge0/judge0:latest
+    # mrkushalsm/judge0 supports cgroup v2 (required for Docker Desktop on Windows/WSL2)
+    image: mrkushalsm/judge0:latest
     volumes:
       - ./infra/judge0/judge0.conf:/judge0.conf:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
     ports:
       - "2358:2358"
     privileged: true
+    cgroup: host
     restart: unless-stopped
     depends_on:
       - db
       - redis
 
   worker:
-    image: judge0/judge0:latest
+    image: mrkushalsm/judge0:latest
     command: ["./scripts/workers"]
     volumes:
       - ./infra/judge0/judge0.conf:/judge0.conf:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
     privileged: true
+    cgroup: host
     restart: unless-stopped
     depends_on:
       - db

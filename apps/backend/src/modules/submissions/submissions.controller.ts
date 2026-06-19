@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import type { AuthenticatedRequest } from "../../middleware/auth.middleware.js";
+import { Judge0Error } from "../../services/Judge0Service.js";
 import {
     createSubmission,
     getSubmissionById,
@@ -24,6 +25,17 @@ function handleSubmissionError(err: unknown, res: Response) {
             PROBLEM_UNAVAILABLE: 404,
         };
 
+        res.status(statusByCode[err.code]).json({ error: err.message });
+        return;
+    }
+
+    if (err instanceof Judge0Error) {
+        const statusByCode: Record<Judge0Error["code"], number> = {
+            SUBMIT_FAILED: 502,
+            POLL_FAILED: 502,
+            TIMEOUT: 504,
+            INVALID_RESPONSE: 502,
+        };
         res.status(statusByCode[err.code]).json({ error: err.message });
         return;
     }

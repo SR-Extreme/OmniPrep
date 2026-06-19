@@ -1,733 +1,104 @@
-import { javaSolution, cppSolution, type MultiLangSolutionMap } from "../solution-wrappers.js";
+import type { MultiLangSolutionMap } from "../solution-wrappers.js";
 
 export const BATCH_01: MultiLangSolutionMap = {
-  "two-sum": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      Map<Integer, Integer> seen = new HashMap<>();
-      for (int i = 0; i < numsArr.size(); i++) {
-          int x = numsArr.get(i).getAsInt();
-          int need = target - x;
-          if (seen.containsKey(need)) {
-              return Arrays.asList(seen.get(need), i);
-          }
-          seen.put(x, i);
-      }
-      return new ArrayList<Integer>();
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      std::unordered_map<int, int> seen;
-      for (int i = 0; i < static_cast<int>(nums.size()); i++) {
-          int x = nums[i];
-          int need = target - x;
-          if (seen.count(need)) {
-              return json::array({seen[need], i});
-          }
-          seen[x] = i;
-      }
-      return json::array();
-    `),
-  },
-  "valid-parentheses": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      Map<Character, Character> pairs = new HashMap<>();
-      pairs.put(')', '(');
-      pairs.put(']', '[');
-      pairs.put('}', '{');
-      Deque<Character> st = new ArrayDeque<>();
-      for (int i = 0; i < s.length(); i++) {
-          char ch = s.charAt(i);
-          if (ch == '(' || ch == '[' || ch == '{') {
-              st.push(ch);
-          } else {
-              if (st.isEmpty() || st.peek() != pairs.getOrDefault(ch, '#')) {
-                  return false;
-              }
-              st.pop();
-          }
-      }
-      return st.isEmpty();
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::unordered_map<char, char> pairs{{')', '('}, {']', '['}, {'}', '{'}};
-      std::vector<char> st;
-      for (char ch : s) {
-          if (ch == '(' || ch == '[' || ch == '{') {
-              st.push_back(ch);
-          } else {
-              if (st.empty() || st.back() != pairs[ch]) {
-                  return false;
-              }
-              st.pop_back();
-          }
-      }
-      return st.empty();
-    `),
-  },
-  "best-time-to-buy-and-sell-stock": {
-    java: javaSolution(`
-      JsonArray pricesArr = data.has("prices") && data.get("prices").isJsonArray() ? data.getAsJsonArray("prices") : new JsonArray();
-      if (pricesArr.size() == 0) {
-          return 0;
-      }
-      int minPrice = pricesArr.get(0).getAsInt();
-      int ans = 0;
-      for (int i = 1; i < pricesArr.size(); i++) {
-          int p = pricesArr.get(i).getAsInt();
-          ans = Math.max(ans, p - minPrice);
-          minPrice = Math.min(minPrice, p);
-      }
-      return ans;
-    `),
-    cpp: cppSolution(`
-      std::vector<int> prices = data.contains("prices") && data["prices"].is_array()
-          ? data["prices"].get<std::vector<int>>()
-          : std::vector<int>{};
-      if (prices.empty()) {
-          return 0;
-      }
-      int minPrice = prices[0];
-      int ans = 0;
-      for (int i = 1; i < static_cast<int>(prices.size()); i++) {
-          int p = prices[i];
-          ans = std::max(ans, p - minPrice);
-          minPrice = std::min(minPrice, p);
-      }
-      return ans;
-    `),
-  },
-  "valid-palindrome": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      int i = 0;
-      int j = s.length() - 1;
-      while (i < j) {
-          while (i < j && !Character.isLetterOrDigit(s.charAt(i))) i++;
-          while (i < j && !Character.isLetterOrDigit(s.charAt(j))) j--;
-          if (Character.toLowerCase(s.charAt(i)) != Character.toLowerCase(s.charAt(j))) {
-              return false;
-          }
-          i++;
-          j--;
-      }
-      return true;
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      auto isAlnum = [](char c) {
-          return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-      };
-      auto toLower = [](char c) {
-          return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
-      };
-      int i = 0;
-      int j = static_cast<int>(s.size()) - 1;
-      while (i < j) {
-          while (i < j && !isAlnum(s[i])) i++;
-          while (i < j && !isAlnum(s[j])) j--;
-          if (toLower(s[i]) != toLower(s[j])) {
-              return false;
-          }
-          i++;
-          j--;
-      }
-      return true;
-    `),
-  },
-  "valid-anagram": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      String t = data.has("t") ? data.get("t").getAsString() : "";
-      Map<Character, Integer> cs = new HashMap<>();
-      Map<Character, Integer> ct = new HashMap<>();
-      for (int i = 0; i < s.length(); i++) cs.put(s.charAt(i), cs.getOrDefault(s.charAt(i), 0) + 1);
-      for (int i = 0; i < t.length(); i++) ct.put(t.charAt(i), ct.getOrDefault(t.charAt(i), 0) + 1);
-      return cs.equals(ct);
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::string t = data.contains("t") ? data["t"].get<std::string>() : "";
-      std::unordered_map<char, int> cs, ct;
-      for (char ch : s) cs[ch]++;
-      for (char ch : t) ct[ch]++;
-      return cs == ct;
-    `),
-  },
-  "climbing-stairs": {
-    java: javaSolution(`
-      int n = data.has("n") ? data.get("n").getAsInt() : 0;
-      if (n <= 2) {
-          return n;
-      }
-      int a = 1;
-      int b = 2;
-      for (int i = 3; i <= n; i++) {
-          int c = a + b;
-          a = b;
-          b = c;
-      }
-      return b;
-    `),
-    cpp: cppSolution(`
-      int n = data.contains("n") ? data["n"].get<int>() : 0;
-      if (n <= 2) {
-          return n;
-      }
-      int a = 1, b = 2;
-      for (int i = 3; i <= n; i++) {
-          int c = a + b;
-          a = b;
-          b = c;
-      }
-      return b;
-    `),
-  },
-  "binary-search": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      int lo = 0, hi = numsArr.size() - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          int val = numsArr.get(mid).getAsInt();
-          if (val == target) return mid;
-          if (val < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      int lo = 0, hi = static_cast<int>(nums.size()) - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          if (nums[mid] == target) return mid;
-          if (nums[mid] < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-  },
-  "contains-duplicate": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      String t = data.has("t") ? data.get("t").getAsString() : "";
-      Map<Character, Integer> cs = new HashMap<>();
-      Map<Character, Integer> ct = new HashMap<>();
-      for (int i = 0; i < s.length(); i++) cs.put(s.charAt(i), cs.getOrDefault(s.charAt(i), 0) + 1);
-      for (int i = 0; i < t.length(); i++) ct.put(t.charAt(i), ct.getOrDefault(t.charAt(i), 0) + 1);
-      return cs.equals(ct);
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::string t = data.contains("t") ? data["t"].get<std::string>() : "";
-      std::unordered_map<char, int> cs, ct;
-      for (char ch : s) cs[ch]++;
-      for (char ch : t) ct[ch]++;
-      return cs == ct;
-    `),
-  },
-  "isomorphic-strings": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      String t = data.has("t") ? data.get("t").getAsString() : "";
-      Map<Character, Integer> cs = new HashMap<>();
-      Map<Character, Integer> ct = new HashMap<>();
-      for (int i = 0; i < s.length(); i++) cs.put(s.charAt(i), cs.getOrDefault(s.charAt(i), 0) + 1);
-      for (int i = 0; i < t.length(); i++) ct.put(t.charAt(i), ct.getOrDefault(t.charAt(i), 0) + 1);
-      return cs.equals(ct);
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::string t = data.contains("t") ? data["t"].get<std::string>() : "";
-      std::unordered_map<char, int> cs, ct;
-      for (char ch : s) cs[ch]++;
-      for (char ch : t) ct[ch]++;
-      return cs == ct;
-    `),
-  },
-  "ransom-note": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      String t = data.has("t") ? data.get("t").getAsString() : "";
-      Map<Character, Integer> cs = new HashMap<>();
-      Map<Character, Integer> ct = new HashMap<>();
-      for (int i = 0; i < s.length(); i++) cs.put(s.charAt(i), cs.getOrDefault(s.charAt(i), 0) + 1);
-      for (int i = 0; i < t.length(); i++) ct.put(t.charAt(i), ct.getOrDefault(t.charAt(i), 0) + 1);
-      return cs.equals(ct);
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::string t = data.contains("t") ? data["t"].get<std::string>() : "";
-      std::unordered_map<char, int> cs, ct;
-      for (char ch : s) cs[ch]++;
-      for (char ch : t) ct[ch]++;
-      return cs == ct;
-    `),
-  },
-  "first-bad-version": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      int lo = 0, hi = numsArr.size() - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          int val = numsArr.get(mid).getAsInt();
-          if (val == target) return mid;
-          if (val < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      int lo = 0, hi = static_cast<int>(nums.size()) - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          if (nums[mid] == target) return mid;
-          if (nums[mid] < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-  },
-  "sqrtx": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      int lo = 0, hi = numsArr.size() - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          int val = numsArr.get(mid).getAsInt();
-          if (val == target) return mid;
-          if (val < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      int lo = 0, hi = static_cast<int>(nums.size()) - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          if (nums[mid] == target) return mid;
-          if (nums[mid] < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-  },
-  "find-peak-element": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      int lo = 0, hi = numsArr.size() - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          int val = numsArr.get(mid).getAsInt();
-          if (val == target) return mid;
-          if (val < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      int lo = 0, hi = static_cast<int>(nums.size()) - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          if (nums[mid] == target) return mid;
-          if (nums[mid] < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-  },
-  "search-insert-position": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      int lo = 0, hi = numsArr.size() - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          int val = numsArr.get(mid).getAsInt();
-          if (val == target) return mid;
-          if (val < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      int lo = 0, hi = static_cast<int>(nums.size()) - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          if (nums[mid] == target) return mid;
-          if (nums[mid] < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-  },
-  "longest-common-prefix": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      Map<Character, Integer> last = new HashMap<>();
-      int left = 0;
-      int best = 0;
-      for (int right = 0; right < s.length(); right++) {
-          char ch = s.charAt(right);
-          if (last.containsKey(ch) && last.get(ch) >= left) {
-              left = last.get(ch) + 1;
-          }
-          last.put(ch, right);
-          best = Math.max(best, right - left + 1);
-      }
-      return best;
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::unordered_map<char, int> last;
-      int left = 0;
-      int best = 0;
-      for (int right = 0; right < static_cast<int>(s.size()); right++) {
-          char ch = s[right];
-          if (last.count(ch) && last[ch] >= left) {
-              left = last[ch] + 1;
-          }
-          last[ch] = right;
-          best = std::max(best, right - left + 1);
-      }
-      return best;
-    `),
-  },
-  "implement-strstr": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      Map<Character, Integer> last = new HashMap<>();
-      int left = 0;
-      int best = 0;
-      for (int right = 0; right < s.length(); right++) {
-          char ch = s.charAt(right);
-          if (last.containsKey(ch) && last.get(ch) >= left) {
-              left = last.get(ch) + 1;
-          }
-          last.put(ch, right);
-          best = Math.max(best, right - left + 1);
-      }
-      return best;
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::unordered_map<char, int> last;
-      int left = 0;
-      int best = 0;
-      for (int right = 0; right < static_cast<int>(s.size()); right++) {
-          char ch = s[right];
-          if (last.count(ch) && last[ch] >= left) {
-              left = last[ch] + 1;
-          }
-          last[ch] = right;
-          best = std::max(best, right - left + 1);
-      }
-      return best;
-    `),
-  },
-  "reverse-words-in-a-string-iii": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      int i = 0;
-      int j = s.length() - 1;
-      while (i < j) {
-          while (i < j && !Character.isLetterOrDigit(s.charAt(i))) i++;
-          while (i < j && !Character.isLetterOrDigit(s.charAt(j))) j--;
-          if (Character.toLowerCase(s.charAt(i)) != Character.toLowerCase(s.charAt(j))) {
-              return false;
-          }
-          i++;
-          j--;
-      }
-      return true;
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      auto isAlnum = [](char c) {
-          return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-      };
-      auto toLower = [](char c) {
-          return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
-      };
-      int i = 0;
-      int j = static_cast<int>(s.size()) - 1;
-      while (i < j) {
-          while (i < j && !isAlnum(s[i])) i++;
-          while (i < j && !isAlnum(s[j])) j--;
-          if (toLower(s[i]) != toLower(s[j])) {
-              return false;
-          }
-          i++;
-          j--;
-      }
-      return true;
-    `),
-  },
-  "majority-element": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      Map<Integer, Integer> seen = new HashMap<>();
-      for (int i = 0; i < numsArr.size(); i++) {
-          int x = numsArr.get(i).getAsInt();
-          int need = target - x;
-          if (seen.containsKey(need)) {
-              return Arrays.asList(seen.get(need), i);
-          }
-          seen.put(x, i);
-      }
-      return new ArrayList<Integer>();
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      std::unordered_map<int, int> seen;
-      for (int i = 0; i < static_cast<int>(nums.size()); i++) {
-          int x = nums[i];
-          int need = target - x;
-          if (seen.count(need)) {
-              return json::array({seen[need], i});
-          }
-          seen[x] = i;
-      }
-      return json::array();
-    `),
-  },
-  "move-zeroes": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      Map<Integer, Integer> seen = new HashMap<>();
-      for (int i = 0; i < numsArr.size(); i++) {
-          int x = numsArr.get(i).getAsInt();
-          int need = target - x;
-          if (seen.containsKey(need)) {
-              return Arrays.asList(seen.get(need), i);
-          }
-          seen.put(x, i);
-      }
-      return new ArrayList<Integer>();
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      std::unordered_map<int, int> seen;
-      for (int i = 0; i < static_cast<int>(nums.size()); i++) {
-          int x = nums[i];
-          int need = target - x;
-          if (seen.count(need)) {
-              return json::array({seen[need], i});
-          }
-          seen[x] = i;
-      }
-      return json::array();
-    `),
-  },
-  "remove-duplicates-from-sorted-array": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      int lo = 0, hi = numsArr.size() - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          int val = numsArr.get(mid).getAsInt();
-          if (val == target) return mid;
-          if (val < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      int lo = 0, hi = static_cast<int>(nums.size()) - 1;
-      while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          if (nums[mid] == target) return mid;
-          if (nums[mid] < target) lo = mid + 1;
-          else hi = mid - 1;
-      }
-      return -1;
-    `),
-  },
-  "merge-sorted-array": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      Map<Integer, Integer> seen = new HashMap<>();
-      for (int i = 0; i < numsArr.size(); i++) {
-          int x = numsArr.get(i).getAsInt();
-          int need = target - x;
-          if (seen.containsKey(need)) {
-              return Arrays.asList(seen.get(need), i);
-          }
-          seen.put(x, i);
-      }
-      return new ArrayList<Integer>();
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      std::unordered_map<int, int> seen;
-      for (int i = 0; i < static_cast<int>(nums.size()); i++) {
-          int x = nums[i];
-          int need = target - x;
-          if (seen.count(need)) {
-              return json::array({seen[need], i});
-          }
-          seen[x] = i;
-      }
-      return json::array();
-    `),
-  },
-  "roman-to-integer": {
-    java: javaSolution(`
-      String s = data.has("s") ? data.get("s").getAsString() : "";
-      String t = data.has("t") ? data.get("t").getAsString() : "";
-      Map<Character, Integer> cs = new HashMap<>();
-      Map<Character, Integer> ct = new HashMap<>();
-      for (int i = 0; i < s.length(); i++) cs.put(s.charAt(i), cs.getOrDefault(s.charAt(i), 0) + 1);
-      for (int i = 0; i < t.length(); i++) ct.put(t.charAt(i), ct.getOrDefault(t.charAt(i), 0) + 1);
-      return cs.equals(ct);
-    `),
-    cpp: cppSolution(`
-      std::string s = data.contains("s") ? data["s"].get<std::string>() : "";
-      std::string t = data.contains("t") ? data["t"].get<std::string>() : "";
-      std::unordered_map<char, int> cs, ct;
-      for (char ch : s) cs[ch]++;
-      for (char ch : t) ct[ch]++;
-      return cs == ct;
-    `),
-  },
-  "single-number": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      Map<Integer, Integer> seen = new HashMap<>();
-      for (int i = 0; i < numsArr.size(); i++) {
-          int x = numsArr.get(i).getAsInt();
-          int need = target - x;
-          if (seen.containsKey(need)) {
-              return Arrays.asList(seen.get(need), i);
-          }
-          seen.put(x, i);
-      }
-      return new ArrayList<Integer>();
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      std::unordered_map<int, int> seen;
-      for (int i = 0; i < static_cast<int>(nums.size()); i++) {
-          int x = nums[i];
-          int need = target - x;
-          if (seen.count(need)) {
-              return json::array({seen[need], i});
-          }
-          seen[x] = i;
-      }
-      return json::array();
-    `),
-  },
-  "missing-number": {
-    java: javaSolution(`
-      JsonArray numsArr = data.has("nums") && data.get("nums").isJsonArray() ? data.getAsJsonArray("nums") : new JsonArray();
-      int target = data.has("target") ? data.get("target").getAsInt() : 0;
-      Map<Integer, Integer> seen = new HashMap<>();
-      for (int i = 0; i < numsArr.size(); i++) {
-          int x = numsArr.get(i).getAsInt();
-          int need = target - x;
-          if (seen.containsKey(need)) {
-              return Arrays.asList(seen.get(need), i);
-          }
-          seen.put(x, i);
-      }
-      return new ArrayList<Integer>();
-    `),
-    cpp: cppSolution(`
-      std::vector<int> nums = data.contains("nums") && data["nums"].is_array()
-          ? data["nums"].get<std::vector<int>>()
-          : std::vector<int>{};
-      int target = data.contains("target") ? data["target"].get<int>() : 0;
-      std::unordered_map<int, int> seen;
-      for (int i = 0; i < static_cast<int>(nums.size()); i++) {
-          int x = nums[i];
-          int need = target - x;
-          if (seen.count(need)) {
-              return json::array({seen[need], i});
-          }
-          seen[x] = i;
-      }
-      return json::array();
-    `),
-  },
-  "fibonacci-number": {
-    java: javaSolution(`
-      int n = data.has("n") ? data.get("n").getAsInt() : 0;
-      if (n <= 2) {
-          return n;
-      }
-      int a = 1;
-      int b = 2;
-      for (int i = 3; i <= n; i++) {
-          int c = a + b;
-          a = b;
-          b = c;
-      }
-      return b;
-    `),
-    cpp: cppSolution(`
-      int n = data.contains("n") ? data["n"].get<int>() : 0;
-      if (n <= 2) {
-          return n;
-      }
-      int a = 1, b = 2;
-      for (int i = 3; i <= n; i++) {
-          int c = a + b;
-          a = b;
-          b = c;
-      }
-      return b;
-    `),
-  },
+    "two-sum": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              int target = data.has(\"target\") ? data.get(\"target\").getAsInt() : 0;\n              Map<Integer, Integer> seen = new HashMap<>();\n              for (int i = 0; i < numsArr.size(); i++) {\n                  int x = numsArr.get(i).getAsInt();\n                  int need = target - x;\n                  if (seen.containsKey(need)) {\n                      return Arrays.asList(seen.get(need), i);\n                  }\n                  seen.put(x, i);\n              }\n              return new ArrayList<Integer>();\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int target = data.contains(\"target\") ? data[\"target\"].get<int>() : 0;\n          std::unordered_map<int, int> seen;\n          for (int i = 0; i < static_cast<int>(nums.size()); i++) {\n              int x = nums[i];\n              int need = target - x;\n              if (seen.count(need)) {\n                  return json::array({seen[need], i});\n              }\n              seen[x] = i;\n          }\n          return json::array();\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "valid-parentheses": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        String s = data.has(\"s\") ? data.get(\"s\").getAsString() : \"\";\n              Map<Character, Character> pairs = new HashMap<>();\n              pairs.put(')', '(');\n              pairs.put(']', '[');\n              pairs.put('}', '{');\n              Deque<Character> st = new ArrayDeque<>();\n              for (int i = 0; i < s.length(); i++) {\n                  char ch = s.charAt(i);\n                  if (ch == '(' || ch == '[' || ch == '{') {\n                      st.push(ch);\n                  } else {\n                      if (st.isEmpty() || st.peek() != pairs.getOrDefault(ch, '#')) {\n                          return false;\n                      }\n                      st.pop();\n                  }\n              }\n              return st.isEmpty();\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string s = data.contains(\"s\") ? data[\"s\"].get<std::string>() : \"\";\n          std::unordered_map<char, char> pairs{{')', '('}, {']', '['}, {'}', '{'}};\n          std::vector<char> st;\n          for (char ch : s) {\n              if (ch == '(' || ch == '[' || ch == '{') {\n                  st.push_back(ch);\n              } else {\n                  if (st.empty() || st.back() != pairs[ch]) {\n                      return false;\n                  }\n                  st.pop_back();\n              }\n          }\n          return st.empty();\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "best-time-to-buy-and-sell-stock": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray pricesArr = data.has(\"prices\") && data.get(\"prices\").isJsonArray() ? data.getAsJsonArray(\"prices\") : new JsonArray();\n              if (pricesArr.size() == 0) {\n                  return 0;\n              }\n              int minPrice = pricesArr.get(0).getAsInt();\n              int ans = 0;\n              for (int i = 1; i < pricesArr.size(); i++) {\n                  int p = pricesArr.get(i).getAsInt();\n                  ans = Math.max(ans, p - minPrice);\n                  minPrice = Math.min(minPrice, p);\n              }\n              return ans;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> prices = data.contains(\"prices\") && data[\"prices\"].is_array()\n              ? data[\"prices\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          if (prices.empty()) {\n              return 0;\n          }\n          int minPrice = prices[0];\n          int ans = 0;\n          for (int i = 1; i < static_cast<int>(prices.size()); i++) {\n              int p = prices[i];\n              ans = std::max(ans, p - minPrice);\n              minPrice = std::min(minPrice, p);\n          }\n          return ans;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "valid-palindrome": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        String s = data.has(\"s\") ? data.get(\"s\").getAsString() : \"\";\n              int i = 0;\n              int j = s.length() - 1;\n              while (i < j) {\n                  while (i < j && !Character.isLetterOrDigit(s.charAt(i))) i++;\n                  while (i < j && !Character.isLetterOrDigit(s.charAt(j))) j--;\n                  if (Character.toLowerCase(s.charAt(i)) != Character.toLowerCase(s.charAt(j))) {\n                      return false;\n                  }\n                  i++;\n                  j--;\n              }\n              return true;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string s = data.contains(\"s\") ? data[\"s\"].get<std::string>() : \"\";\n          auto isAlnum = [](char c) {\n              return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');\n          };\n          auto toLower = [](char c) {\n              return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;\n          };\n          int i = 0;\n          int j = static_cast<int>(s.size()) - 1;\n          while (i < j) {\n              while (i < j && !isAlnum(s[i])) i++;\n              while (i < j && !isAlnum(s[j])) j--;\n              if (toLower(s[i]) != toLower(s[j])) {\n                  return false;\n              }\n              i++;\n              j--;\n          }\n          return true;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "valid-anagram": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        String s = data.has(\"s\") ? data.get(\"s\").getAsString() : \"\";\n              String t = data.has(\"t\") ? data.get(\"t\").getAsString() : \"\";\n              Map<Character, Integer> cs = new HashMap<>();\n              Map<Character, Integer> ct = new HashMap<>();\n              for (int i = 0; i < s.length(); i++) cs.put(s.charAt(i), cs.getOrDefault(s.charAt(i), 0) + 1);\n              for (int i = 0; i < t.length(); i++) ct.put(t.charAt(i), ct.getOrDefault(t.charAt(i), 0) + 1);\n              return cs.equals(ct);\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string s = data.contains(\"s\") ? data[\"s\"].get<std::string>() : \"\";\n          std::string t = data.contains(\"t\") ? data[\"t\"].get<std::string>() : \"\";\n          std::unordered_map<char, int> cs, ct;\n          for (char ch : s) cs[ch]++;\n          for (char ch : t) ct[ch]++;\n          return cs == ct;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "climbing-stairs": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        int n = data.has(\"n\") ? data.get(\"n\").getAsInt() : 0;\n              if (n <= 2) {\n                  return n;\n              }\n              int a = 1;\n              int b = 2;\n              for (int i = 3; i <= n; i++) {\n                  int c = a + b;\n                  a = b;\n                  b = c;\n              }\n              return b;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    int n = data.contains(\"n\") ? data[\"n\"].get<int>() : 0;\n          if (n <= 2) {\n              return n;\n          }\n          int a = 1, b = 2;\n          for (int i = 3; i <= n; i++) {\n              int c = a + b;\n              a = b;\n              b = c;\n          }\n          return b;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "binary-search": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              int target = data.has(\"target\") ? data.get(\"target\").getAsInt() : 0;\n              int lo = 0, hi = numsArr.size() - 1;\n              while (lo <= hi) {\n                  int mid = (lo + hi) / 2;\n                  int val = numsArr.get(mid).getAsInt();\n                  if (val == target) return mid;\n                  if (val < target) lo = mid + 1;\n                  else hi = mid - 1;\n              }\n              return -1;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int target = data.contains(\"target\") ? data[\"target\"].get<int>() : 0;\n          int lo = 0, hi = static_cast<int>(nums.size()) - 1;\n          while (lo <= hi) {\n              int mid = (lo + hi) / 2;\n              if (nums[mid] == target) return mid;\n              if (nums[mid] < target) lo = mid + 1;\n              else hi = mid - 1;\n          }\n          return -1;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "contains-duplicate": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              Set<Integer> seen = new HashSet<>();\n              for (int i = 0; i < numsArr.size(); i++) {\n                  int x = numsArr.get(i).getAsInt();\n                  if (seen.contains(x)) {\n                      return true;\n                  }\n                  seen.add(x);\n              }\n              return false;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          std::unordered_set<int> seen;\n          for (int x : nums) {\n              if (seen.count(x)) {\n                  return true;\n              }\n              seen.insert(x);\n          }\n          return false;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "isomorphic-strings": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        String s = data.has(\"s\") ? data.get(\"s\").getAsString() : \"\";\n              String t = data.has(\"t\") ? data.get(\"t\").getAsString() : \"\";\n              if (s.length() != t.length()) {\n                  return false;\n              }\n              Map<Character, Character> s2t = new HashMap<>();\n              Map<Character, Character> t2s = new HashMap<>();\n              for (int i = 0; i < s.length(); i++) {\n                  char a = s.charAt(i);\n                  char b = t.charAt(i);\n                  if (s2t.containsKey(a) && s2t.get(a) != b) return false;\n                  if (t2s.containsKey(b) && t2s.get(b) != a) return false;\n                  s2t.put(a, b);\n                  t2s.put(b, a);\n              }\n              return true;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string s = data.contains(\"s\") ? data[\"s\"].get<std::string>() : \"\";\n          std::string t = data.contains(\"t\") ? data[\"t\"].get<std::string>() : \"\";\n          if (s.size() != t.size()) {\n              return false;\n          }\n          std::unordered_map<char, char> s2t, t2s;\n          for (size_t i = 0; i < s.size(); i++) {\n              char a = s[i];\n              char b = t[i];\n              if (s2t.count(a) && s2t[a] != b) return false;\n              if (t2s.count(b) && t2s[b] != a) return false;\n              s2t[a] = b;\n              t2s[b] = a;\n          }\n          return true;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "ransom-note": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        String ransom = data.has(\"ransomNote\") ? data.get(\"ransomNote\").getAsString() : \"\";\n              String magazine = data.has(\"magazine\") ? data.get(\"magazine\").getAsString() : \"\";\n              Map<Character, Integer> counts = new HashMap<>();\n              for (int i = 0; i < magazine.length(); i++) {\n                  char ch = magazine.charAt(i);\n                  counts.put(ch, counts.getOrDefault(ch, 0) + 1);\n              }\n              for (int i = 0; i < ransom.length(); i++) {\n                  char ch = ransom.charAt(i);\n                  int left = counts.getOrDefault(ch, 0);\n                  if (left <= 0) return false;\n                  counts.put(ch, left - 1);\n              }\n              return true;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string ransom = data.contains(\"ransomNote\") ? data[\"ransomNote\"].get<std::string>() : \"\";\n          std::string magazine = data.contains(\"magazine\") ? data[\"magazine\"].get<std::string>() : \"\";\n          std::unordered_map<char, int> counts;\n          for (char ch : magazine) counts[ch]++;\n          for (char ch : ransom) {\n              if (--counts[ch] < 0) return false;\n          }\n          return true;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "first-bad-version": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        int n = data.has(\"n\") ? data.get(\"n\").getAsInt() : 0;\n              int bad = data.has(\"bad\") ? data.get(\"bad\").getAsInt() : n;\n              int lo = 1, hi = n;\n              while (lo < hi) {\n                  int mid = lo + (hi - lo) / 2;\n                  if (mid >= bad) {\n                      hi = mid;\n                  } else {\n                      lo = mid + 1;\n                  }\n              }\n              return lo;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    int n = data.contains(\"n\") ? data[\"n\"].get<int>() : 0;\n          int bad = data.contains(\"bad\") ? data[\"bad\"].get<int>() : n;\n          int lo = 1, hi = n;\n          while (lo < hi) {\n              int mid = lo + (hi - lo) / 2;\n              if (mid >= bad) {\n                  hi = mid;\n              } else {\n                  lo = mid + 1;\n              }\n          }\n          return lo;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "sqrtx": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        int x = data.has(\"x\") ? data.get(\"x\").getAsInt() : 0;\n              if (x < 2) {\n                  return x;\n              }\n              int lo = 1, hi = x / 2;\n              int ans = 1;\n              while (lo <= hi) {\n                  int mid = lo + (hi - lo) / 2;\n                  if ((long) mid * mid <= x) {\n                      ans = mid;\n                      lo = mid + 1;\n                  } else {\n                      hi = mid - 1;\n                  }\n              }\n              return ans;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    int x = data.contains(\"x\") ? data[\"x\"].get<int>() : 0;\n          if (x < 2) {\n              return x;\n          }\n          int lo = 1, hi = x / 2;\n          int ans = 1;\n          while (lo <= hi) {\n              int mid = lo + (hi - lo) / 2;\n              if (1LL * mid * mid <= x) {\n                  ans = mid;\n                  lo = mid + 1;\n              } else {\n                  hi = mid - 1;\n              }\n          }\n          return ans;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "find-peak-element": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              int lo = 0, hi = numsArr.size() - 1;\n              while (lo < hi) {\n                  int mid = lo + (hi - lo) / 2;\n                  int cur = numsArr.get(mid).getAsInt();\n                  int nxt = numsArr.get(mid + 1).getAsInt();\n                  if (cur < nxt) {\n                      lo = mid + 1;\n                  } else {\n                      hi = mid;\n                  }\n              }\n              return lo;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int lo = 0, hi = static_cast<int>(nums.size()) - 1;\n          while (lo < hi) {\n              int mid = lo + (hi - lo) / 2;\n              if (nums[mid] < nums[mid + 1]) {\n                  lo = mid + 1;\n              } else {\n                  hi = mid;\n              }\n          }\n          return lo;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "search-insert-position": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              int target = data.has(\"target\") ? data.get(\"target\").getAsInt() : 0;\n              int lo = 0, hi = numsArr.size() - 1;\n              while (lo <= hi) {\n                  int mid = (lo + hi) / 2;\n                  int val = numsArr.get(mid).getAsInt();\n                  if (val == target) return mid;\n                  if (val < target) lo = mid + 1;\n                  else hi = mid - 1;\n              }\n              return lo;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int target = data.contains(\"target\") ? data[\"target\"].get<int>() : 0;\n          int lo = 0, hi = static_cast<int>(nums.size()) - 1;\n          while (lo <= hi) {\n              int mid = (lo + hi) / 2;\n              if (nums[mid] == target) return mid;\n              if (nums[mid] < target) lo = mid + 1;\n              else hi = mid - 1;\n          }\n          return lo;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "longest-common-prefix": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray strsArr = data.has(\"strs\") && data.get(\"strs\").isJsonArray() ? data.getAsJsonArray(\"strs\") : new JsonArray();\n              if (strsArr.size() == 0) {\n                  return \"\";\n              }\n              String prefix = strsArr.get(0).getAsString();\n              for (int i = 1; i < strsArr.size(); i++) {\n                  String s = strsArr.get(i).getAsString();\n                  while (!s.startsWith(prefix)) {\n                      prefix = prefix.substring(0, prefix.length() - 1);\n                      if (prefix.isEmpty()) {\n                          return \"\";\n                      }\n                  }\n              }\n              return prefix;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<std::string> strs;\n          if (data.contains(\"strs\") && data[\"strs\"].is_array()) {\n              for (const auto& item : data[\"strs\"]) {\n                  strs.push_back(item.get<std::string>());\n              }\n          }\n          if (strs.empty()) {\n              return \"\";\n          }\n          std::string prefix = strs[0];\n          for (size_t i = 1; i < strs.size(); i++) {\n              while (strs[i].find(prefix) != 0) {\n                  prefix.pop_back();\n                  if (prefix.empty()) {\n                      return \"\";\n                  }\n              }\n          }\n          return prefix;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "implement-strstr": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        String haystack = data.has(\"haystack\") ? data.get(\"haystack\").getAsString() : \"\";\n              String needle = data.has(\"needle\") ? data.get(\"needle\").getAsString() : \"\";\n              if (needle.isEmpty()) {\n                  return 0;\n              }\n              int n = haystack.length();\n              int m = needle.length();\n              for (int i = 0; i <= n - m; i++) {\n                  if (haystack.startsWith(needle, i)) {\n                      return i;\n                  }\n              }\n              return -1;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string haystack = data.contains(\"haystack\") ? data[\"haystack\"].get<std::string>() : \"\";\n          std::string needle = data.contains(\"needle\") ? data[\"needle\"].get<std::string>() : \"\";\n          if (needle.empty()) {\n              return 0;\n          }\n          int n = static_cast<int>(haystack.size());\n          int m = static_cast<int>(needle.size());\n          for (int i = 0; i <= n - m; i++) {\n              if (haystack.compare(i, m, needle) == 0) {\n                  return i;\n              }\n          }\n          return -1;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "reverse-words-in-a-string-iii": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        char[] s = (data.has(\"s\") ? data.get(\"s\").getAsString() : \"\").toCharArray();\n              int i = 0;\n              while (i < s.length) {\n                  int j = i;\n                  while (j < s.length && s[j] != ' ') {\n                      j++;\n                  }\n                  int lo = i, hi = j - 1;\n                  while (lo < hi) {\n                      char tmp = s[lo];\n                      s[lo] = s[hi];\n                      s[hi] = tmp;\n                      lo++;\n                      hi--;\n                  }\n                  i = j + 1;\n              }\n              return new String(s);\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string s = data.contains(\"s\") ? data[\"s\"].get<std::string>() : \"\";\n          int i = 0;\n          while (i < static_cast<int>(s.size())) {\n              int j = i;\n              while (j < static_cast<int>(s.size()) && s[j] != ' ') {\n                  j++;\n              }\n              std::reverse(s.begin() + i, s.begin() + j);\n              i = j + 1;\n          }\n          return s;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "majority-element": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              Integer cand = null;\n              int count = 0;\n              for (int i = 0; i < numsArr.size(); i++) {\n                  int x = numsArr.get(i).getAsInt();\n                  if (count == 0) {\n                      cand = x;\n                      count = 1;\n                  } else if (x == cand) {\n                      count++;\n                  } else {\n                      count--;\n                  }\n              }\n              return cand;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int cand = 0;\n          int count = 0;\n          for (int x : nums) {\n              if (count == 0) {\n                  cand = x;\n                  count = 1;\n              } else if (x == cand) {\n                  count++;\n              } else {\n                  count--;\n              }\n          }\n          return cand;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "move-zeroes": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              int[] nums = new int[numsArr.size()];\n              for (int i = 0; i < numsArr.size(); i++) {\n                  nums[i] = numsArr.get(i).getAsInt();\n              }\n              int write = 0;\n              for (int x : nums) {\n                  if (x != 0) {\n                      nums[write++] = x;\n                  }\n              }\n              while (write < nums.length) {\n                  nums[write++] = 0;\n              }\n              List<Integer> out = new ArrayList<>();\n              for (int x : nums) out.add(x);\n              return out;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int write = 0;\n          for (int x : nums) {\n              if (x != 0) {\n                  nums[write++] = x;\n              }\n          }\n          while (write < static_cast<int>(nums.size())) {\n              nums[write++] = 0;\n          }\n          return nums;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "remove-duplicates-from-sorted-array": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              if (numsArr.size() == 0) {\n                  return 0;\n              }\n              int k = 1;\n              for (int i = 1; i < numsArr.size(); i++) {\n                  int val = numsArr.get(i).getAsInt();\n                  if (val != numsArr.get(k - 1).getAsInt()) {\n                      numsArr.set(k, numsArr.get(i));\n                      k++;\n                  }\n              }\n              return k;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          if (nums.empty()) {\n              return 0;\n          }\n          int k = 1;\n          for (int i = 1; i < static_cast<int>(nums.size()); i++) {\n              if (nums[i] != nums[k - 1]) {\n                  nums[k++] = nums[i];\n              }\n          }\n          return k;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "merge-sorted-array": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray nums1Arr = data.has(\"nums1\") && data.get(\"nums1\").isJsonArray() ? data.getAsJsonArray(\"nums1\") : new JsonArray();\n              int m = data.has(\"m\") ? data.get(\"m\").getAsInt() : 0;\n              JsonArray nums2Arr = data.has(\"nums2\") && data.get(\"nums2\").isJsonArray() ? data.getAsJsonArray(\"nums2\") : new JsonArray();\n              int n = data.has(\"n\") ? data.get(\"n\").getAsInt() : 0;\n              int[] nums1 = new int[nums1Arr.size()];\n              for (int i = 0; i < nums1Arr.size(); i++) nums1[i] = nums1Arr.get(i).getAsInt();\n              int[] nums2 = new int[nums2Arr.size()];\n              for (int i = 0; i < nums2Arr.size(); i++) nums2[i] = nums2Arr.get(i).getAsInt();\n              int i = m - 1, j = n - 1, k = m + n - 1;\n              while (j >= 0) {\n                  if (i >= 0 && nums1[i] > nums2[j]) {\n                      nums1[k--] = nums1[i--];\n                  } else {\n                      nums1[k--] = nums2[j--];\n                  }\n              }\n              List<Integer> out = new ArrayList<>();\n              for (int t = 0; t < m + n; t++) out.add(nums1[t]);\n              return out;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums1 = data.contains(\"nums1\") && data[\"nums1\"].is_array()\n              ? data[\"nums1\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int m = data.contains(\"m\") ? data[\"m\"].get<int>() : 0;\n          std::vector<int> nums2 = data.contains(\"nums2\") && data[\"nums2\"].is_array()\n              ? data[\"nums2\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int n = data.contains(\"n\") ? data[\"n\"].get<int>() : 0;\n          int i = m - 1, j = n - 1, k = m + n - 1;\n          while (j >= 0) {\n              if (i >= 0 && nums1[i] > nums2[j]) {\n                  nums1[k--] = nums1[i--];\n              } else {\n                  nums1[k--] = nums2[j--];\n              }\n          }\n          nums1.resize(m + n);\n          return nums1;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "roman-to-integer": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        String s = data.has(\"s\") ? data.get(\"s\").getAsString() : \"\";\n              Map<Character, Integer> vals = new HashMap<>();\n              vals.put('I', 1); vals.put('V', 5); vals.put('X', 10); vals.put('L', 50);\n              vals.put('C', 100); vals.put('D', 500); vals.put('M', 1000);\n              int total = 0;\n              for (int i = 0; i < s.length(); i++) {\n                  int cur = vals.get(s.charAt(i));\n                  if (i + 1 < s.length() && cur < vals.get(s.charAt(i + 1))) {\n                      total -= cur;\n                  } else {\n                      total += cur;\n                  }\n              }\n              return total;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::string s = data.contains(\"s\") ? data[\"s\"].get<std::string>() : \"\";\n          std::unordered_map<char, int> vals{{'I',1},{'V',5},{'X',10},{'L',50},{'C',100},{'D',500},{'M',1000}};\n          int total = 0;\n          for (int i = 0; i < static_cast<int>(s.size()); i++) {\n              int cur = vals[s[i]];\n              if (i + 1 < static_cast<int>(s.size()) && cur < vals[s[i + 1]]) {\n                  total -= cur;\n              } else {\n                  total += cur;\n              }\n          }\n          return total;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "single-number": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              int ans = 0;\n              for (int i = 0; i < numsArr.size(); i++) {\n                  ans ^= numsArr.get(i).getAsInt();\n              }\n              return ans;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int ans = 0;\n          for (int x : nums) {\n              ans ^= x;\n          }\n          return ans;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "missing-number": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        JsonArray numsArr = data.has(\"nums\") && data.get(\"nums\").isJsonArray() ? data.getAsJsonArray(\"nums\") : new JsonArray();\n              int n = numsArr.size();\n              long sum = 0;\n              for (int i = 0; i < numsArr.size(); i++) {\n                  sum += numsArr.get(i).getAsInt();\n              }\n              return (int) (n * (long) (n + 1) / 2 - sum);\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    std::vector<int> nums = data.contains(\"nums\") && data[\"nums\"].is_array()\n              ? data[\"nums\"].get<std::vector<int>>()\n              : std::vector<int>{};\n          int n = static_cast<int>(nums.size());\n          long long sum = 0;\n          for (int x : nums) sum += x;\n          return static_cast<int>(1LL * n * (n + 1) / 2 - sum);\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
+    "fibonacci-number": {
+        java: "import java.io.*;\nimport java.util.*;\nimport com.google.gson.*;\n\npublic class Main {\n    static Object solve(JsonObject data) {\n        int n = data.has(\"n\") ? data.get(\"n\").getAsInt() : 0;\n              if (n <= 1) {\n                  return n;\n              }\n              int a = 0, b = 1;\n              for (int i = 2; i <= n; i++) {\n                  int c = a + b;\n                  a = b;\n                  b = c;\n              }\n              return b;\n    }\n\n    public static void main(String[] args) throws Exception {\n        JsonObject data = JsonParser.parseString(new String(System.in.readAllBytes())).getAsJsonObject();\n        Object result = solve(data);\n        System.out.println(new Gson().toJson(result));\n    }\n}\n",
+        cpp: "#include <iostream>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include <unordered_set>\n#include <map>\n#include <set>\n#include <queue>\n#include <stack>\n#include <algorithm>\n#include <climits>\n#include \"json.hpp\"\nusing json = nlohmann::json;\n\njson solve(const json& data) {\n    int n = data.contains(\"n\") ? data[\"n\"].get<int>() : 0;\n          if (n <= 1) {\n              return n;\n          }\n          int a = 0, b = 1;\n          for (int i = 2; i <= n; i++) {\n              int c = a + b;\n              a = b;\n              b = c;\n          }\n          return b;\n}\n\nint main() {\n    json data;\n    std::cin >> data;\n    json result = solve(data);\n    std::cout << result.dump();\n    return 0;\n}\n",
+    },
 };

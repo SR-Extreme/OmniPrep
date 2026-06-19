@@ -2,13 +2,17 @@ import "dotenv/config";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient, type Difficulty } from "@prisma/client";
+import { PrismaClient, Prisma, type Difficulty } from "@prisma/client";
 import type { ProblemSeedFile } from "./seeds/types.js";
 
 const prisma = new PrismaClient();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROBLEMS_DIR = join(__dirname, "seeds", "problems");
+
+function toInputJson(value: unknown): Prisma.InputJsonValue {
+    return value as Prisma.InputJsonValue;
+}
 
 function loadProblemFiles(): ProblemSeedFile[] {
     const files = readdirSync(PROBLEMS_DIR)
@@ -31,13 +35,13 @@ async function upsertProblem(problem: ProblemSeedFile): Promise<void> {
             inputFormat: problem.inputFormat,
             outputFormat: problem.outputFormat,
             constraints: problem.constraints,
-            examples: problem.examples,
+            examples: toInputJson(problem.examples),
             difficulty: problem.difficulty as Difficulty,
             topics: problem.topics,
             timeLimitMs: problem.timeLimitMs,
             memoryLimitKb: problem.memoryLimitKb,
-            starterCode: problem.starterCode,
-            solutionCode: problem.solutionCode,
+            starterCode: toInputJson(problem.starterCode),
+            solutionCode: toInputJson(problem.solutionCode),
             hints: problem.hints,
             isPublished: problem.isPublished,
             testCases: {
@@ -56,13 +60,13 @@ async function upsertProblem(problem: ProblemSeedFile): Promise<void> {
             inputFormat: problem.inputFormat,
             outputFormat: problem.outputFormat,
             constraints: problem.constraints,
-            examples: problem.examples,
+            examples: toInputJson(problem.examples),
             difficulty: problem.difficulty as Difficulty,
             topics: problem.topics,
             timeLimitMs: problem.timeLimitMs,
             memoryLimitKb: problem.memoryLimitKb,
-            starterCode: problem.starterCode,
-            solutionCode: problem.solutionCode,
+            starterCode: toInputJson(problem.starterCode),
+            solutionCode: toInputJson(problem.solutionCode),
             hints: problem.hints,
             isPublished: problem.isPublished,
             testCases: {

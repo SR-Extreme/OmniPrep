@@ -6,6 +6,7 @@ import {
     type Example,
     type StarterCode,
 } from "../../types/dsa.types.js";
+import { normalizeExamplesForDisplay } from "../../services/problem-runner/normalizeExamples.js";
 import type { ListProblemsQuery } from "./problems.validation.js";
 
 export class ProblemError extends Error {
@@ -122,7 +123,7 @@ function parseProblemJsonFields(problem: {
     let examples: Example[] | null = null;
     let starterCode: StarterCode | null = null;
     if (problem.examples != null) {
-        examples = parseExamples(problem.examples);
+        examples = normalizeExamplesForDisplay(parseExamples(problem.examples));
     }
     if (problem.starterCode != null) {
         starterCode = parseStarterCode(problem.starterCode);

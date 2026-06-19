@@ -1,6 +1,8 @@
 import type { Prisma, ProgrammingLanguage, Role, SubmissionStatus } from "@prisma/client";
 import { prisma } from "../../config/db.js";
-import { executeCode, type Judge0ExecuteResult } from "../../services/Judge0Service.js";
+import { executeCode, Judge0Error, type Judge0ExecuteResult } from "../../services/Judge0Service.js";
+import { buildProblemSignature } from "../../services/problem-runner/parseSignature.js";
+import { wrapSubmissionCode } from "../../services/problem-runner/codeWrapper.js";
 import { redactHiddenTestResults, type SubmissionTestResult } from "../../types/dsa.types.js";
 import type { CreateSubmissionInput, ListMySubmissionsQuery } from "./submissions.validation.js";
 
@@ -251,6 +253,57 @@ export async function createSubmission(
         },
     });
 
+    try {
+        return await runSubmissionTests(submission, problem, input);
+    } catch (err) {
+        const message =
+            err instanceof Judge0Error
+                ? err.message
+                : err instanceof Error
+                    ? err.message
+                    : "Code execution failed";
+
+        await prisma.submission.update({
+            where: { id: submission.id },
+            data: {
+                status: "INTERNAL_ERROR",
+                stderr: message,
+            },
+        });
+
+        if (err instanceof Judge0Error) {
+            throw err;
+        }
+
+        throw new Error(message);
+    }
+}
+
+async function runSubmissionTests(
+    submission: {
+        id: string;
+        problem: {
+            testCases: { id: string; isHidden: boolean }[];
+        };
+    },
+    problem: {
+        id: string;
+        slug: string;
+        inputFormat: string | null;
+        outputFormat: string | null;
+        timeLimitMs: number;
+        memoryLimitKb: number;
+        testCases: { id: string; input: string; expectedOutput: string; isHidden: boolean }[];
+    },
+    input: CreateSubmissionInput,
+): Promise<SubmissionDetail> {
+    const signature = buildProblemSignature(
+        problem.slug,
+        problem.inputFormat ?? "",
+        problem.outputFormat ?? "",
+    );
+    const wrapped = wrapSubmissionCode(input.sourceCode, input.language, signature);
+
     const testResults: SubmissionTestResult[] = [];
     let lastJudge0Status: SubmissionStatus = "INTERNAL_ERROR";
     let lastToken: string | null = null;
@@ -264,12 +317,13 @@ export async function createSubmission(
 
     for (const testCase of problem.testCases) {
         const result = await executeCode({
-            sourceCode: input.sourceCode,
+            sourceCode: wrapped.sourceCode,
             language: input.language,
             stdin: testCase.input,
             expectedOutput: testCase.expectedOutput,
             timeLimitMs: problem.timeLimitMs,
             memoryLimitKb: problem.memoryLimitKb,
+            additionalFiles: wrapped.additionalFiles,
         });
 
         lastJudge0Status = result.status;
@@ -300,6 +354,11 @@ export async function createSubmission(
         }
 
         if (result.status === "COMPILATION_ERROR") {
+            stopEarly = true;
+            break;
+        }
+
+        if (result.status !== "ACCEPTED") {
             stopEarly = true;
             break;
         }

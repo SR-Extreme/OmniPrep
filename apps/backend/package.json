@@ -10,6 +10,7 @@
         "build": "tsc",
         "start": "node dist/server.js",
         "seed:generate": "tsx prisma/seeds/generate-json-files.ts",
+        "seed:validate": "tsx prisma/seeds/validate-specs.ts",
         "seed": "tsx prisma/seed.ts"
     },
     "dependencies": {

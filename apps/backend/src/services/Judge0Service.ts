@@ -24,6 +24,8 @@ export interface Judge0ExecuteInput {
     expectedOutput?: string;
     timeLimitMs: number;
     memoryLimitKb: number;
+    /** Base64-encoded zip (e.g. json.hpp for C++). */
+    additionalFiles?: string;
 }
 
 export interface Judge0ExecuteResult {
@@ -51,7 +53,34 @@ interface Judge0SubmissionResponse {
 
 const JUDGE0_AUTH_HEADER = "X-Auth-Token";
 const POLL_INTERVAL_MS = 500;
-const MAX_POLL_ATTEMPTS = 120;
+const DEFAULT_MAX_POLL_MS = 15 * 60 * 1000;
+const COMPILED_LANGUAGE_EXTRA_POLL_MS = 10 * 60 * 1000;
+/** Avoid UTF-8 conversion errors when compile_output/stderr contain binary bytes. */
+const BASE64_ENCODED = true;
+
+function encodeBase64Utf8(text: string): string {
+    return Buffer.from(text, "utf8").toString("base64");
+}
+
+function decodeBase64Utf8(value: string | null | undefined): string | undefined {
+    if (value == null || value === "") {
+        return undefined;
+    }
+    return Buffer.from(value, "base64").toString("utf8");
+}
+
+function decodeJudge0Response(data: Judge0SubmissionResponse): Judge0SubmissionResponse {
+    if (!BASE64_ENCODED) {
+        return data;
+    }
+    return {
+        ...data,
+        stdout: decodeBase64Utf8(data.stdout),
+        stderr: decodeBase64Utf8(data.stderr),
+        compile_output: decodeBase64Utf8(data.compile_output),
+        message: decodeBase64Utf8(data.message),
+    };
+}
 
 function judge0BaseUrl(): string {
     return env.JUDGE0_BASE_URL.replace(/\/$/, "");
@@ -131,23 +160,43 @@ function toExecuteResult(
     };
 }
 
-//Converts your input into Judge0's expected request format.
+function maxPollMs(input: Judge0ExecuteInput): number {
+    const cpuTimeLimitSec = Math.max(input.timeLimitMs / 1000, 0.1);
+    const wallTimeLimitMs = cpuTimeLimitSec * 3 * 1000;
+    const compileBufferMs =
+        input.language === "CPP" || input.language === "JAVA"
+            ? COMPILED_LANGUAGE_EXTRA_POLL_MS
+            : 0;
+    return wallTimeLimitMs + compileBufferMs + DEFAULT_MAX_POLL_MS;
+}
+
 function buildSubmissionBody(input: Judge0ExecuteInput): Record<string, unknown> {
     const cpuTimeLimitSec = Math.max(input.timeLimitMs / 1000, 0.1);
     const body: Record<string, unknown> = {
-        source_code: input.sourceCode,
+        source_code: BASE64_ENCODED
+            ? encodeBase64Utf8(input.sourceCode)
+            : input.sourceCode,
         language_id: judge0LanguageId(input.language),
         cpu_time_limit: cpuTimeLimitSec,
         wall_time_limit: cpuTimeLimitSec * 3,
         memory_limit: input.memoryLimitKb,
     };
     if (input.stdin !== undefined) {
-        body.stdin = input.stdin;
+        body.stdin = BASE64_ENCODED ? encodeBase64Utf8(input.stdin) : input.stdin;
     }
     if (input.expectedOutput !== undefined) {
-        body.expected_output = input.expectedOutput;
+        body.expected_output = BASE64_ENCODED
+            ? encodeBase64Utf8(input.expectedOutput)
+            : input.expectedOutput;
+    }
+    if (input.additionalFiles !== undefined) {
+        body.additional_files = input.additionalFiles;
     }
     return body;
+}
+
+function submissionsQuery(wait: boolean): string {
+    return `base64_encoded=${BASE64_ENCODED}&wait=${wait}`;
 }
 
 //Submits code to Judge0. (wait is a field of judge0 and give answer accordingly).
@@ -155,7 +204,7 @@ async function createSubmission(
     input: Judge0ExecuteInput,
     wait: boolean,
 ): Promise<Judge0ExecuteResult> {
-    const url = `${judge0BaseUrl()}/submissions?base64_encoded=false&wait=${wait}`;
+    const url = `${judge0BaseUrl()}/submissions?${submissionsQuery(wait)}`;
     const response = await fetch(url, {
         method: "POST",
         headers: judge0Headers(),
@@ -168,20 +217,23 @@ async function createSubmission(
             "SUBMIT_FAILED",
         );
     }
-    const data = parseJudge0Response(await response.json());
+    const data = decodeJudge0Response(parseJudge0Response(await response.json()));
     const token = data.token;
     if (!token) {
         throw new Judge0Error("Judge0 response missing token", "INVALID_RESPONSE");
     }
     if (wait) {
-        return toExecuteResult(token, data);
+        const statusId = data.status?.id ?? 0;
+        if (statusId > 2) {
+            return toExecuteResult(token, data);
+        }
     }
-    return pollSubmission(token);
+    return pollSubmission(token, maxPollMs(input));
 }
 
 //Fetch status/result of an existing submission.
 async function fetchSubmission(token: string): Promise<Judge0SubmissionResponse> {
-    const url = `${judge0BaseUrl()}/submissions/${token}?base64_encoded=false`;
+    const url = `${judge0BaseUrl()}/submissions/${token}?base64_encoded=${BASE64_ENCODED}`;
     const response = await fetch(url, {
         method: "GET",
         headers: judge0Headers(),
@@ -193,31 +245,35 @@ async function fetchSubmission(token: string): Promise<Judge0SubmissionResponse>
             "POLL_FAILED",
         );
     }
-    return parseJudge0Response(await response.json());
+    return decodeJudge0Response(parseJudge0Response(await response.json()));
 }
 
 //Waits until Judge0 finishes execution.
-export async function pollSubmission(token: string): Promise<Judge0ExecuteResult> {
-    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+export async function pollSubmission(
+    token: string,
+    maxWaitMs: number = DEFAULT_MAX_POLL_MS,
+): Promise<Judge0ExecuteResult> {
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
         const data = await fetchSubmission(token);
         const statusId = data.status?.id ?? 0;
         if (statusId > 2) {
             return toExecuteResult(token, data);
         }
-        //used for halting execution for 500ms
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
     throw new Judge0Error("Judge0 execution timed out", "TIMEOUT");
 }
 
-//Simple API for running code immediately.
+//Submit async and poll — avoids blocking HTTP connections (wait=true) that
+//timeout for compiled languages and can stall the Judge0 API server.
 export async function executeCode(input: Judge0ExecuteInput): Promise<Judge0ExecuteResult> {
-    return createSubmission(input, true);
+    return createSubmission(input, false);
 }
 
 //Submit code and return only the token.
 export async function submitCode(input: Judge0ExecuteInput): Promise<string> {
-    const url = `${judge0BaseUrl()}/submissions?base64_encoded=false&wait=false`;
+    const url = `${judge0BaseUrl()}/submissions?${submissionsQuery(false)}`;
     const response = await fetch(url, {
         method: "POST",
         headers: judge0Headers(),

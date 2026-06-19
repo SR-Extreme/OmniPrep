@@ -45,9 +45,9 @@ export interface ProblemSeedFile {
     testCases: SeedTestCase[];
 }
 
-/** JSON stdin/stdout protocol used by all seeded problems. */
+/** @deprecated Test cases still use JSON stdin; users see readable examples only. */
 export const SEED_IO_NOTE =
-    "Each test sends one JSON object on stdin; your program must print one JSON value to stdout.";
+    "Implement the function below. Input/output follows the examples.";
 
 export const PYTHON_STARTER = `import json
 import sys
