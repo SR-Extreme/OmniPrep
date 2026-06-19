@@ -10,18 +10,16 @@ import { DIFFICULTIES, type Difficulty, type ListProblemsQuery, type ProblemList
 
 const PAGE_SIZE = 20;
 
-type AppliedFilters = Pick<ListProblemsQuery, 'difficulty' | 'topic' | 'search'>; //these 3 fields from LPQ will be new type for AF
+type AppliedFilters = Pick<ListProblemsQuery, 'difficulty' | 'topic' | 'search'>;
 
 function difficultyBadgeClass(difficulty: Difficulty): string {
-    const base = 'inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset';
-
     switch (difficulty) {
         case 'EASY':
-            return `${base} bg-emerald-500/10 text-emerald-400 ring-emerald-500/30`;
+            return 'badge-easy';
         case 'MEDIUM':
-            return `${base} bg-amber-500/10 text-amber-400 ring-amber-500/30`;
+            return 'badge-medium';
         case 'HARD':
-            return `${base} bg-rose-500/10 text-rose-400 ring-rose-500/30`;
+            return 'badge-hard';
     }
 }
 
@@ -130,29 +128,40 @@ export default function ProblemsPage() {
 
     if (!hydrated || !accessToken) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">
-                Loading…
+            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
+                <div className="flex items-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
+                    Loading…
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-950">
-            <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
+        <div className="min-h-screen bg-zinc-50">
+            <header className="nav-header">
+                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
                     <div className="flex items-center gap-6">
-                        <Link href="/" className="text-lg font-bold tracking-tight text-white">
-                            OmniPrep
-                        </Link>
-                        <nav className="hidden sm:block">
-                            <span className="text-sm font-medium text-emerald-400">
-                                Problems
+                        <Link href="/" className="flex items-center gap-2.5">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
+                                O
                             </span>
+                            <span className="text-base font-semibold tracking-tight text-zinc-900">
+                                OmniPrep
+                            </span>
+                        </Link>
+                        <nav className="hidden items-center gap-1 sm:flex">
+                            <Link
+                                href="/problems"
+                                className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900"
+                            >
+                                Problems
+                            </Link>
                         </nav>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         {user && (
-                            <p className="hidden text-sm text-slate-400 md:block">
+                            <p className="hidden text-sm text-zinc-500 md:block">
                                 {user.name}
                             </p>
                         )}
@@ -160,7 +169,7 @@ export default function ProblemsPage() {
                             type="button"
                             onClick={() => logout()}
                             disabled={authLoading}
-                            className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white disabled:opacity-60"
+                            className="btn-secondary !py-2"
                         >
                             Sign out
                         </button>
@@ -168,18 +177,17 @@ export default function ProblemsPage() {
                 </div>
             </header>
 
-            <main className="mx-auto max-w-6xl px-6 py-8">
+            <main className="mx-auto max-w-6xl px-6 py-10">
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold tracking-tight text-white">
-                        Problem Set
+                    <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
+                        Problem set
                     </h1>
-                    <p className="mt-2 text-slate-400">
+                    <p className="mt-2 text-sm text-zinc-500 sm:text-base">
                         Practice DSA problems with sample runs and full submissions.
                     </p>
                 </div>
 
-                {/*Filter section*/}
-                <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <section className="card mb-8 p-5 sm:p-6">
                     <form
                         onSubmit={handleFilterSubmit}
                         className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
@@ -187,7 +195,7 @@ export default function ProblemsPage() {
                         <div>
                             <label
                                 htmlFor="difficulty"
-                                className="block text-sm font-medium text-slate-300"
+                                className="block text-sm font-medium text-zinc-700"
                             >
                                 Difficulty
                             </label>
@@ -197,7 +205,7 @@ export default function ProblemsPage() {
                                 onChange={(e) =>
                                     setDifficulty(e.target.value as Difficulty | '')
                                 }
-                                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                                className="select-base mt-1.5"
                             >
                                 <option value="">All levels</option>
                                 {DIFFICULTIES.map((level) => (
@@ -211,7 +219,7 @@ export default function ProblemsPage() {
                         <div>
                             <label
                                 htmlFor="topic"
-                                className="block text-sm font-medium text-slate-300"
+                                className="block text-sm font-medium text-zinc-700"
                             >
                                 Topic
                             </label>
@@ -221,14 +229,14 @@ export default function ProblemsPage() {
                                 value={topic}
                                 onChange={(e) => setTopic(e.target.value)}
                                 placeholder="e.g. Array"
-                                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                                className="input-base mt-1.5"
                             />
                         </div>
 
                         <div className="md:col-span-2">
                             <label
                                 htmlFor="search"
-                                className="block text-sm font-medium text-slate-300"
+                                className="block text-sm font-medium text-zinc-700"
                             >
                                 Search
                             </label>
@@ -238,21 +246,18 @@ export default function ProblemsPage() {
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Search by title or slug"
-                                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                                className="input-base mt-1.5"
                             />
                         </div>
 
                         <div className="flex items-end gap-2 md:col-span-2 lg:col-span-4">
-                            <button
-                                type="submit"
-                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
-                            >
+                            <button type="submit" className="btn-primary">
                                 Apply filters
                             </button>
                             <button
                                 type="button"
                                 onClick={handleClearFilters}
-                                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white"
+                                className="btn-secondary"
                             >
                                 Clear
                             </button>
@@ -262,17 +267,20 @@ export default function ProblemsPage() {
 
                 <section>
                     <div className="mb-4 flex items-center justify-between">
-                        <p className="text-sm text-slate-400">
+                        <p className="text-sm text-zinc-500">
                             {total} problem{total === 1 ? '' : 's'}
                         </p>
                         {isLoading && (
-                            <p className="text-sm text-slate-500">Loading…</p>
+                            <p className="flex items-center gap-2 text-sm text-zinc-400">
+                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
+                                Loading…
+                            </p>
                         )}
                     </div>
 
                     {error && (
                         <div
-                            className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300"
+                            className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
                             role="alert"
                         >
                             {error}
@@ -280,26 +288,25 @@ export default function ProblemsPage() {
                     )}
 
                     {!isLoading && problems.length === 0 && !error && (
-                        <div className="rounded-xl border border-slate-800 bg-slate-900 px-6 py-12 text-center">
-                            <p className="text-lg font-medium text-white">No problems found</p>
-                            <p className="mt-2 text-sm text-slate-400">
+                        <div className="card px-6 py-14 text-center">
+                            <p className="text-base font-medium text-zinc-900">No problems found</p>
+                            <p className="mt-2 text-sm text-zinc-500">
                                 Try adjusting your filters or search query.
                             </p>
                         </div>
                     )}
 
-                    {/*Problem list cards*/}
-                    <ul className="space-y-3">
+                    <ul className="space-y-2">
                         {problems.map((problem) => (
                             <li key={problem.id}>
                                 <Link
                                     href={`/problems/${problem.slug}`}
-                                    className="group block rounded-xl border border-slate-800 bg-slate-900 p-5 transition hover:border-emerald-500/40 hover:bg-slate-900/80"
+                                    className="group block rounded-lg border border-zinc-200 bg-white px-5 py-4 shadow-soft transition duration-150 hover:border-emerald-300 hover:shadow-card"
                                 >
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-3">
-                                                <h2 className="truncate text-lg font-semibold text-white group-hover:text-emerald-300">
+                                            <div className="flex flex-wrap items-center gap-2.5">
+                                                <h2 className="truncate text-base font-medium text-zinc-900 group-hover:text-emerald-700">
                                                     {problem.title}
                                                 </h2>
                                                 <span className={difficultyBadgeClass(problem.difficulty)}>
@@ -307,14 +314,14 @@ export default function ProblemsPage() {
                                                         problem.difficulty.slice(1).toLowerCase()}
                                                 </span>
                                             </div>
-                                            <p className="mt-1 truncate text-sm text-slate-500">
+                                            <p className="mt-0.5 truncate text-sm text-zinc-400">
                                                 {problem.slug}
                                             </p>
                                         </div>
                                         <div className="flex shrink-0 flex-wrap items-center gap-4 text-sm">
-                                            <span className="text-slate-400">
-                                                Acceptance:{' '}
-                                                <span className="font-medium text-slate-200">
+                                            <span className="text-zinc-500">
+                                                Acceptance{' '}
+                                                <span className="font-medium text-zinc-800">
                                                     {formatAcceptance(problem.acceptanceRate)}
                                                 </span>
                                             </span>
@@ -323,13 +330,13 @@ export default function ProblemsPage() {
                                                     {problem.topics.slice(0, 3).map((tag) => (
                                                         <span
                                                             key={tag}
-                                                            className="rounded-md bg-slate-800 px-2 py-0.5 text-xs text-slate-300"
+                                                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-600"
                                                         >
                                                             {tag}
                                                         </span>
                                                     ))}
                                                     {problem.topics.length > 3 && (
-                                                        <span className="text-xs text-slate-500">
+                                                        <span className="text-xs text-zinc-400">
                                                             +{problem.topics.length - 3}
                                                         </span>
                                                     )}
@@ -342,25 +349,24 @@ export default function ProblemsPage() {
                         ))}
                     </ul>
 
-                    {/*page numbering*/}
                     {totalPages > 1 && (
                         <div className="mt-8 flex items-center justify-center gap-3">
                             <button
                                 type="button"
                                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                                 disabled={page <= 1 || isLoading}
-                                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                className="btn-secondary"
                             >
                                 Previous
                             </button>
-                            <span className="text-sm text-slate-400">
+                            <span className="text-sm text-zinc-500">
                                 Page {page} of {totalPages}
                             </span>
                             <button
                                 type="button"
                                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                                 disabled={page >= totalPages || isLoading}
-                                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                className="btn-secondary"
                             >
                                 Next
                             </button>
@@ -369,5 +375,5 @@ export default function ProblemsPage() {
                 </section>
             </main>
         </div>
-    )
+    );
 }
