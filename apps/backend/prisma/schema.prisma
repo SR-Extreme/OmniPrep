@@ -45,6 +45,7 @@ model User {
   createdAt     DateTime       @default(now())
   refreshTokens RefreshToken[]
   submissions   Submission[]
+  dsaEvaluations DSAEvaluation[]
 }
 
 model RefreshToken {
@@ -80,6 +81,7 @@ model Problem {
   updatedAt       DateTime     @updatedAt
   testCases       TestCase[]
   submissions     Submission[]
+  dsaEvaluations  DSAEvaluation[]
 
   @@index([difficulty])
   @@index([isPublished])
@@ -120,9 +122,36 @@ model Submission {
   isSampleRun      Boolean          @default(false)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+  dsaEvaluation    DSAEvaluation?
 
   @@index([userId])
   @@index([problemId])
   @@index([userId, problemId])
   @@index([createdAt])
+}
+
+model DSAEvaluation {
+  id               String     @id @default(cuid())
+  submissionId     String     @unique
+  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId        String
+  problem          Problem    @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  overallScore     Int
+  correctnessScore Int
+  efficiencyScore  Int
+  codeQualityScore Int
+  explanationScore Int
+  complexityAnalysis Json
+  followUpQuestions  Json
+  feedback         String     @db.Text
+  suggestions      Json
+  model            String
+  tokensUsed       Int
+  createdAt        DateTime   @default(now())
+
+  @@index([userId])
+  @@index([problemId])
+  @@index([userId, problemId])
 }
