@@ -72,6 +72,18 @@
         @apply text-xs font-semibold uppercase tracking-wider text-zinc-500;
     }
 
+    .ai-report-feedback {
+        @apply text-[15px] font-normal leading-[1.8] tracking-[0.01em] text-zinc-700;
+    }
+
+    .ai-report-body {
+        @apply text-sm font-normal leading-relaxed text-zinc-700;
+    }
+
+    .ai-report-list-item {
+        @apply text-sm font-normal leading-relaxed tracking-[0.005em] text-zinc-700;
+    }
+
     .auth-code-panel {
         @apply relative hidden overflow-hidden bg-zinc-950 lg:flex lg:w-[48%] lg:flex-col lg:justify-center;
     }

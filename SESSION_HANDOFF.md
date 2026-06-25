@@ -1,46 +1,41 @@
 # SESSION_HANDOFF.md
 
-> **Last session date:** 2026-06-17  
+> **Last session date:** 2026-06-20  
 > **Update this file at the end of every development session.**
 
 ---
 
 # Last Session Summary
 
-Completed **Phase 2 (DSA module end-to-end)** — frontend Monaco solver UI, light-theme design system, `problem-runner` code wrapping, seed pipeline refactor, Judge0 Windows fixes, and full documentation refresh.
+Completed **Phase 3 — AI Evaluation Pipeline** (core + manual E2E testing). Built on-demand DSA AI review: user clicks **Generate AI Review** after a full submit; BullMQ worker calls Gemini; Redis caches identical code; results stored in `DsaEvaluation` and shown in the solver UI.
 
-### Completed work (Phase 2 frontend)
+### Completed work (Phase 3 — backend)
 
-1. **`@monaco-editor/react`** — installed; `MonacoEditor.tsx` with SSR-safe dynamic import.
-2. **`src/types/dsa.ts`** — frontend types mirroring backend API shapes.
-3. **`lib/api/problems.ts`** + **`lib/api/submissions.ts`** — typed API clients.
-4. **`app/problems/page.tsx`** — problem bank with filters, card list, pagination, auth gate.
-5. **`app/problems/[id]/page.tsx`** — split-panel solver: description + Monaco + Run/Submit + results tab.
-6. **`app/page.tsx`** — redesigned landing page; signed-in CTA to `/problems`.
-7. **`globals.css`** — light zinc/emerald design system (`btn-primary`, `card`, `badge-easy`, grid backgrounds).
-8. **`tailwind.config.ts`** — custom shadows (`soft`, `card`, `elevated`).
+1. **`prisma/schema.prisma`** — `DsaEvaluation` model (`@@map("DSAEvaluation")`); migration `20260620173002_add_dsa_evaluation`
+2. **`src/config/redis.ts`** — Upstash ioredis singleton (`getRedis()`)
+3. **`src/services/CacheService.ts`** — evaluation cache by `problemId:language:sourceCode` SHA-256; 7-day TTL
+4. **`src/services/QueueService.ts`** — BullMQ `ai-eval-queue`; idempotent job id `dsa-eval-{submissionId}`
+5. **`src/services/AIService.ts`** — `evaluateDSA()` via **Google Gemini** `gemini-2.5-flash` (`@google/genai`); Zod validation; scores 0–100 + complexity + follow-ups
+6. **`src/workers/AIEvaluationWorker.ts`** — DB check → cache → Gemini → persist
+7. **`src/modules/evaluations/`** — validation, service, controller, routes
+8. **`src/app.ts`** — mount `/api/evaluations` behind auth
+9. **`src/server.ts`** — start/stop worker; graceful SIGINT/SIGTERM shutdown
 
-### Completed work (Phase 2 backend enhancements)
+### Completed work (Phase 3 — frontend)
 
-1. **`services/problem-runner/`** — signature parsing, LeetCode-style starter generation, runtime code wrapping.
-2. **`MiniJson.java`** — Java JSON harness (no Gson dependency on Judge0).
-3. **`assets/json.hpp`** — bundled via base64 zip as Judge0 `additional_files` for C++.
-4. **`submissions.service.ts`** — wraps user code before Judge0; improved error handling.
-5. **`submissions.controller.ts`** — `Judge0Error` returns 502/504 instead of generic 500.
-6. **Seed refactor** — `prisma/seeds/specs/batch-01…04.ts` + `problem-descriptions.ts` drive `seed:generate`.
-7. **`seed:validate`** script — validates problem specs.
+1. **`src/lib/api/evaluations.ts`** — `requestDSAEvaluation`, `getDSAEvaluation` + types
+2. **`src/app/problems/[id]/page.tsx`** — Generate AI Review button; report UI (overall /100, 4 metrics, complexity card, follow-ups, feedback, suggestions); polls while pending; hidden until button pressed; sample runs excluded
 
-### Infrastructure fixes
+### Key design decisions (this phase)
 
-1. **`docker-compose.judge0.yml`** — switched to `mrkushalsm/judge0:latest` (cgroup v2); added `cgroup: host` + `/sys/fs/cgroup` mount.
-2. **`infra/judge0/judge0.conf`** — LF line endings (CRLF caused `redis\r` DNS failure on Windows).
-3. **`.gitattributes`** — enforces LF for `judge0.conf`.
+- **On-demand only** — `POST /api/submissions` unchanged; no auto-AI after submit
+- **Gemini** instead of blueprint GPT-4o for DSA (code uses `GEMINI_API_KEY`)
+- **Instant return** if evaluation exists in DB or Redis cache
+- Pipeline reusable for mock interviews (Phase 6)
 
-### Prior sessions (still valid)
+### Documentation session (2026-06-20)
 
-- Phase 0 monorepo scaffold — complete.
-- Phase 1 auth (JWT, Neon, login/signup UI) — ~95% (optional refresh UX open).
-- Phase 2 backend (problems, submissions, Judge0, 100-problem seed) — complete.
+- Updated `PROJECT_CONTEXT.md`, `ROADMAP.md`, `SESSION_HANDOFF.md` to reflect Phase 3 completion
 
 ---
 
@@ -48,80 +43,54 @@ Completed **Phase 2 (DSA module end-to-end)** — frontend Monaco solver UI, lig
 
 | Area | State |
 |------|--------|
-| **Phase** | **Phase 2 — 100% complete** |
-| **Overall** | **~58%** of full MVP roadmap |
-| **Backend** | `:4000` — `/health`, `/api/auth/*`, `/api/me`, `/api/problems/*`, `/api/submissions/*` |
-| **Frontend** | `:3000` — `/`, `/login`, `/signup`, `/problems`, `/problems/[id]` |
-| **Database** | Neon — 3 migrations; **100 problems**, **1000 test cases** seeded |
-| **Judge0** | Local Docker `:2358` (`mrkushalsm/judge0`); Windows cgroup + LF config required |
-| **Redis** | Upstash URL in `.env` — unused until Phase 3 |
+| **Phase** | **Phase 3 — ~95%** (core done; `AIUsageLog` + env polish remaining) |
+| **Overall** | **~66%** of full MVP roadmap |
+| **Backend** | `:4000` — `/health`, `/api/auth/*`, `/api/me`, `/api/problems/*`, `/api/submissions/*`, **`/api/evaluations/*`** |
+| **Worker** | `AIEvaluationWorker` on `ai-eval-queue` when `REDIS_URL` set |
+| **Frontend** | `:3000` — `/`, `/login`, `/signup`, `/problems`, `/problems/[id]` (+ AI review UI) |
+| **Database** | Neon — **4 migrations**; 100 problems, 1000 test cases, `DSAEvaluation` table |
+| **Redis** | Upstash — evaluation cache + BullMQ |
+| **AI** | Google Gemini `gemini-2.5-flash` for DSA evaluation |
+| **Judge0** | Local Docker `:2358` |
 | **Auth gap** | `authStore.refresh()` not wired on 401 |
-| **Next phase** | **Phase 3 — AI Evaluation Pipeline** |
+| **Next phase** | **Phase 3 polish** (optional) → **Phase 4 System Design** |
 
 ---
 
-# Files Created / Updated (cumulative)
+# Files Created / Updated (Phase 3)
 
-### Frontend — DSA module
-
-| File |
-|------|
-| `apps/frontend/package.json` (`@monaco-editor/react`) |
-| `apps/frontend/src/types/dsa.ts` |
-| `apps/frontend/src/lib/api/problems.ts` |
-| `apps/frontend/src/lib/api/submissions.ts` |
-| `apps/frontend/src/components/MonacoEditor.tsx` |
-| `apps/frontend/src/app/problems/page.tsx` |
-| `apps/frontend/src/app/problems/[id]/page.tsx` |
-| `apps/frontend/src/app/page.tsx` (redesigned landing) |
-| `apps/frontend/src/app/globals.css` (design system) |
-| `apps/frontend/tailwind.config.ts` (custom shadows) |
-
-### Backend — problem-runner
+### Backend
 
 | File |
 |------|
-| `apps/backend/src/services/problem-runner/parseSignature.ts` |
-| `apps/backend/src/services/problem-runner/starter-code.ts` |
-| `apps/backend/src/services/problem-runner/codeWrapper.ts` |
-| `apps/backend/src/services/problem-runner/exampleFormat.ts` |
-| `apps/backend/src/services/problem-runner/methodNames.ts` |
-| `apps/backend/src/services/problem-runner/types.ts` |
-| `apps/backend/src/services/problem-runner/harness/MiniJson.java` |
-| `apps/backend/assets/json.hpp` |
+| `apps/backend/prisma/schema.prisma` (`DsaEvaluation`) |
+| `apps/backend/prisma/migrations/20260620173002_add_dsa_evaluation/` |
+| `apps/backend/src/config/redis.ts` |
+| `apps/backend/src/config/db.ts` (explicit `PrismaClient` type) |
+| `apps/backend/src/services/CacheService.ts` |
+| `apps/backend/src/services/QueueService.ts` |
+| `apps/backend/src/services/AIService.ts` |
+| `apps/backend/src/workers/AIEvaluationWorker.ts` |
+| `apps/backend/src/modules/evaluations/evaluations.validation.ts` |
+| `apps/backend/src/modules/evaluations/evaluations.service.ts` |
+| `apps/backend/src/modules/evaluations/evaluations.controller.ts` |
+| `apps/backend/src/modules/evaluations/evaluations.routes.ts` |
+| `apps/backend/src/app.ts` |
+| `apps/backend/src/server.ts` |
+| `apps/backend/package.json` — `bullmq`, `ioredis`, `@google/genai` |
 
-### Backend — seed pipeline (refactored)
-
-| File |
-|------|
-| `apps/backend/prisma/seeds/specs/batch-01.ts` … `batch-04.ts` |
-| `apps/backend/prisma/seeds/specs/index.ts`, `types.ts` |
-| `apps/backend/prisma/seeds/problem-descriptions.ts` |
-| `apps/backend/prisma/seeds/generate-json-files.ts` (rewritten) |
-| `apps/backend/prisma/seeds/validate-specs.ts` |
-| `apps/backend/prisma/seeds/apply-descriptions.ts` |
-
-### Backend — submissions (enhanced)
+### Frontend
 
 | File |
 |------|
-| `apps/backend/src/modules/submissions/submissions.service.ts` (code wrapping) |
-| `apps/backend/src/modules/submissions/submissions.controller.ts` (Judge0Error handling) |
-| `apps/backend/src/services/Judge0Service.ts` (`additional_files`, base64) |
+| `apps/frontend/src/lib/api/evaluations.ts` |
+| `apps/frontend/src/app/problems/[id]/page.tsx` (AI review UI) |
 
-### Infrastructure
+### Root
 
 | File |
 |------|
-| `docker-compose.judge0.yml` (mrkushalsm/judge0, cgroup host) |
-| `infra/judge0/judge0.conf` (LF endings) |
-| `.gitattributes` |
-
-### Generated (gitignored, local only)
-
-| Path |
-|------|
-| `apps/backend/prisma/seeds/problems/*.json` (100 files) |
+| `.env.example` — `GEMINI_API_KEY`, `REDIS_URL` documented |
 
 ---
 
@@ -129,18 +98,14 @@ Completed **Phase 2 (DSA module end-to-end)** — frontend Monaco solver UI, lig
 
 | Feature | Notes |
 |---------|-------|
-| Phase 0 scaffold | Monorepo, health, home |
-| Phase 1 auth | JWT, signup/login, Zustand |
-| DSA Prisma models | Problem, TestCase, Submission |
-| Problems API | List + detail; admin sees unpublished + all test cases |
-| Submissions API | Wrap code → Judge0; sample run vs full submit |
-| Problem-runner | LeetCode-style Solution class + runtime I/O harness |
-| Multi-lang Judge0 | Python, Java (MiniJson), C++ (json.hpp zip) |
-| 100-problem seed | specs + descriptions + JSON pipeline |
-| DSA frontend | Monaco, problem bank, solver, Run/Submit, results |
-| UI design system | Light zinc/emerald theme |
-| Judge0 Windows dev | cgroup v2 + LF config fixes |
-| M2.5 milestone | DSA E2E in browser |
+| Phase 0–2 | Unchanged — see prior handoffs |
+| On-demand AI review API | POST/GET `/api/evaluations/:submissionId` |
+| BullMQ worker | `ai-eval-queue`; concurrency 2 |
+| Redis evaluation cache | Skip Gemini for identical code |
+| Gemini structured evaluation | 5 scores /100, complexity, follow-ups |
+| Generate AI Review UI | Results tab; full submit only |
+| M2 milestone | First AI feedback on code ✅ |
+| Manual E2E | User confirmed testing done |
 
 ---
 
@@ -148,31 +113,32 @@ Completed **Phase 2 (DSA module end-to-end)** — frontend Monaco solver UI, lig
 
 | Feature | Progress | Notes |
 |---------|----------|-------|
-| Phase 1 refresh UX | ~5% | Optional — wire `authStore.refresh()` on 401 |
-| Git commit | ~0% | Recommended — Phase 0–2 complete |
-| README | ~0% | Judge0 Windows setup + seed commands |
+| Phase 3 polish | ~5% | `AIUsageLog`, `GEMINI_API_KEY` in `env.ts` |
+| Git hygiene | ~80% | Partial commits; `evaluations.ts` may be untracked |
+| README | 0% | |
+| Phase 1 refresh UX | ~5% | Optional |
 
 ---
 
 # Pending Tasks
 
-**Next phase — Phase 3 AI Evaluation Pipeline (one file at a time):**
+**Phase 3 remainder (optional, one file at a time):**
 
-1. `apps/backend/prisma/schema.prisma` — add `DSAEvaluation` model + migrate
-2. `apps/backend/src/config/redis.ts` — Upstash Redis client
-3. `apps/backend/src/services/CacheService.ts`
-4. `apps/backend/src/services/QueueService.ts` — BullMQ setup
-5. `apps/backend/src/services/AIService.ts` — `evaluateDSA` with GPT-4o structured JSON
-6. `apps/backend/src/workers/AIEvaluationWorker.ts`
-7. Wire worker trigger after full submission
-8. Frontend: AI feedback panel on problem solver results tab
+1. `AIUsageLog` Prisma model + log writes in `AIEvaluationWorker` / `AIService`
+2. `apps/backend/src/config/env.ts` — add `GEMINI_API_KEY` to Zod schema
+3. Commit any untracked Phase 3 files
 
-**Housekeeping (when ready):**
+**Next major phase — Phase 4 System Design (one file at a time):**
 
-- Git commit Phases 0–2 (backend + frontend + migrations + seed tooling + Judge0 config)
-- README with local dev instructions (especially Judge0 on Windows)
-- Optional: consolidate duplicate problem-runner filenames (kebab vs camelCase)
-- Optional: remove or archive legacy `problem-definitions.ts` after specs migration is fully verified
+1. `prisma/schema.prisma` — `SystemDesignQuestion`, `SystemDesignSubmission`, `SystemDesignEvaluation`
+2. Backend module + routes
+3. Extend `AIService` for system design
+4. Frontend system design UI
+
+**Housekeeping:**
+
+- `README.md` — Judge0 Windows + Redis + Gemini + three-terminal dev
+- Optional: `authStore.refresh()` on 401
 
 ---
 
@@ -180,16 +146,15 @@ Completed **Phase 2 (DSA module end-to-end)** — frontend Monaco solver UI, lig
 
 | Blocker | Severity | Notes |
 |---------|----------|-------|
-| None critical | — | Phase 3 can start immediately |
+| None critical | — | Phase 4 can start after optional Phase 3 polish |
 
 **Watch items:**
 
-- Start Judge0 before testing submissions: `docker compose -f docker-compose.judge0.yml up -d`
-- After pulling on Windows, verify `judge0.conf` has LF line endings
-- `FRONTEND_URL` must match Next port (`3000` vs `3001`)
-- Run Prisma/seed from `apps/backend`
-- `prisma generate` may EPERM on Windows if backend dev server is running
-- Re-seed after changing specs: `npm run seed:generate && npm run seed`
+- `GEMINI_API_KEY` required for AI review (runtime check in `AIService`)
+- `REDIS_URL` required for worker + cache
+- Stop backend before `npx prisma generate` on Windows (EPERM)
+- Restart backend after env changes
+- Sample runs cannot request AI review (by design)
 
 ---
 
@@ -197,66 +162,57 @@ Completed **Phase 2 (DSA module end-to-end)** — frontend Monaco solver UI, lig
 
 | Bug | Status |
 |-----|--------|
-| `next.config.ts` unsupported | **Fixed** |
-| CORS wide open | **Fixed** |
-| `tsx` / esbuild win32 | **Fixed** |
-| Judge0 Redis CRLF (`redis\r`) on Windows | **Fixed** |
-| Judge0 cgroup v2 on Docker Desktop | **Fixed** |
-| Run/Submit generic 500 on Judge0 failure | **Fixed** — now 502/504 |
-| Java/C++ Gson/nlohmann in starters | **Fixed** — problem-runner harness |
-| `prisma generate` EPERM (Windows) | Open — stop Node processes first |
-| `.gitignore` excluded project docs | **Fixed** |
-| Windows `npm run dev` (`&`) | Open — use two terminals |
-| `authStore.refresh()` on 401 | Open — optional Phase 1 polish |
+| Judge0 Windows / CRLF / cgroup | **Fixed** |
+| Judge0 failure → generic 500 | **Fixed** |
+| BullMQ ioredis type mismatch | **Fixed** |
+| `prisma generate` EPERM (Windows) | Open |
+| `authStore.refresh()` on 401 | Open |
+| `FRONTEND_URL` vs Next port | Open |
 
 ---
 
 # Important Context
 
-1. **Blueprint PDF** on Desktop — full product spec.
-2. **No Docker for app stack** — Neon + Upstash; **exception: Judge0 CE via Docker locally**.
-3. **Backend ESM** — imports use `.js` extension.
-4. **Auth:** `signup` not `register`; `User.name` required.
-5. **DSA I/O:** JSON object on stdin, JSON value on stdout (Judge0 layer); editor shows LeetCode-style `Solution` class only.
-6. **Languages:** `CPP`, `JAVA`, `PYTHON`; Judge0 IDs 54, 62, 71; all three supported via problem-runner.
-7. **Sample run:** `isSampleRun: true` → visible test cases only.
-8. **Admin CRUD for problems:** deferred to Phase 7; edit `specs/batch-*.ts` + `problem-descriptions.ts` + re-seed until then.
-9. **Seed workflow:** `seed:validate` → `seed:generate` → `seed`; JSON folder gitignored.
-10. **`solutionCode` never returned** to candidates via problems API.
-11. **Frontend design:** light zinc/emerald theme; LeetCode-like workflow, custom OmniPrep look.
-12. **Acceptance rate** stored as 0–100 percentage; frontend displays with `toFixed(2)`.
+1. **Submission API unchanged** — Judge0 only; AI is separate evaluations API.
+2. **AI report hidden until button click** — not shown after Run/Submit.
+3. **Full submit only** for AI review (`isSampleRun: false`).
+4. **Prisma accessor:** `prisma.dsaEvaluation` (model `DsaEvaluation`, table `DSAEvaluation`).
+5. **AI model in production code:** `gemini-2.5-flash` (not GPT-4o).
+6. **Evaluation report fields:** `overallScore`, four metric scores (each 0–100), `complexityAnalysis`, `followUpQuestions`, `feedback`, `suggestions`.
+7. **Cache key prefix:** `omniprep:dsa-evaluation:{sha256}`.
+8. **Worker started in `server.ts`** only when `REDIS_URL` is set.
 
 ---
 
 # Next Recommended Task
 
-**Phase 3, File 1:** Add `DSAEvaluation` model to `apps/backend/prisma/schema.prisma` and run migration.
+**Option A — Phase 3 polish (recommended if finishing phase cleanly):**  
+Add `AIUsageLog` model to `apps/backend/prisma/schema.prisma` and migrate.
 
-Suggested model fields (align with blueprint):
-- `id`, `submissionId` (unique FK), `userId`, `problemId`
-- JSON scores (correctness, efficiency, code quality, explanation)
-- `feedback` text, `suggestions` JSON array
-- `model`, `tokensUsed`, `createdAt`
+**Option B — Start Phase 4:**  
+Add `SystemDesignQuestion` (+ related models) to `prisma/schema.prisma`.
 
-**Prerequisites for local DSA testing (unchanged):**
+**Prerequisites for local testing (unchanged):**
 
 ```bash
 # Terminal 1 — Judge0
 docker compose -f docker-compose.judge0.yml up -d
 
-# Terminal 2 — Backend
+# Terminal 2 — Backend (REDIS_URL + GEMINI_API_KEY in apps/backend/.env)
 cd apps/backend && npm run dev
 
 # Terminal 3 — Frontend
 cd apps/frontend && npm run dev
 ```
 
+**AI review test flow:** Login → problem → **Submit** (not Run) → Results → **Generate AI Review**.
+
 ---
 
 # Quick Resume Prompt
 
 ```
-Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Phase 2 is complete (DSA E2E: Monaco UI, problem-runner code wrapping, Judge0 on Windows, 100-problem seed). Start Phase 3: AI Evaluation Pipeline — DSAEvaluation model, Upstash Redis, BullMQ worker, GPT-4o feedback. One file at a time. Do not redesign completed Phase 2 work.
+Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Phase 3 (on-demand DSA AI evaluation) is ~95% complete and E2E tested: Gemini + BullMQ + Redis cache + Generate AI Review UI. Submissions API unchanged. Next: AIUsageLog polish OR Phase 4 System Design. One file at a time.
 ```
 
 ---

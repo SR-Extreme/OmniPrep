@@ -51,7 +51,7 @@ The review is done. A DSAEvaluation row exists, and evaluation is included.
 pending
 The review isn’t ready yet — queued, running, or finished in the queue but not loaded from the DB on this request. evaluation is omitted.
 failed
-The background job failed (e.g. GPT/Redis/worker error). evaluation is omitted.
+The background job failed (e.g. Gemini/Redis/worker error). evaluation is omitted.
 
 That's why completed => pending as it is done in the bullmq job queue but not updated in the db.
 */
@@ -211,7 +211,7 @@ function mapJobStateToStatus(
     return 'pending';
 }
 
-//request an evaluation for gpt eval if required
+//request an evaluation for AI review if required
 export async function requestDSAEvaluation(
     submissionId: string,
     userId: string,
