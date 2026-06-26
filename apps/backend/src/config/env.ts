@@ -18,6 +18,22 @@ const envSchema = z.object({
         z.string().min(1).optional(),
     ),
     JUDGE0_BASE_URL: z.string().url(),
+    GEMINI_API_KEY: z.preprocess(
+        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+        z.string().min(1).optional(),
+    ),
+    CLOUDINARY_CLOUD_NAME: z.preprocess(
+        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+        z.string().min(1).optional(),
+    ),
+    CLOUDINARY_API_KEY: z.preprocess(
+        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+        z.string().min(1).optional(),
+    ),
+    CLOUDINARY_API_SECRET: z.preprocess(
+        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+        z.string().min(1).optional(),
+    ),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -37,3 +53,15 @@ function parseEnv(): Env {
 }
 
 export const env = parseEnv();
+
+export function isCloudinaryConfigured(envConfig: Env = env): boolean {
+    return Boolean(
+        envConfig.CLOUDINARY_CLOUD_NAME
+        && envConfig.CLOUDINARY_API_KEY
+        && envConfig.CLOUDINARY_API_SECRET,
+    );
+}
+
+export function isGeminiConfigured(envConfig: Env = env): boolean {
+    return Boolean(envConfig.GEMINI_API_KEY);
+}
