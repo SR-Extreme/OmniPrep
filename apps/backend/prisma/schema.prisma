@@ -46,6 +46,8 @@ model User {
   refreshTokens RefreshToken[]
   submissions   Submission[]
   dsaEvaluations DsaEvaluation[]
+  systemDesignSubmissions SystemDesignSubmission[]
+  systemDesignEvaluations SystemDesignEvaluation[]
 }
 
 model RefreshToken {
@@ -155,4 +157,67 @@ model DsaEvaluation {
   @@index([problemId])
   @@index([userId, problemId])
   @@map("DSAEvaluation")
+}
+
+model SystemDesignQuestion {
+  id                String                   @id @default(cuid())
+  slug              String                   @unique
+  title             String
+  description       String                   @db.Text
+  requirements      Json
+  deliverables      Json
+  constraints       String[]                 @default([])
+  difficulty        Difficulty
+  topics            String[]                 @default([])
+  hints             String[]                 @default([])
+  evaluationMetrics Json
+  isPublished       Boolean                  @default(false)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  submissions       SystemDesignSubmission[]
+  evaluations       SystemDesignEvaluation[]
+  @@index([difficulty])
+  @@index([isPublished])
+}
+
+model SystemDesignSubmission {
+  id                String                    @id @default(cuid())
+  userId            String
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          SystemDesignQuestion      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  textAnswer        String?                   @db.Text
+  diagramUrl        String?
+  followUpQuestions Json?
+  followUpAnswers   Json?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  evaluation        SystemDesignEvaluation?
+  @@index([userId])
+  @@index([questionId])
+  @@index([userId, questionId])
+  @@index([createdAt])
+}
+
+model SystemDesignEvaluation {
+  id                String                 @id @default(cuid())
+  submissionId      String                 @unique
+  submission        SystemDesignSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          SystemDesignQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  overallScore      Int
+  metricScores      Json
+  strengths         Json
+  weaknesses        Json
+  followUpQuestions Json
+  feedback          String                 @db.Text
+  suggestions       Json
+  model             String
+  tokensUsed        Int
+  createdAt         DateTime               @default(now())
+  @@index([userId])
+  @@index([questionId])
+  @@index([userId, questionId])
 }
