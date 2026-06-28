@@ -1,13 +1,21 @@
 import { z } from 'zod';
-import { object } from 'zod/v4';
 
 export interface SystemDesignRequirements {
     functional: string[];
     nonFunctional: string[];
 }
 
-export type EvaluationMetrics = Record<string, number>;
+/** One rubric row — id aligns with deliverables; scored 0–100 by AI using criteria. */
+export interface EvaluationMetric {
+    id: string;
+    title: string;
+    weight: number;
+    criteria: string[];
+}
 
+export type EvaluationMetrics = EvaluationMetric[];
+
+/** Keys are EvaluationMetric.id → score 0–100 */
 export type MetricScores = Record<string, number>;
 
 export const requirementsSchema = z.object({
@@ -19,20 +27,47 @@ export const deliverablesSchema = z.array(z.string().min(1));
 
 export const constraintsSchema = z.array(z.string().min(1));
 
+export const scaleFactorsSchema = z.array(z.string().min(1));
+
+export const evaluationMetricSchema = z.object({
+    id: z.string().min(1).regex(/^[a-z][a-zA-Z0-9]*$/, {
+        message: 'Metric id must be camelCase (e.g. highLevelDesign)',
+    }),
+    title: z.string().min(1),
+    weight: z.number().int().positive(),
+    criteria: z.array(z.string().min(1)).min(1),
+});
+
 export const evaluationMetricsSchema = z
-    .record(z.string().min(1), z.number().int().positive())
-    .refine(
-        (metrics) => Object.values(metrics).reduce((sum, weight) => sum + weight, 0) === 100,
-        { message: 'evaluationMetrics weights must sum to 100' },
-    );
+    .array(evaluationMetricSchema)
+    .min(1)
+    .superRefine((metrics, ctx) => {
+        const ids = metrics.map((m) => m.id);
+        const uniqueIds = new Set(ids);
+        if (uniqueIds.size !== ids.length) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'evaluationMetrics ids must be unique',
+            });
+        }
+
+        const weightSum = metrics.reduce((sum, m) => sum + m.weight, 0);
+        if (weightSum !== 100) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'evaluationMetrics weights must sum to 100',
+            });
+        }
+    });
 
 export const followUpQuestionsSchema = z.array(z.string().min(1)).length(2);
 
 export const followUpAnswersSchema = z.array(z.string().min(1)).length(2);
 
 export const metricScoresSchema = z.record(
-    z.string().min(1), z.number().int().min(0).max(100),
-)
+    z.string().min(1),
+    z.number().int().min(0).max(100),
+);
 
 export function parseRequirements(value: unknown): SystemDesignRequirements {
     return requirementsSchema.parse(value);
@@ -44,6 +79,10 @@ export function parseDeliverables(value: unknown): string[] {
 
 export function parseConstraints(value: unknown): string[] {
     return constraintsSchema.parse(value);
+}
+
+export function parseScaleFactors(value: unknown): string[] {
+    return scaleFactorsSchema.parse(value);
 }
 
 export function parseEvaluationMetrics(value: unknown): EvaluationMetrics {
@@ -62,15 +101,19 @@ export function parseMetricScores(value: unknown): MetricScores {
     return metricScoresSchema.parse(value);
 }
 
+export function getEvaluationMetricIds(metrics: EvaluationMetrics): string[] {
+    return metrics.map((m) => m.id);
+}
+
 export function validateMetricScoresAgainstRubric(
     metricScores: MetricScores,
     evaluationMetrics: EvaluationMetrics,
 ): void {
-    const rubricKeys = Object.keys(evaluationMetrics).sort();
-    const scoreKeys = Object.keys(metricScores).sort();
+    const rubricIds = getEvaluationMetricIds(evaluationMetrics).sort();
+    const scoreIds = Object.keys(metricScores).sort();
 
-    if (rubricKeys.join('|') !== scoreKeys.join('|')) {
-        throw new Error('metricScores keys must match evaluationMetrics keys');
+    if (rubricIds.join('|') !== scoreIds.join('|')) {
+        throw new Error('metricScores keys must match evaluationMetrics ids');
     }
 }
 
@@ -80,8 +123,8 @@ export function computeOverallScore(
 ): number {
     validateMetricScoresAgainstRubric(metricScores, evaluationMetrics);
 
-    const weighted = Object.entries(evaluationMetrics).reduce(
-        (total, [key, weight]) => total + ((metricScores[key] ?? 0) * weight) / 100,
+    const weighted = evaluationMetrics.reduce(
+        (total, metric) => total + ((metricScores[metric.id] ?? 0) * metric.weight) / 100,
         0,
     );
 
@@ -104,6 +147,7 @@ export interface SystemDesignQuestionDetail {
     requirements: SystemDesignRequirements;
     deliverables: string[];
     constraints: string[];
+    scaleFactors: string[];
     difficulty: string;
     topics: string[];
     hints: string[];

@@ -167,6 +167,7 @@ model SystemDesignQuestion {
   requirements      Json
   deliverables      Json
   constraints       String[]                 @default([])
+  scaleFactors      String[]                 @default([])
   difficulty        Difficulty
   topics            String[]                 @default([])
   hints             String[]                 @default([])
