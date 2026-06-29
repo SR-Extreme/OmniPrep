@@ -5,7 +5,6 @@ export interface SystemDesignRequirements {
     nonFunctional: string[];
 }
 
-/** One rubric row — id aligns with deliverables; scored 0–100 by AI using criteria. */
 export interface EvaluationMetric {
     id: string;
     title: string;
@@ -15,7 +14,6 @@ export interface EvaluationMetric {
 
 export type EvaluationMetrics = EvaluationMetric[];
 
-/** Keys are EvaluationMetric.id → score 0–100 */
 export type MetricScores = Record<string, number>;
 
 export const requirementsSchema = z.object({
