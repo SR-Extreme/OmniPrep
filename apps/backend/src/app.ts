@@ -5,6 +5,7 @@ import authRouter from './modules/auth/auth.routes.js';
 import problemsRouter from './modules/problems/problems.routes.js';
 import submissionsRouter from './modules/submissions/submissions.routes.js';
 import evaluationsRouter from './modules/evaluations/evaluations.routes.js';
+import systemDesignRouter from './modules/system-design/system-design.routes.js';
 import { authMiddleware, type AuthenticatedRequest } from './middleware/auth.middleware.js';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/problems', authMiddleware, problemsRouter);
 app.use('/api/submissions', authMiddleware, submissionsRouter);
 app.use('/api/evaluations', authMiddleware, evaluationsRouter);
+app.use('/api/system-design', authMiddleware, systemDesignRouter);
 
 //tells the current user logged in
 app.get('/api/me', authMiddleware, (req: AuthenticatedRequest, res: Response) => {

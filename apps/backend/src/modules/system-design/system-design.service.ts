@@ -121,7 +121,7 @@ function toQuestionDetail(question: SystemDesignQuestion): SystemDesignQuestionD
     };
 }
 
-function toSubmissionDetail(submission: {
+export function toSubmissionDetail(submission: {
     id: string;
     questionId: string;
     textAnswer: string | null;
