@@ -191,6 +191,11 @@ export async function requestSystemDesignEvaluation(
         role,
     );
 
+    const existing = await findExistingEvaluation(submissionId);
+    if (existing) {
+        return { status: 'completed', evaluation: existing };
+    }
+
     const evaluationMetrics = parseEvaluationMetrics(
         submission.question.evaluationMetrics,
     );

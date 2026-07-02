@@ -9,7 +9,15 @@ export interface AIEvalJobData {
     problemId: string;
 }
 
-let aiEvalQueue: Queue<AIEvalJobData> | undefined;
+export interface SystemDesignEvalJobData {
+    submissionId: string;
+    userId: string;
+    questionId: string;
+}
+
+
+export type AIQueueJobData = AIEvalJobData | SystemDesignEvalJobData;
+let aiEvalQueue: Queue<AIQueueJobData> | undefined;
 
 //connection options given to bullMq to internally create a redis connection.
 function getQueueConnectionOptions() {
@@ -26,13 +34,13 @@ function getQueueConnectionOptions() {
     } as const;
 }
 
-export function getAIEvalQueue(): Queue<AIEvalJobData> {
+export function getAIEvalQueue(): Queue<AIQueueJobData> {
     //this ensures only one redis connection exists
     if (aiEvalQueue) {
         return aiEvalQueue;
     }
 
-    aiEvalQueue = new Queue<AIEvalJobData>(AI_EVAL_QUEUE_NAME, {
+    aiEvalQueue = new Queue<AIQueueJobData>(AI_EVAL_QUEUE_NAME, {
         connection: getQueueConnectionOptions(),
         defaultJobOptions: {
             attempts: 3,
@@ -58,10 +66,33 @@ export async function enqueueAIEvaluation(
     return job.id ?? `dsa-eval-${data.submissionId}`;
 }
 
+export async function enqueueSystemDesignEvaluation(
+    data: SystemDesignEvalJobData,
+): Promise<string> {
+    const job = await getAIEvalQueue().add('evaluate-system-design', data, {
+        jobId: `sd-eval-${data.submissionId}`,
+    });
+
+    return job.id ?? `sd-eval-${data.submissionId}`;
+}
+
 export async function getAIEvalJobState(
     submissionId: string,
 ): Promise<'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'unknown'> {
     const job = await getAIEvalQueue().getJob(`dsa-eval-${submissionId}`);
+
+    if (!job) {
+        return 'unknown';
+    }
+
+    const state = await job.getState();
+    return state as 'waiting' | 'active' | 'completed' | 'failed' | 'delayed';
+}
+
+export async function getSystemDesignEvalJobState(
+    submissionId: string,
+): Promise<'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'unknown'> {
+    const job = await getAIEvalQueue().getJob(`sd-eval-${submissionId}`);
 
     if (!job) {
         return 'unknown';

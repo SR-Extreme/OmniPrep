@@ -1,7 +1,7 @@
 # ROADMAP.md
 
-> **Last updated:** 2026-06-20  
-> **Overall progress:** ~66% (Phases 0–2 complete; Phase 3 ~95%; Phases 4–8 not started)  
+> **Last updated:** 2026-06-28  
+> **Overall progress:** ~70% (Phases 0–3 complete; Phase 4 backend ~70%; Phase 4 frontend 0%; Phases 5–8 not started)  
 > Sync with `PROJECT_CONTEXT.md` and `SESSION_HANDOFF.md` after each session.
 
 ---
@@ -16,11 +16,11 @@
 * [x] `apps/backend` — ESM Express, `app.ts`, `server.ts`, `/health`
 * [x] `apps/frontend` — Next 14, Tailwind, `layout.tsx`, `page.tsx`
 * [x] `next.config.mjs` (not `.ts`)
-* [x] `.env.example` (Neon + Upstash + Gemini)
+* [x] `.env.example` (Neon + Upstash + Gemini + Cloudinary)
 * [x] `apps/frontend/.env.local` with `NEXT_PUBLIC_API_URL`
-* [x] `apps/backend/.env` with `PORT`, `DATABASE_URL`, `REDIS_URL`
-* [x] Phase 0–3 work partially committed to git
-* [ ] `README.md` run instructions (Judge0 Windows + AI review setup)
+* [x] `apps/backend/.env` with core vars
+* [x] Phase 0–3 work committed to git
+* [ ] `README.md` run instructions
 
 **Status:** Completed  
 **Progress:** 100%
@@ -55,64 +55,67 @@
 
 * [x] Prisma: `Problem`, `TestCase`, `Submission` + migrate
 * [x] `src/types/dsa.types.ts`
-* [x] `modules/problems/` — list, filter, get by id/slug
-* [x] `services/Judge0Service.ts` (+ `additional_files`, base64, poll tuning)
-* [x] `docker-compose.judge0.yml` + `infra/judge0/judge0.conf` (Windows cgroup fix)
-* [x] `modules/submissions/` — submit, sample run, list me, get by id
-* [x] `services/problem-runner/` — LeetCode-style starters + runtime code wrapping
-* [x] Seed: 100 problems via `specs/` + `problem-descriptions.ts`
-* [x] Frontend: Monaco, problem bank, solver, Run/Submit, results panel
-* [x] Light theme design system (`globals.css`)
+* [x] `modules/problems/`, `modules/submissions/`
+* [x] `services/Judge0Service.ts` + `problem-runner/`
+* [x] `docker-compose.judge0.yml` + Windows cgroup fix
+* [x] Seed: 100 problems
+* [x] Frontend: Monaco, problem bank, solver, Run/Submit, results
+* [x] Light theme design system
 * [x] `Judge0Error` → 502/504
-
-**Deliverables:**
-
-* [x] End-to-end: pick problem → edit Solution class → Run/Submit → see Judge0 pass/fail
 
 **Status:** Completed  
 **Progress:** 100%
 
 ---
 
-## Phase 3 — AI Evaluation Pipeline
+## Phase 3 — AI Evaluation Pipeline (DSA)
 
 **Goal:** AI evaluates DSA submissions on demand; async worker + Redis cache; rich report UI.
 
 **Tasks:**
 
-* [x] `src/config/redis.ts` — Upstash ioredis client
-* [x] `services/CacheService.ts` — SHA-256 cache key, 7-day TTL
-* [x] `services/QueueService.ts` — BullMQ `ai-eval-queue`
-* [x] `services/AIService.ts` — `evaluateDSA()` structured JSON (Gemini `gemini-2.5-flash`)
-* [x] `workers/AIEvaluationWorker.ts` — async job processor
-* [x] Prisma: `DsaEvaluation` model + migration (`@@map("DSAEvaluation")`)
-* [x] `modules/evaluations/` — POST/GET `/api/evaluations/:submissionId`
-* [x] `server.ts` — start worker when `REDIS_URL` set; graceful shutdown
-* [x] **On-demand trigger** — Generate AI Review button (not auto after submit)
-* [x] Frontend: `lib/api/evaluations.ts` + solver AI report UI
-* [x] Report: overall + 4 metrics (0–100), complexity, follow-ups, feedback, suggestions
-* [x] Manual E2E testing completed
-* [ ] `AIUsageLog` model + basic token/cost logging
-* [ ] `GEMINI_API_KEY` in `env.ts` Zod validation
+* [x] Redis, CacheService, QueueService, AIService (`evaluateDSA`)
+* [x] `AIEvaluationWorker`, `DsaEvaluation` model
+* [x] `modules/evaluations/` API + frontend AI review UI
+* [x] On-demand Generate AI Review (not auto after submit)
+* [x] Manual E2E testing
+* [x] `GEMINI_API_KEY` in `env.ts` Zod validation
+* [ ] `AIUsageLog` model + token/cost logging *(optional — deferred)*
 
-**Status:** Nearly complete  
+**Status:** Completed (optional `AIUsageLog` deferred)  
 **Progress:** 95%
 
 ---
 
 ## Phase 4 — System Design Module
 
-**Goal:** System design prompts, text (+ optional diagram) submission, AI evaluation.
+**Goal:** Structured system design prompts; text and/or diagram submission; two-round follow-up flow; multimodal Gemini final evaluation with dynamic rubric scores.
 
-**Status:** Not Started | **Progress:** 0%
+**Status:** In Progress | **Progress:** ~35% overall (~70% backend, 0% frontend)
 
-**Planned first tasks:**
+### Completed (backend)
 
-* [ ] Prisma: `SystemDesignQuestion`, `SystemDesignSubmission`, `SystemDesignEvaluation`
-* [ ] Backend module + routes
-* [ ] Extend `AIService` for system design evaluation
-* [ ] Frontend practice UI
-* [ ] Cloudinary for diagram uploads (optional in first slice)
+* [x] Prisma: `SystemDesignQuestion`, `SystemDesignSubmission`, `SystemDesignEvaluation`
+* [x] Migrations: `add_system_design`, `add_system_design_scale_factors`
+* [x] Question fields: `requirements`, `deliverables`, `constraints`, `scaleFactors`, `evaluationMetrics[]`
+* [x] Seed: 3 questions (URL shortener, Instagram feed, rate limiter)
+* [x] `src/types/system-design.types.ts` — Zod parsers, `computeOverallScore()`
+* [x] `CloudinaryService.ts` + `multer` + env helpers
+* [x] `modules/system-design/` — validation, service, follow-up service, evaluation service, controller, routes
+* [x] `app.ts` — mount `/api/system-design`
+* [x] `AIService.ts` — `generateSystemDesignFollowUps()`, `evaluateSystemDesign()` (multimodal)
+
+### In progress / remaining
+
+* [ ] `CacheService.ts` — system design evaluation cache keys + payload type
+* [ ] `QueueService.ts` — `enqueueSystemDesignEvaluation()`, `getSystemDesignEvalJobState()`
+* [ ] `AIEvaluationWorker.ts` — process system design final evaluation jobs
+* [ ] Fix `requestSystemDesignEvaluation` — DB short-circuit before cache (parity with DSA)
+* [ ] Manual backend E2E test (Postman/curl): full SD flow
+* [ ] Frontend: `src/types/system-design.ts`, `lib/api/system-design.ts`
+* [ ] Frontend: `/system-design` bank + `/system-design/[id]` practice UI (full flow)
+* [ ] Frontend: nav link from home page
+* [ ] `.env.example` sync if needed
 
 ---
 
@@ -132,7 +135,7 @@
 
 ## Phase 7 — Admin & Adaptive Engine
 
-**Goal:** Admin dashboard, study plans, analytics; replace seed-only problem edits with CRUD UI.
+**Goal:** Admin dashboard, study plans, analytics; CRUD UI for questions.
 
 **Status:** Not Started | **Progress:** 0%
 
@@ -154,9 +157,11 @@
 | M1 — Auth + DB live | Phase 1 | **Done** |
 | M1.5 — DSA API + Judge0 + 100 problems | Phase 2 | **Done** |
 | M2.5 — DSA E2E in browser | Phase 2 | **Done** |
-| **M2 — First AI feedback on code** | **Phase 3** | **Done** |
-| M3 — Mock interview E2E | Phase 6 | Pending |
-| M4 — Production deploy | Phase 8 | Pending |
+| M2 — First AI feedback on code | Phase 3 | **Done** |
+| **M2.5 — System design backend API** | **Phase 4** | **In progress** |
+| M3 — System design E2E in browser | Phase 4 | Pending |
+| M4 — Mock interview E2E | Phase 6 | Pending |
+| M5 — Production deploy | Phase 8 | Pending |
 
 ---
 
@@ -168,7 +173,7 @@
 | **v0.2** | Auth + Prisma on Neon | Phase 1 ✅ |
 | **v0.3** | DSA + Judge0 + browser UI | Phase 2 ✅ |
 | **v0.4** | AI DSA evaluation (on-demand) | Phase 3 ✅ |
-| **v0.5** | System design + behavioral | Phase 4–5 |
+| **v0.5** | System design + behavioral | Phase 4–5 *(SD backend partial)* |
 | **v0.6** | Mock interview | Phase 6 |
 | **v0.7** | Admin + adaptive plans | Phase 7 |
 | **v1.0** | Deployed MVP | Phase 8 |
@@ -181,15 +186,21 @@
 
 * Authentication  
 * DSA module + Judge0 + browser UI  
-* AI evaluation pipeline (on-demand DSA)  
+* DSA AI evaluation pipeline (on-demand)  
 * Prisma + Neon  
 
-### High Priority (next)
+### High Priority (now)
 
-* System design module (Phase 4)  
-* Behavioral + mock interview  
-* `AIUsageLog` + admin analytics (Phase 7)  
+* **System design cache + queue + worker** (unblocks compile + async final review)  
+* **System design frontend** (practice UI)  
+* Manual SD backend E2E  
 * README + deployment  
+
+### Medium Priority
+
+* `AIUsageLog` + admin analytics (Phase 7)  
+* Behavioral module (Phase 5)  
+* Auth refresh-on-401 UX  
 
 ---
 
@@ -197,18 +208,18 @@
 
 | Risk | Mitigation |
 |------|------------|
+| SD evaluation service imports missing exports | Implement CacheService + QueueService SD slice next |
 | `prisma generate` EPERM on Windows | Stop dev server before generate |
-| BullMQ/ioredis type conflict | Use connection options object (fixed) |
-| Gemini API key only in runtime env | Add to `env.ts` (pending) |
-| Judge0 on Windows Docker | mrkushalsm/judge0 + cgroup host + LF config |
+| Gemini multimodal diagram fetch fails | Cloudinary public URLs; error handling in AIService |
+| Judge0 on Windows Docker | mrkushalsm/judge0 + LF config |
 
 | Dependency | Phase | Status |
 |------------|-------|--------|
 | Neon | 1 | ✅ |
-| Judge0 CE (Docker local) | 2 | ✅ |
+| Judge0 CE (Docker) | 2 | ✅ |
 | Upstash Redis | 3 | ✅ |
-| Google Gemini API | 3 | ✅ |
-| Cloudinary | 4 | Pending |
+| Google Gemini | 3–4 | ✅ |
+| Cloudinary | 4 | ✅ (code integrated; env required) |
 | Socket.io | 6 | Pending |
 
 ---

@@ -2,19 +2,36 @@ import { Worker } from 'bullmq';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
-import { evaluateDSA } from '../services/AIService.js';
+import {
+    evaluateDSA,
+    evaluateSystemDesign,
+    type SystemDesignEvaluationAIResult,
+} from '../services/AIService.js';
 import {
     buildEvaluationCacheKey,
     getCachedEvaluation,
     setCachedEvaluation,
     type DSAEvaluationCachePayload,
+    buildSystemDesignEvaluationCacheKey,
+    setCachedSystemDesignEvaluation,
+    type SystemDesignEvaluationCachePayload,
 } from '../services/CacheService.js';
 import {
     AI_EVAL_QUEUE_NAME,
     type AIEvalJobData,
+    type SystemDesignEvalJobData,
+    type AIQueueJobData,
 } from '../services/QueueService.js';
+import {
+    computeOverallScore,
+    parseDeliverables,
+    parseEvaluationMetrics,
+    parseFollowUpAnswers,
+    parseFollowUpQuestions,
+    parseRequirements,
+} from '../types/system-design.types.js';
 
-let aiEvaluationWorker: Worker<AIEvalJobData> | undefined;
+let aiEvaluationWorker: Worker<AIQueueJobData> | undefined;
 
 function getWorkerConnectionOptions() {
     if (!env.REDIS_URL) {
@@ -46,6 +63,65 @@ async function persistEvaluation(
             codeQualityScore: payload.codeQualityScore,
             explanationScore: payload.explanationScore,
             complexityAnalysis: payload.complexityAnalysis as unknown as Prisma.InputJsonValue,
+            followUpQuestions: payload.followUpQuestions as Prisma.InputJsonValue,
+            feedback: payload.feedback,
+            suggestions: payload.suggestions as Prisma.InputJsonValue,
+            model: payload.model,
+            tokensUsed: payload.tokensUsed,
+        },
+        update: {},
+    });
+}
+
+async function persistSystemDesignEvaluation(
+    data: SystemDesignEvalJobData,
+    payload: SystemDesignEvaluationCachePayload,
+): Promise<void> {
+    const submission = await prisma.systemDesignSubmission.findUnique({
+        where: { id: data.submissionId },
+        include: { question: true },
+    });
+
+    if (!submission) {
+        throw new Error(`System design submission ${data.submissionId} not found`);
+    }
+
+    if (submission.userId !== data.userId || submission.questionId !== data.questionId) {
+        throw new Error('Job data does not match system design submission record');
+    }
+
+    const hasText = submission.textAnswer != null && submission.textAnswer.trim().length > 0;
+    const hasDiagram = submission.diagramUrl != null;
+
+    if (!hasText && !hasDiagram) {
+        throw new Error(
+            'Initial system design submission must include a text answer, diagram, or both.',
+        );
+    }
+
+    if (submission.followUpQuestions == null || submission.followUpAnswers == null) {
+        throw new Error('System design follow-ups must be generated and answered before evaluation');
+    }
+
+    const evaluationMetrics = parseEvaluationMetrics(
+        submission.question.evaluationMetrics,
+    );
+
+    const overallScore = computeOverallScore(
+        payload.metricScores,
+        evaluationMetrics,
+    );
+
+    await prisma.systemDesignEvaluation.upsert({
+        where: { submissionId: data.submissionId },
+        create: {
+            submissionId: data.submissionId,
+            userId: data.userId,
+            questionId: data.questionId,
+            overallScore,
+            metricScores: payload.metricScores as unknown as Prisma.InputJsonValue,
+            strengths: payload.strengths as Prisma.InputJsonValue,
+            weaknesses: payload.weaknesses as Prisma.InputJsonValue,
             followUpQuestions: payload.followUpQuestions as Prisma.InputJsonValue,
             feedback: payload.feedback,
             suggestions: payload.suggestions as Prisma.InputJsonValue,
@@ -114,16 +190,94 @@ async function processAIEvalJob(data: AIEvalJobData): Promise<void> {
     await persistEvaluation(data, payload);
 }
 
+async function processSystemDesignEvalJob(
+    data: SystemDesignEvalJobData,
+): Promise<void> {
+    const existing = await prisma.systemDesignEvaluation.findUnique({
+        where: { submissionId: data.submissionId },
+    });
+
+    if (existing) {
+        return;
+    }
+
+    const submission = await prisma.systemDesignSubmission.findUnique({
+        where: { id: data.submissionId },
+        include: { question: true },
+    });
+
+    if (!submission) {
+        throw new Error(`System design submission ${data.submissionId} not found`);
+    }
+
+    if (submission.userId !== data.userId || submission.questionId !== data.questionId) {
+        throw new Error('Job data does not match system design submission record');
+    }
+
+    const followUpQuestions = parseFollowUpQuestions(submission.followUpQuestions);
+    const followUpAnswers = parseFollowUpAnswers(submission.followUpAnswers);
+    const requirements = parseRequirements(submission.question.requirements);
+    const deliverables = parseDeliverables(submission.question.deliverables);
+    const evaluationMetrics = parseEvaluationMetrics(
+        submission.question.evaluationMetrics,
+    );
+
+    const cacheKey = buildSystemDesignEvaluationCacheKey({
+        questionId: submission.questionId,
+        textAnswer: submission.textAnswer,
+        diagramUrl: submission.diagramUrl,
+        followUpQuestions,
+        followUpAnswers,
+    });
+
+    const aiResult: SystemDesignEvaluationAIResult = await evaluateSystemDesign({
+        questionTitle: submission.question.title,
+        questionDescription: submission.question.description,
+        requirements,
+        deliverables,
+        constraints: submission.question.constraints,
+        scaleFactors: submission.question.scaleFactors,
+        evaluationMetrics,
+        textAnswer: submission.textAnswer,
+        diagramUrl: submission.diagramUrl,
+        followUpQuestions,
+        followUpAnswers,
+    });
+
+    const cachePayload: SystemDesignEvaluationCachePayload = {
+        metricScores: aiResult.metricScores,
+        strengths: aiResult.strengths,
+        weaknesses: aiResult.weaknesses,
+        followUpQuestions: aiResult.followUpQuestions,
+        feedback: aiResult.feedback,
+        suggestions: aiResult.suggestions,
+        model: aiResult.model,
+        tokensUsed: aiResult.tokensUsed,
+    };
+
+    await setCachedSystemDesignEvaluation(cacheKey, cachePayload);
+    await persistSystemDesignEvaluation(data, cachePayload);
+}
 //worker running (bullmq listening to redis continuosly for jobs)
-export function startAIEvaluationWorker(): Worker<AIEvalJobData> {
+export function startAIEvaluationWorker(): Worker<AIQueueJobData> {
     if (aiEvaluationWorker) {
         return aiEvaluationWorker;
     }
 
-    aiEvaluationWorker = new Worker<AIEvalJobData>(
+    aiEvaluationWorker = new Worker<AIQueueJobData>(
         AI_EVAL_QUEUE_NAME,
         async (job) => {
-            await processAIEvalJob(job.data);
+            if (job.name === 'evaluate-dsa') {
+                await processAIEvalJob(job.data as AIEvalJobData);
+                return;
+            }
+
+            if (job.name === 'evaluate-system-design') {
+                await processSystemDesignEvalJob(job.data as SystemDesignEvalJobData);
+                return;
+            }
+
+            throw new Error(`Unknown AI evaluation job: ${job.name}`);
         },
         {
             connection: getWorkerConnectionOptions(),
