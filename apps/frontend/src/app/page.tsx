@@ -59,7 +59,9 @@ export default function HomePage() {
                         <Link href="/problems" className="text-sm text-zinc-600 transition hover:text-zinc-900">
                             Problems
                         </Link>
-                        <span className="text-sm text-zinc-400">Practice</span>
+                        <Link href="/system-design" className="text-sm text-zinc-600 transition hover:text-zinc-900">
+                            System Design
+                        </Link>
                     </nav>
 
                     <div className="flex items-center gap-2">
@@ -68,8 +70,11 @@ export default function HomePage() {
                                 <span className="hidden text-sm text-zinc-500 md:inline">
                                     {user.name}
                                 </span>
-                                <Link href="/problems" className="btn-primary !py-2">
-                                    Open problems
+                                <Link href="/problems" className="btn-secondary !py-2 hidden sm:inline-flex">
+                                    Problems
+                                </Link>
+                                <Link href="/system-design" className="btn-primary !py-2">
+                                    System Design
                                 </Link>
                             </>
                         ) : (
@@ -97,8 +102,8 @@ export default function HomePage() {
                             <span className="text-emerald-600">interview-ready</span>
                         </h1>
                         <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-zinc-500 sm:text-lg">
-                            Master data structures and algorithms with curated problems,
-                            a built-in code editor, and instant judge feedback.
+                            Master DSA with curated problems and instant judge feedback, then practice
+                            structured system design with AI follow-ups and review.
                         </p>
 
                         <div className="mx-auto mt-10 max-w-lg">
@@ -111,18 +116,22 @@ export default function HomePage() {
                                     <p className="text-sm text-zinc-500">{user.email}</p>
                                     <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                                         <Link href="/problems" className="btn-primary flex-1">
-                                            Continue practicing
+                                            DSA problems
                                             <span aria-hidden="true">→</span>
                                         </Link>
-                                        <button
-                                            type="button"
-                                            onClick={() => logout()}
-                                            disabled={isLoading}
-                                            className="btn-secondary flex-1"
-                                        >
-                                            {isLoading ? 'Signing out…' : 'Sign out'}
-                                        </button>
+                                        <Link href="/system-design" className="btn-secondary flex-1">
+                                            System design
+                                            <span aria-hidden="true">→</span>
+                                        </Link>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => logout()}
+                                        disabled={isLoading}
+                                        className="btn-ghost mt-2 w-full"
+                                    >
+                                        {isLoading ? 'Signing out…' : 'Sign out'}
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="card overflow-hidden p-1.5 shadow-card">
@@ -131,7 +140,7 @@ export default function HomePage() {
                                             Ready to start?
                                         </p>
                                         <p className="mt-1 text-sm text-zinc-500">
-                                            Create a free account and jump into your first problem.
+                                            Create a free account and jump into DSA or system design practice.
                                         </p>
                                     </div>
                                     <div className="flex flex-col gap-2 p-3 sm:flex-row">
