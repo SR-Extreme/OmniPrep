@@ -1,6 +1,6 @@
 # PROJECT_CONTEXT.md
 
-> **Last updated:** 2026-06-28  
+> **Last updated:** 2026-07-03  
 > **Project:** OmniPrep (interview-prep-platform)  
 > **Maintainer note:** Update this file whenever architecture, features, or env vars change.
 
@@ -15,10 +15,10 @@
 | **Description** | Production-grade, AI-powered adaptive interview preparation platform — evaluates reasoning, system design, behavioral communication, and generates personalized study plans. |
 | **Problem Being Solved** | Most platforms test syntax only. OmniPrep evaluates conceptual depth, trade-offs, scalability thinking, and communication — then adapts learning paths from performance data. |
 | **Target Users** | **Candidates** preparing for technical interviews; **Admins** managing questions, users, and platform analytics. |
-| **Current Completion %** | **~70%** (Phases 0–3 complete; **Phase 4 backend ~70%**; Phase 4 frontend not started; Phases 5–8 not started) |
+| **Current Completion %** | **~85%** (Phases 0–3 complete; **Phase 4 code complete** — manual E2E verification pending; Phases 5–8 not started) |
 
 **Source of truth for full product spec:** `AI_Interview_Platform_Blueprint (1).pdf` (Desktop).  
-**Rebuild stack:** Next.js 14 + TypeScript + Tailwind (frontend); Express + TypeScript + ESM (backend) — *not* original blueprint’s React/Redux/Vite stack.
+**Rebuild stack:** Next.js 14 + TypeScript + Tailwind (frontend); Express + TypeScript + ESM (backend) — *not* original blueprint's React/Redux/Vite stack.
 
 ---
 
@@ -40,7 +40,7 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 1. **Sign up / login** → JWT access + refresh tokens ✅  
 2. **DSA practice** → browse problems → Monaco editor → Run/Submit → Judge0 → **on-demand AI review** ✅  
-3. **System design** → structured prompt → text and/or diagram → follow-up round → **on-demand final AI review** *(Phase 4 — backend built, frontend pending)*  
+3. **System design** → structured prompt → text and/or diagram → follow-up round → **on-demand final AI review** ✅ *(code complete; manual browser E2E pending)*  
 4. **Behavioral** → STAR-style conversation with AI follow-ups *(Phase 5)*  
 5. **Mock interview** → ~90 min live session → 20-point report *(Phase 6)*  
 6. **Study plan** → generated async via BullMQ from weak topics *(Phase 7)*  
@@ -52,10 +52,10 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 | Layer | Technology | Status |
 |-------|------------|--------|
-| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3, Zustand 5, `@monaco-editor/react` | **Active** — auth + DSA + AI review UI only |
-| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | **Active** — auth, DSA, system design API (partial pipeline) |
+| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3, Zustand 5, `@monaco-editor/react` | **Active** — auth, DSA, system design UI |
+| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | **Active** — auth, DSA, full system design API + async pipeline |
 | **Database** | PostgreSQL via **Neon** + **Prisma ORM** 6 | **Active** — **6 migrations**; DSA + system design models |
-| **Cache / queues** | **Upstash Redis** + **BullMQ** 5 + **ioredis** 5 | **Active** — DSA evaluation cache + `ai-eval-queue` (SD queue/cache **not wired yet**) |
+| **Cache / queues** | **Upstash Redis** + **BullMQ** 5 + **ioredis** 5 | **Active** — DSA + SD evaluation cache; shared `ai-eval-queue` |
 | **Authentication** | JWT + bcrypt + DB-stored refresh tokens | **Implemented** (Phase 1) |
 | **Code execution** | **Judge0 CE** | **Implemented** — local Docker (`mrkushalsm/judge0`) |
 | **AI** | **Google Gemini** `gemini-2.5-flash` via `@google/genai` | **DSA + SD follow-ups + SD final eval** in `AIService.ts` |
@@ -68,8 +68,8 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 ### Frontend state management
 
 - **Zustand** (`authStore`) — auth session persisted to `localStorage` (`omniprep-auth`)  
-- Client components for auth forms, home, and all DSA pages  
-- **No system design frontend pages yet** (`/system-design` not implemented)  
+- Client components for auth, home, DSA pages, and system design pages  
+- Routes: `/`, `/login`, `/signup`, `/problems`, `/problems/[id]`, `/system-design`, `/system-design/[id]`  
 - Shared UI primitives in `globals.css` (`btn-primary`, `card`, `badge-easy`, etc.)
 
 ---
@@ -82,16 +82,19 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 apps/frontend/
 ├── src/app/
 │   ├── layout.tsx
-│   ├── page.tsx                    # Landing — DSA CTA; SD mentioned in features only
+│   ├── page.tsx                    # Landing — DSA + System Design CTAs
 │   ├── globals.css
 │   ├── (auth)/login, signup
-│   └── problems/
-│       ├── page.tsx                # Problem bank
-│       └── [id]/page.tsx           # Monaco + Run/Submit + Generate AI Review
+│   ├── problems/
+│   │   ├── page.tsx                # DSA problem bank
+│   │   └── [id]/page.tsx           # Monaco + Run/Submit + Generate AI Review
+│   └── system-design/
+│       ├── page.tsx                # SD question bank (filters, pagination)
+│       └── [id]/page.tsx           # Full SD flow + AI review report
 ├── src/components/MonacoEditor.tsx
-├── src/lib/api/                    # auth, problems, submissions, evaluations
+├── src/lib/api/                    # auth, problems, submissions, evaluations, system-design
 ├── src/store/authStore.ts
-└── src/types/dsa.ts
+└── src/types/dsa.ts, system-design.ts
 ```
 
 ### Backend Architecture (modular, not MVC)
@@ -112,13 +115,13 @@ apps/backend/
 │   │   ├── Judge0Service.ts
 │   │   ├── AIService.ts            # evaluateDSA, generateSystemDesignFollowUps, evaluateSystemDesign
 │   │   ├── CloudinaryService.ts
-│   │   ├── CacheService.ts         # DSA cache only (SD cache pending)
-│   │   ├── QueueService.ts         # DSA jobs only (SD queue pending)
+│   │   ├── CacheService.ts         # DSA + SD evaluation cache (7-day TTL)
+│   │   ├── QueueService.ts         # DSA + SD jobs on ai-eval-queue
 │   │   └── problem-runner/
 │   ├── modules/
 │   │   ├── auth/, problems/, submissions/, evaluations/
 │   │   └── system-design/          # Full REST module (see API section)
-│   └── workers/AIEvaluationWorker.ts   # DSA jobs only (SD worker pending)
+│   └── workers/AIEvaluationWorker.ts   # evaluate-dsa + evaluate-system-design jobs
 ```
 
 **Principle:** Controllers thin; business logic in services; workers decoupled from HTTP.
@@ -135,27 +138,28 @@ No AI on submission.
 
 ```
 Generate AI Review → POST /api/evaluations/:submissionId
-  → DB hit | Redis cache | BullMQ → AIEvaluationWorker → evaluateDSA → DsaEvaluation
+  → DB hit | Redis cache | BullMQ → AIEvaluationWorker (evaluate-dsa) → evaluateDSA → DsaEvaluation
   → Frontend polls GET /api/evaluations/:submissionId
 ```
 
-### System Design Flow (Phase 4 — backend in progress)
+### System Design Flow (Phase 4 — code complete)
 
 ```
-1. GET /api/system-design/questions/:idOrSlug     → structured prompt (requirements, deliverables, constraints, scaleFactors, evaluationMetrics)
+1. GET /api/system-design/questions/:idOrSlug     → structured prompt
 2. POST /api/system-design/submissions            → multipart: questionId, textAnswer?, diagram? (Cloudinary)
 3. POST /api/system-design/submissions/:id/follow-ups/generate
-   → generateSystemDesignFollowUps() (sync Gemini, multimodal if diagram)
-   → stores 2 followUpQuestions on submission
+   → generateSystemDesignFollowUps() (sync Gemini, multimodal if diagram) → 2 followUpQuestions
 4. PATCH /api/system-design/submissions/:id/follow-ups → submit 2 followUpAnswers
 5. Generate AI Review → POST /api/system-design/evaluations/:id
-   → Redis cache | BullMQ (pending) → evaluateSystemDesign → SystemDesignEvaluation
-   → GET poll (pending)
+   → DB hit | Redis cache (omniprep:sd-evaluation:*) | BullMQ (evaluate-system-design)
+   → AIEvaluationWorker → evaluateSystemDesign → SystemDesignEvaluation
+   → Frontend polls GET /api/system-design/evaluations/:id
 ```
 
 **User input rule:** At least **text or diagram** on initial submit (both allowed).  
 **Final review rule:** Requires follow-up answers submitted first.  
-**Scoring:** Gemini returns dynamic `metricScores` keyed by `evaluationMetrics[].id`; server computes weighted `overallScore` via `computeOverallScore()`.
+**Scoring:** Gemini returns dynamic `metricScores` keyed by `evaluationMetrics[].id`; server computes weighted `overallScore` via `computeOverallScore()`.  
+**Queue job IDs:** `dsa-eval-{submissionId}` / `sd-eval-{submissionId}` on shared queue `ai-eval-queue`.
 
 ### Judge0 Architecture
 
@@ -233,10 +237,8 @@ Production (Phase 8): Railway-hosted Judge0 CE
 | `GET` | `/submissions/:id` | Single submission + follow-up state |
 | `POST` | `/submissions/:id/follow-ups/generate` | Gemini generates 2 follow-up questions (sync) |
 | `PATCH` | `/submissions/:id/follow-ups` | Body: `{ answers: [string, string] }` |
-| `POST` | `/evaluations/:id` | Request final AI review — `200` completed or `202` pending |
+| `POST` | `/evaluations/:id` | Request final AI review — `200` completed or `202` pending (`:id` = submissionId) |
 | `GET` | `/evaluations/:id` | Poll/fetch final report |
-
-**Note:** Final evaluation async pipeline (`CacheService` + `QueueService` + worker for system design) is **not yet implemented** — `tsc` currently fails on missing SD cache/queue exports.
 
 ### DSA Evaluations — `/api/evaluations` (Bearer required)
 
@@ -247,7 +249,7 @@ Production (Phase 8): Railway-hosted Judge0 CE
 
 ### DSA Submissions, Problems, Auth, Health
 
-Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/problems`, `/api/submissions`, `/api/evaluations`, `/api/system-design`, `/api/me`, `/health`.
+Mount points in `app.ts`: `/api/auth`, `/api/problems`, `/api/submissions`, `/api/evaluations`, `/api/system-design`, `/api/me`, `/health`.
 
 ---
 
@@ -259,13 +261,13 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 | Authentication | Completed | 95% | Optional refresh-on-401 UX |
 | DSA module + Judge0 + UI | Completed | 100% | |
 | AI evaluation pipeline (DSA) | Completed | 95% | E2E tested; `AIUsageLog` optional |
-| **System design — backend API** | **In Progress** | **~70%** | Schema, seed, Cloudinary, AIService, full module; cache/queue/worker pending |
-| **System design — frontend** | Not Started | 0% | No `/system-design` routes |
+| **System design — backend API** | **Completed** | **100%** | Full REST + cache/queue/worker; `tsc` passes |
+| **System design — frontend** | **Completed** | **95%** | Bank + practice + AI report UI; minor display bug; E2E pending |
 | Behavioral module | Not Started | 0% | Phase 5 |
 | Mock interview | Not Started | 0% | Phase 6 |
 | Admin + adaptive engine | Not Started | 0% | Phase 7 |
 | Deployment | Not Started | 0% | Phase 8 |
-| README | Not Started | 0% | |
+| README | Not Started | 0% | `.env.example` exists at repo root |
 
 ---
 
@@ -274,7 +276,7 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 | Service | Purpose | Status |
 |---------|---------|--------|
 | **Neon** | PostgreSQL | Connected — 6 migrations |
-| **Upstash Redis** | Cache + BullMQ | Connected — DSA evaluations |
+| **Upstash Redis** | Cache + BullMQ | Connected — DSA + SD evaluations |
 | **Google Gemini** | DSA + system design AI | Integrated (`gemini-2.5-flash`) |
 | **Judge0 CE** | Code execution | Local Docker `:2358` |
 | **Cloudinary** | SD diagram uploads | Integrated — requires env vars |
@@ -305,6 +307,8 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 |----------|----------|-------------|
 | `NEXT_PUBLIC_API_URL` | Yes | e.g. `http://localhost:4000` |
 
+Template: root `.env.example`
+
 ---
 
 ## Decision Log
@@ -333,6 +337,8 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 | 2026-06-25 | SD question shape | `requirements`, `deliverables`, `constraints`, `scaleFactors`, rich `description` | Structured prompts |
 | 2026-06-25 | SD scoring | `evaluationMetrics[]` with `{ id, title, weight, criteria }`; dynamic `metricScores`; server-side weighted `overallScore` | Rubric aligned to deliverables |
 | 2026-06-25 | SD diagrams | Cloudinary upload via `multer` field `diagram` | Centralized storage for Gemini fetch |
+| 2026-07-03 | SD async pipeline | Shared `ai-eval-queue`; job names `evaluate-dsa` / `evaluate-system-design` | Reuse BullMQ infra from Phase 3 |
+| 2026-07-03 | SD cache keys | `omniprep:sd-evaluation:{sha256}` | Parity with DSA cache pattern |
 
 ---
 
@@ -343,11 +349,13 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 | Judge0 cgroup v2 / CRLF on Windows | High | **Fixed** | |
 | Judge0 failure → generic 500 | Medium | **Fixed** | `Judge0Error` → 502/504 |
 | BullMQ + ioredis type mismatch | Medium | **Fixed** | |
-| `authStore.refresh()` not wired on 401 | Low | Open | Phase 1 polish |
+| Backend `tsc` — SD cache/queue imports | High | **Fixed** | CacheService + QueueService SD slice added |
+| SD evaluation missing DB short-circuit | Low | **Fixed** | `requestSystemDesignEvaluation` checks DB first |
+| SD follow-up answers show "Submitted" not text | Low | **Open** | `system-design/[id]/page.tsx` — should render `{answer}` |
+| `authStore.refresh()` not wired on 401 | Low | Open | Phase 1 polish; `refresh()` exists in `lib/api/auth.ts` only |
 | `prisma generate` EPERM on Windows | Medium | Open | Stop Node before generate |
 | `FRONTEND_URL` vs Next port | Low | Open | 3000 vs 3001 |
-| **Backend `tsc` fails — SD cache/queue imports missing** | **High** | **Open** | `system-design-evaluation.service.ts` imports not yet in CacheService/QueueService |
-| SD evaluation missing DB short-circuit | Low | Open | `requestSystemDesignEvaluation` should check existing row before cache (like DSA) |
+| DSA/SD nav inconsistent on `/problems` pages | Low | Open | `/problems` header lacks System Design link |
 
 ---
 
@@ -355,13 +363,13 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Wire SD cache + queue + worker | **High** | Blocks compile and async final review |
-| System design frontend | **High** | No UI for Phase 4 flow |
+| Manual E2E test system design (browser) | **High** | Full flow not yet verified end-to-end in browser |
+| Fix SD follow-up answer display | Medium | One-line UI fix in practice page |
 | `AIUsageLog` model + logging | Medium | Phase 3 optional remainder |
 | Wire `authStore.refresh()` on 401 | Medium | |
-| README with local dev (Judge0, Redis, Gemini, Cloudinary) | Medium | |
-| Add existing-evaluation check in SD request service | Low | Parity with DSA |
-| Manual E2E test system design backend | Medium | After pipeline complete |
+| README with local dev instructions | Medium | `.env.example` at root only |
+| SD worker cache read before Gemini | Low | DSA worker checks Redis first; SD worker always calls Gemini then caches |
+| Add System Design nav to `/problems` pages | Low | Home + SD pages have it; DSA pages do not |
 
 ---
 
@@ -371,9 +379,10 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 |------|--------|-------|
 | Unit tests | Not Started | |
 | API integration | Not Started | |
-| E2E | Not Started | |
+| E2E (automated) | Not Started | |
 | Manual DSA + AI review | **Done** | Phase 3 |
-| Manual system design | Not Started | Backend not end-to-end yet |
+| Manual system design (browser) | **Pending** | Code complete; awaiting full-flow verification |
+| Backend `tsc --noEmit` | **Passing** | Verified 2026-07-03 |
 
 ---
 
@@ -397,11 +406,12 @@ Unchanged — see prior phases. Mount points in `app.ts`: `/api/auth`, `/api/pro
 - **Do not auto-trigger AI on submission** — on-demand evaluation endpoints only  
 - System design multipart field name: **`diagram`**  
 - Run Prisma CLI from `apps/backend`  
+- Dev process: one file at a time (learning-focused)
 
 ### Local dev (three terminals)
 
 ```bash
-# Terminal 1 — Judge0
+# Terminal 1 — Judge0 (DSA only)
 docker compose -f docker-compose.judge0.yml up -d
 
 # Terminal 2 — Backend (REDIS_URL + GEMINI_API_KEY + CLOUDINARY_* for full SD flow)

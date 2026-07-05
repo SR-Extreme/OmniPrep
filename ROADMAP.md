@@ -1,7 +1,7 @@
 # ROADMAP.md
 
-> **Last updated:** 2026-06-28  
-> **Overall progress:** ~70% (Phases 0–3 complete; Phase 4 backend ~70%; Phase 4 frontend 0%; Phases 5–8 not started)  
+> **Last updated:** 2026-07-03  
+> **Overall progress:** ~85% (Phases 0–3 complete; Phase 4 code complete — E2E verification pending; Phases 5–8 not started)  
 > Sync with `PROJECT_CONTEXT.md` and `SESSION_HANDOFF.md` after each session.
 
 ---
@@ -91,7 +91,7 @@
 
 **Goal:** Structured system design prompts; text and/or diagram submission; two-round follow-up flow; multimodal Gemini final evaluation with dynamic rubric scores.
 
-**Status:** In Progress | **Progress:** ~35% overall (~70% backend, 0% frontend)
+**Status:** Near Complete | **Progress:** ~95% (code done; manual browser E2E pending)
 
 ### Completed (backend)
 
@@ -104,24 +104,34 @@
 * [x] `modules/system-design/` — validation, service, follow-up service, evaluation service, controller, routes
 * [x] `app.ts` — mount `/api/system-design`
 * [x] `AIService.ts` — `generateSystemDesignFollowUps()`, `evaluateSystemDesign()` (multimodal)
+* [x] `CacheService.ts` — SD evaluation cache (`omniprep:sd-evaluation:*`)
+* [x] `QueueService.ts` — `enqueueSystemDesignEvaluation()`, `getSystemDesignEvalJobState()`
+* [x] `AIEvaluationWorker.ts` — `evaluate-system-design` jobs
+* [x] `requestSystemDesignEvaluation` — DB short-circuit before cache (DSA parity)
+* [x] Backend `tsc --noEmit` passes
 
-### In progress / remaining
+### Completed (frontend)
 
-* [ ] `CacheService.ts` — system design evaluation cache keys + payload type
-* [ ] `QueueService.ts` — `enqueueSystemDesignEvaluation()`, `getSystemDesignEvalJobState()`
-* [ ] `AIEvaluationWorker.ts` — process system design final evaluation jobs
-* [ ] Fix `requestSystemDesignEvaluation` — DB short-circuit before cache (parity with DSA)
-* [ ] Manual backend E2E test (Postman/curl): full SD flow
-* [ ] Frontend: `src/types/system-design.ts`, `lib/api/system-design.ts`
-* [ ] Frontend: `/system-design` bank + `/system-design/[id]` practice UI (full flow)
-* [ ] Frontend: nav link from home page
-* [ ] `.env.example` sync if needed
+* [x] `src/types/system-design.ts`
+* [x] `src/lib/api/system-design.ts` (multipart diagram upload via FormData)
+* [x] `/system-design` question bank page
+* [x] `/system-design/[id]` practice page (submit → follow-ups → AI review + poll)
+* [x] Home page nav + CTAs for System Design
+
+### Remaining
+
+* [ ] Manual browser E2E test: full SD flow (text, optional diagram, follow-ups, AI review)
+* [ ] Fix follow-up submitted answers display (`{answer}` not "Submitted" label only)
+* [ ] Optional: add System Design link to `/problems` page headers
+* [ ] Optional: align follow-up button copy with spec ("Get evaluation for follow up")
 
 ---
 
 ## Phase 5 — Behavioral Module
 
 **Status:** Not Started | **Progress:** 0%
+
+**Goal:** STAR-style behavioral practice with AI follow-ups and evaluation.
 
 ---
 
@@ -158,8 +168,8 @@
 | M1.5 — DSA API + Judge0 + 100 problems | Phase 2 | **Done** |
 | M2.5 — DSA E2E in browser | Phase 2 | **Done** |
 | M2 — First AI feedback on code | Phase 3 | **Done** |
-| **M2.5 — System design backend API** | **Phase 4** | **In progress** |
-| M3 — System design E2E in browser | Phase 4 | Pending |
+| M2.5 — System design backend API | Phase 4 | **Done** |
+| **M3 — System design E2E in browser** | **Phase 4** | **In progress** (code ready; verification pending) |
 | M4 — Mock interview E2E | Phase 6 | Pending |
 | M5 — Production deploy | Phase 8 | Pending |
 
@@ -173,7 +183,7 @@
 | **v0.2** | Auth + Prisma on Neon | Phase 1 ✅ |
 | **v0.3** | DSA + Judge0 + browser UI | Phase 2 ✅ |
 | **v0.4** | AI DSA evaluation (on-demand) | Phase 3 ✅ |
-| **v0.5** | System design + behavioral | Phase 4–5 *(SD backend partial)* |
+| **v0.5** | System design + behavioral | Phase 4–5 *(SD code complete)* |
 | **v0.6** | Mock interview | Phase 6 |
 | **v0.7** | Admin + adaptive plans | Phase 7 |
 | **v1.0** | Deployed MVP | Phase 8 |
@@ -188,19 +198,21 @@
 * DSA module + Judge0 + browser UI  
 * DSA AI evaluation pipeline (on-demand)  
 * Prisma + Neon  
+* System design backend (full async pipeline)  
+* System design frontend (bank + practice + AI report UI)
 
 ### High Priority (now)
 
-* **System design cache + queue + worker** (unblocks compile + async final review)  
-* **System design frontend** (practice UI)  
-* Manual SD backend E2E  
-* README + deployment  
+* **Manual SD browser E2E verification**  
+* Fix SD follow-up answer display bug  
+* README + deployment docs  
 
 ### Medium Priority
 
 * `AIUsageLog` + admin analytics (Phase 7)  
 * Behavioral module (Phase 5)  
 * Auth refresh-on-401 UX  
+* Nav consistency across DSA pages  
 
 ---
 
@@ -208,16 +220,17 @@
 
 | Risk | Mitigation |
 |------|------------|
-| SD evaluation service imports missing exports | Implement CacheService + QueueService SD slice next |
+| SD flow untested end-to-end in browser | Run manual E2E checklist before closing Phase 4 |
 | `prisma generate` EPERM on Windows | Stop dev server before generate |
 | Gemini multimodal diagram fetch fails | Cloudinary public URLs; error handling in AIService |
 | Judge0 on Windows Docker | mrkushalsm/judge0 + LF config |
+| Missing env vars block SD features | Document in README; `.env.example` at root |
 
 | Dependency | Phase | Status |
 |------------|-------|--------|
 | Neon | 1 | ✅ |
 | Judge0 CE (Docker) | 2 | ✅ |
-| Upstash Redis | 3 | ✅ |
+| Upstash Redis | 3–4 | ✅ |
 | Google Gemini | 3–4 | ✅ |
 | Cloudinary | 4 | ✅ (code integrated; env required) |
 | Socket.io | 6 | Pending |

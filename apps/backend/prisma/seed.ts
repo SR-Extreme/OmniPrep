@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 import { PrismaClient, Prisma, type Difficulty } from "@prisma/client";
 import type { ProblemSeedFile } from "./seeds/types.js";
 import type { EvaluationMetric } from "../src/types/system-design.types.js";
+import {
+    BEHAVIORAL_QUESTIONS,
+    type BehavioralQuestionSeed,
+} from "./seeds/behavioral-questions.js";
 
 const prisma = new PrismaClient();
 
@@ -569,6 +573,44 @@ async function upsertSystemDesignQuestion(
     });
 }
 
+interface BehavioralQuestionWriteData {
+    title: string;
+    description: string;
+    companyName: string;
+    roleName: string;
+    difficulty: Difficulty;
+    phases: Prisma.InputJsonValue;
+    isPublished: boolean;
+}
+
+function buildBehavioralQuestionWriteData(
+    question: BehavioralQuestionSeed,
+): BehavioralQuestionWriteData {
+    return {
+        title: question.title,
+        description: question.description,
+        companyName: question.companyName,
+        roleName: question.roleName,
+        difficulty: question.difficulty,
+        phases: toInputJson(question.phases),
+        isPublished: question.isPublished,
+    };
+}
+
+async function upsertBehavioralQuestion(
+    question: BehavioralQuestionSeed,
+): Promise<void> {
+    const writeData = buildBehavioralQuestionWriteData(question);
+    await prisma.behavioralQuestion.upsert({
+        where: { slug: question.slug },
+        create: {
+            slug: question.slug,
+            ...writeData,
+        } as Prisma.BehavioralQuestionCreateInput,
+        update: writeData as Prisma.BehavioralQuestionUpdateInput,
+    });
+}
+
 async function main(): Promise<void> {
     const problems = loadProblemFiles();
 
@@ -586,13 +628,21 @@ async function main(): Promise<void> {
         console.log(`  ✓ ${question.slug}`);
     }
 
-    const [problemCount, testCaseCount, systemDesignQuestionCount] = await Promise.all([
+    console.log(`Seeding ${BEHAVIORAL_QUESTIONS.length} behavioral questions...`);
+
+    for (const question of BEHAVIORAL_QUESTIONS) {
+        await upsertBehavioralQuestion(question);
+        console.log(`  ✓ ${question.slug}`);
+    }
+
+    const [problemCount, testCaseCount, systemDesignQuestionCount, behavioralQuestionCount] = await Promise.all([
         prisma.problem.count(),
         prisma.testCase.count(),
         prisma.systemDesignQuestion.count(),
+        prisma.behavioralQuestion.count(),
     ]);
 
-    console.log(`Done. Problems: ${problemCount}, Test cases: ${testCaseCount}, System design questions: ${systemDesignQuestionCount},`);
+    console.log(`Done. Problems: ${problemCount}, Test cases: ${testCaseCount}, System design questions: ${systemDesignQuestionCount}, Behavioral questions: ${behavioralQuestionCount},`);
 }
 
 main()

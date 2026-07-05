@@ -36,6 +36,21 @@ enum SubmissionStatus {
   INTERNAL_ERROR
 }
 
+enum BehavioralPhaseType {
+  INTRODUCTION
+  ICE_BREAKER
+  RESUME_DEEP_DIVE
+  CORE_BEHAVIORAL
+  COMPANY_VALUES
+  CANDIDATE_QUESTIONS
+  WRAP_UP
+}
+
+enum BehavioralSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
@@ -48,6 +63,8 @@ model User {
   dsaEvaluations DsaEvaluation[]
   systemDesignSubmissions SystemDesignSubmission[]
   systemDesignEvaluations SystemDesignEvaluation[]
+  behavioralSessions      BehavioralSession[]
+  behavioralEvaluations   BehavioralEvaluation[]
 }
 
 model RefreshToken {
@@ -194,6 +211,7 @@ model SystemDesignSubmission {
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
   evaluation        SystemDesignEvaluation?
+
   @@index([userId])
   @@index([questionId])
   @@index([userId, questionId])
@@ -218,6 +236,99 @@ model SystemDesignEvaluation {
   model             String
   tokensUsed        Int
   createdAt         DateTime               @default(now())
+  @@index([userId])
+  @@index([questionId])
+  @@index([userId, questionId])
+}
+
+model BehavioralQuestion {
+  id          String                 @id @default(cuid())
+  slug        String                 @unique
+  title       String
+  description String                 @db.Text
+  companyName String
+  roleName    String
+  difficulty  Difficulty
+  phases      Json
+  isPublished Boolean                @default(false)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  sessions    BehavioralSession[]
+  evaluations BehavioralEvaluation[]
+
+  @@index([companyName])
+  @@index([roleName])
+  @@index([companyName, roleName])
+  @@index([difficulty])
+  @@index([isPublished])
+}
+
+model BehavioralSession {
+  id                String                  @id @default(cuid())
+  userId            String
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          BehavioralQuestion      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  resumeUrl         String
+  resumeFileName    String
+  resumeMimeType    String
+  resumeText        String                  @db.Text
+  currentPhaseIndex Int                     @default(0)
+  status            BehavioralSessionStatus @default(IN_PROGRESS)
+  completedAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  turns             BehavioralTurn[]
+  evaluation        BehavioralEvaluation?
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([status])
+  @@index([userId, questionId])
+  @@index([createdAt])
+}
+
+model BehavioralTurn {
+  id                   String              @id @default(cuid())
+  sessionId            String
+  session              BehavioralSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  phaseType            BehavioralPhaseType
+  orderIndex           Int
+  questionIndexInPhase Int
+  questionText         String              @db.Text
+  candidateAnswerText  String?             @db.Text
+  interviewerReplyText String?             @db.Text
+  isFollowUp           Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  answeredAt           DateTime?
+
+  @@index([sessionId])
+  @@index([phaseType])
+  @@index([sessionId, phaseType])
+  @@unique([sessionId, orderIndex])
+  @@unique([sessionId, phaseType, questionIndexInPhase])
+}
+
+
+model BehavioralEvaluation {
+  id                String             @id @default(cuid())
+  sessionId         String             @unique
+  session           BehavioralSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          BehavioralQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  evaluationMetrics Json
+  strongestAnswer   Json
+  weakestAnswer     Json
+  strengths         Json
+  weaknesses        Json
+  suggestions       Json
+  summary           String             @db.Text
+  model             String
+  tokensUsed        Int
+  createdAt         DateTime           @default(now())
+  
   @@index([userId])
   @@index([questionId])
   @@index([userId, questionId])
