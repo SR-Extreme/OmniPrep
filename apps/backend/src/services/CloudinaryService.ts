@@ -14,16 +14,24 @@ export class CloudinaryError extends Error {
     }
 }
 
-const ALLOWED_MIME_TYPES = new Set([
+const DIAGRAM_MIME_TYPES = new Set([
     'image/jpeg',
     'image/png',
     'image/webp',
     'image/gif',
 ])
 
+const RESUME_MIME_TYPES = new Set(['application/pdf']);
+
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 export interface UploadDiagramInput {
+    buffer: Buffer;
+    mimetype: string;
+    originalname: string;
+}
+
+export interface UploadResumeInput {
     buffer: Buffer;
     mimetype: string;
     originalname: string;
@@ -48,45 +56,56 @@ function ensureCloudinaryReady(): void {
     }
 }
 
-function validateDiagramFile(input: UploadDiagramInput): void {
-    if (!ALLOWED_MIME_TYPES.has(input.mimetype)) {
-        throw new CloudinaryError(
-
-            'Unsupported image type. Allowed: JPEG, PNG, WebP, GIF.',
-            'INVALID_FILE',
-        )
+function validateFileSize(buffer: Buffer, label: string): void {
+    if (buffer.length === 0) {
+        throw new CloudinaryError(`Uploaded ${label} is empty.`, 'INVALID_FILE');
     }
-
-    if (input.buffer.length === 0) {
-        throw new CloudinaryError('Uploaded image is empty.', 'INVALID_FILE');
-    }
-
-    if (input.buffer.length > MAX_FILE_SIZE_BYTES) {
+    if (buffer.length > MAX_FILE_SIZE_BYTES) {
         throw new CloudinaryError(
-            'Image exceeds maximum size of 5 MB.',
+            `${label} exceeds maximum size of 5 MB.`,
             'INVALID_FILE',
         );
     }
 }
 
-export async function uploadSystemDesignDiagram(
-    input: UploadDiagramInput,
-    userId: string,
+function validateDiagramFile(input: UploadDiagramInput): void {
+    if (!DIAGRAM_MIME_TYPES.has(input.mimetype)) {
+        throw new CloudinaryError(
+            'Unsupported image type. Allowed: JPEG, PNG, WebP, GIF.',
+            'INVALID_FILE',
+        );
+    }
+    validateFileSize(input.buffer, 'image');
+}
+
+function validateResumeFile(input: UploadResumeInput): void {
+    if (!RESUME_MIME_TYPES.has(input.mimetype)) {
+        throw new CloudinaryError(
+            'Unsupported resume type. Only PDF is supported.',
+            'INVALID_FILE',
+        );
+    }
+
+    validateFileSize(input.buffer, 'resume');
+}
+
+function uploadToCloudinary(
+    input: { buffer: Buffer },
+    options: {
+        folder: string;
+        resourceType: 'image' | 'raw';
+        missingUrlMessage: string;
+    },
 ): Promise<string> {
-    ensureCloudinaryReady();
-    validateDiagramFile(input);
-
-    const folder = `omniprep/system-design/${userId}`;
-
     return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream({
-            folder,
-            resource_type: 'image',
-            use_filename: true,
-            unique_filename: true,
-            overwrite: false,
-        },
-
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: options.folder,
+                resource_type: options.resourceType,
+                use_filename: true,
+                unique_filename: true,
+                overwrite: false,
+            },
             (error, result) => {
                 if (error) {
                     reject(
@@ -103,7 +122,7 @@ export async function uploadSystemDesignDiagram(
                 if (!url) {
                     reject(
                         new CloudinaryError(
-                            'Cloudinary returned no image URL.',
+                            options.missingUrlMessage,
                             'UPLOAD_FAILED',
                         ),
                     );
@@ -117,5 +136,33 @@ export async function uploadSystemDesignDiagram(
         //call which actually calls uploadstream and upload image
         //image.buffer has the raw image data
         uploadStream.end(input.buffer);
+    });
+}
+
+export async function uploadSystemDesignDiagram(
+    input: UploadDiagramInput,
+    userId: string,
+): Promise<string> {
+    ensureCloudinaryReady();
+    validateDiagramFile(input);
+
+    return uploadToCloudinary(input, {
+        folder: `omniprep/system-design/${userId}`,
+        resourceType: 'image',
+        missingUrlMessage: 'Cloudinary returned no image URL.',
+    });
+}
+
+export async function uploadBehavioralResume(
+    input: UploadResumeInput,
+    userId: string,
+): Promise<string> {
+    ensureCloudinaryReady();
+    validateResumeFile(input);
+
+    return uploadToCloudinary(input, {
+        folder: `omniprep/behavioral/${userId}`,
+        resourceType: 'raw',
+        missingUrlMessage: 'Cloudinary returned no resume URL.',
     });
 }

@@ -2,10 +2,19 @@ import { GoogleGenAI, type Part } from '@google/genai';
 import type { ProgrammingLanguage } from '@prisma/client';
 import { z } from 'zod';
 import {
+    type AiQuestionPhaseType,
+    type AnswerHighlight,
+    type BehavioralEvaluationMetrics,
+    answerHighlightSchema,
+    behavioralEvaluationMetricsSchema,
+    stringArraySchema,
+} from '../types/behavioral.types.js';
+import {
     type EvaluationMetric,
     type MetricScores,
     type SystemDesignRequirements,
-} from '../types/system-design.types.js';import type { DSAEvaluationCachePayload } from './CacheService.js';
+} from '../types/system-design.types.js';
+import type { DSAEvaluationCachePayload } from './CacheService.js';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
@@ -37,6 +46,26 @@ const evaluationResponseSchema = z.object({
 const systemDesignFollowUpResponseSchema = z.object({
     followUpQuestions: z.array(z.string().min(1)).length(2),
 });
+
+const behavioralQuestionResponseSchema = z.object({
+    questionText: z.string().min(1),
+    isFollowUp: z.boolean(),
+});
+
+const candidateQuestionsResponseSchema = z.object({
+    interviewerReplyText: z.string().min(1),
+});
+
+const behavioralEvaluationResponseSchema = z.object({
+    evaluationMetrics: behavioralEvaluationMetricsSchema,
+    strongestAnswer: answerHighlightSchema,
+    weakestAnswer: answerHighlightSchema,
+    strengths: stringArraySchema,
+    weaknesses: stringArraySchema,
+    suggestions: stringArraySchema,
+    summary: z.string().min(1),
+});
+
 export class AIError extends Error {
     constructor(
         message: string,
@@ -95,6 +124,74 @@ export interface SystemDesignEvaluationAIResult {
     followUpQuestions: string[];
     feedback: string;
     suggestions: string[];
+    model: string;
+    tokensUsed: number;
+}
+
+export interface BehavioralTranscriptTurn {
+    turnId: string;
+    phaseType: string;
+    orderIndex: number;
+    questionIndexInPhase: number;
+    questionText: string;
+    candidateAnswerText: string | null;
+    interviewerReplyText: string | null;
+    isFollowUp: boolean;
+}
+
+export interface GenerateBehavioralQuestionInput {
+    companyName: string;
+    roleName: string;
+    phaseType: AiQuestionPhaseType;
+    phaseTitle: string;
+    phaseDescription: string;
+    generationGuidance: string[];
+    resumeText: string;
+    transcript: BehavioralTranscriptTurn[];
+    questionIndexInPhase: number;
+    totalQuestionsInPhase: number;
+}
+
+export interface AnswerCandidateQuestionsInput {
+    companyName: string;
+    roleName: string;
+    answerStyle: string;
+    answerGuidance: string[];
+    candidateQuestions: string;
+    resumeText: string;
+    transcript: BehavioralTranscriptTurn[];
+}
+
+export interface EvaluateBehavioralInput {
+    companyName: string;
+    roleName: string;
+    questionTitle: string;
+    questionDescription: string;
+    resumeText: string;
+    transcript: BehavioralTranscriptTurn[];
+}
+
+export interface BehavioralQuestionAIResult {
+    questionText: string;
+    isFollowUp: boolean;
+    model: string;
+    tokensUsed: number;
+}
+
+export interface CandidateQuestionsAIResult {
+    interviewerReplyText: string;
+    model: string;
+    tokensUsed: number;
+}
+
+export interface BehavioralEvaluationAIResult {
+    evaluationMetrics: BehavioralEvaluationMetrics;
+    strongestAnswer: AnswerHighlight;
+    weakestAnswer: AnswerHighlight;
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+    summary: string;
     model: string;
     tokensUsed: number;
 }
@@ -304,6 +401,8 @@ function parseEvaluationResponse(raw: string): z.infer<typeof evaluationResponse
     return parseJsonResponse(raw, evaluationResponseSchema, 'DSA evaluation');
 }
 
+//--
+
 function buildSystemDesignFollowUpSystemPrompt(): string {
     return [
         'You are a senior system design interviewer.',
@@ -399,6 +498,172 @@ function buildSystemDesignEvaluationUserPrompt(
     );
 }
 
+//--
+
+function buildBehavioralQuestionSystemPrompt(input: GenerateBehavioralQuestionInput): string {
+    return [
+        `You are a ${input.roleName} interviewer at ${input.companyName} conducting a behavioral interview.`,
+        'Respond with valid JSON only — no markdown, no code fences.',
+        'Generate exactly ONE next interview question.',
+        `Current phase: ${input.phaseTitle} (${input.phaseType}).`,
+        `This is question ${input.questionIndexInPhase} of ${input.totalQuestionsInPhase} in this phase.`,
+        'Questions must be specific to the company and role — never generic or random.',
+        'Use the resume and prior transcript for context.',
+        'The question may be a fresh question OR a natural follow-up to the previous answer in this phase.',
+        'Sound like a real person: use natural transitions like "Interesting", "That is impressive", "Okay", "Can you walk me through" when appropriate.',
+        'Do not ask multiple questions at once.',
+        'Set isFollowUp to true only if this question directly builds on the most recent answer in this phase.',
+        ...input.generationGuidance,
+    ].join(' ');
+}
+
+function buildBehavioralQuestionUserPrompt(
+    input: GenerateBehavioralQuestionInput,
+): string {
+    const phaseTranscript = input.transcript.filter(
+        (turn) => turn.phaseType === input.phaseType,
+    );
+    return JSON.stringify(
+        {
+            task: 'Generate the next behavioral interview question',
+            interviewContext: {
+                companyName: input.companyName,
+                roleName: input.roleName,
+                phaseType: input.phaseType,
+                phaseTitle: input.phaseTitle,
+                phaseDescription: input.phaseDescription,
+                questionIndexInPhase: input.questionIndexInPhase,
+                totalQuestionsInPhase: input.totalQuestionsInPhase,
+            },
+            resumeText: input.resumeText,
+            phaseTranscript,
+            fullTranscript: input.transcript,
+            requiredJsonShape: {
+                questionText: 'string',
+                isFollowUp: 'boolean',
+            },
+        },
+        null,
+        2,
+    );
+}
+
+function buildCandidateQuestionsSystemPrompt(
+    input: AnswerCandidateQuestionsInput,
+): string {
+    return [
+        `You are a ${input.roleName} interviewer at ${input.companyName}.`,
+        input.answerStyle,
+        'Respond with valid JSON only — no markdown, no code fences.',
+        'The candidate has asked one or more questions in a single message.',
+        'Answer all of their questions in one natural interviewer response.',
+        'Be realistic, helpful, and role-relevant.',
+        'Do not invent confidential internal details.',
+        ...input.answerGuidance,
+    ].join(' ');
+}
+
+function buildCandidateQuestionsUserPrompt(
+    input: AnswerCandidateQuestionsInput,
+): string {
+    return JSON.stringify(
+        {
+            task: 'Answer the candidate questions as the company interviewer',
+            interviewContext: {
+                companyName: input.companyName,
+                roleName: input.roleName,
+            },
+            candidateQuestions: input.candidateQuestions,
+            resumeText: input.resumeText,
+            transcript: input.transcript,
+            requiredJsonShape: {
+                interviewerReplyText: 'string',
+            },
+        },
+        null,
+        2,
+    );
+}
+
+function buildBehavioralEvaluationSystemPrompt(): string {
+    return [
+        'You are a senior behavioral interviewer giving a final evaluation.',
+        'Respond with valid JSON only — no markdown, no code fences.',
+        'Evaluate the full interview transcript and resume context.',
+        'Return evaluationMetrics with these numeric fields (all integers):',
+        '- overallScore: 0-100',
+        '- communication: 0-100',
+        '- starStructure.overall: 0-100 (must equal situation + task + action + result)',
+        '- starStructure.situation: 0-25',
+        '- starStructure.task: 0-25',
+        '- starStructure.action: 0-25',
+        '- starStructure.result: 0-25',
+        '- ownership, leadership, problemSolving, technicalDepth, impact, authenticity, confidence: each 0-100',
+        'strongestAnswer and weakestAnswer must reference a real turnId from the transcript.',
+        'strengths, weaknesses, suggestions: concise actionable strings.',
+        'summary: overall narrative evaluation.',
+    ].join(' ');
+}
+
+function buildBehavioralEvaluationUserPrompt(
+    input: EvaluateBehavioralInput,
+): string {
+    return JSON.stringify(
+        {
+            task: 'Final behavioral interview evaluation',
+            interviewContext: {
+                companyName: input.companyName,
+                roleName: input.roleName,
+                questionTitle: input.questionTitle,
+                questionDescription: input.questionDescription,
+            },
+            resumeText: input.resumeText,
+            transcript: input.transcript,
+            requiredJsonShape: {
+                evaluationMetrics: {
+                    overallScore: 'integer 0-100',
+                    communication: 'integer 0-100',
+                    starStructure: {
+                        overall: 'integer 0-100',
+                        situation: 'integer 0-25',
+                        task: 'integer 0-25',
+                        action: 'integer 0-25',
+                        result: 'integer 0-25',
+                    },
+                    ownership: 'integer 0-100',
+                    leadership: 'integer 0-100',
+                    problemSolving: 'integer 0-100',
+                    technicalDepth: 'integer 0-100',
+                    impact: 'integer 0-100',
+                    authenticity: 'integer 0-100',
+                    confidence: 'integer 0-100',
+                },
+                strongestAnswer: {
+                    phaseType: 'string',
+                    turnId: 'string',
+                    question: 'string',
+                    answer: 'string',
+                    explanation: 'string',
+                },
+                weakestAnswer: {
+                    phaseType: 'string',
+                    turnId: 'string',
+                    question: 'string',
+                    answer: 'string',
+                    explanation: 'string',
+                },
+                strengths: ['string'],
+                weaknesses: ['string'],
+                suggestions: ['string'],
+                summary: 'string',
+            },
+        },
+        null,
+        2,
+    );
+}
+
+
 //makes call to Gemini and returns response object
 export async function evaluateDSA(
     input: EvaluateDSAInput,
@@ -436,6 +701,8 @@ export async function evaluateDSA(
         tokensUsed,
     };
 }
+
+//--
 
 export async function generateSystemDesignFollowUps(
     input: GenerateSystemDesignFollowUpsInput,
@@ -479,6 +746,75 @@ export async function evaluateSystemDesign(
         followUpQuestions: evaluation.followUpQuestions,
         feedback: evaluation.feedback,
         suggestions: evaluation.suggestions,
+        model: DEFAULT_MODEL,
+        tokensUsed,
+    };
+}
+
+//--
+
+export async function generateBehavioralQuestion(
+    input: GenerateBehavioralQuestionInput,
+): Promise<BehavioralQuestionAIResult> {
+    const { text, tokensUsed } = await generateJsonFromGemini(
+        buildBehavioralQuestionSystemPrompt(input),
+        buildBehavioralQuestionUserPrompt(input),
+        null,
+    );
+
+    const parsed = parseJsonResponse(
+        text,
+        behavioralQuestionResponseSchema,
+        'behavioral question',
+    );
+
+    return {
+        questionText: parsed.questionText,
+        isFollowUp: parsed.isFollowUp,
+        model: DEFAULT_MODEL,
+        tokensUsed,
+    };
+}
+
+export async function answerCandidateQuestions(
+    input: AnswerCandidateQuestionsInput,
+): Promise<CandidateQuestionsAIResult> {
+    const { text, tokensUsed } = await generateJsonFromGemini(
+        buildCandidateQuestionsSystemPrompt(input),
+        buildCandidateQuestionsUserPrompt(input),
+        null,
+    );
+
+    const parsed = parseJsonResponse(
+        text,
+        candidateQuestionsResponseSchema,
+        'candidate questions answer',
+    );
+
+    return {
+        interviewerReplyText: parsed.interviewerReplyText,
+        model: DEFAULT_MODEL,
+        tokensUsed,
+    };
+}
+
+export async function evaluateBehavioral(
+    input: EvaluateBehavioralInput,
+): Promise<BehavioralEvaluationAIResult> {
+    const { text, tokensUsed } = await generateJsonFromGemini(
+        buildBehavioralEvaluationSystemPrompt(),
+        buildBehavioralEvaluationUserPrompt(input),
+        null,
+    );
+
+    const evaluation = parseJsonResponse(
+        text,
+        behavioralEvaluationResponseSchema,
+        'behavioral evaluation',
+    );
+
+    return {
+        ...evaluation,
         model: DEFAULT_MODEL,
         tokensUsed,
     };
