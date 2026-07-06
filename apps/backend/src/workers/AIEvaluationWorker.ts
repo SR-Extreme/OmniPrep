@@ -5,6 +5,8 @@ import { env } from '../config/env.js';
 import {
     evaluateDSA,
     evaluateSystemDesign,
+    evaluateBehavioral,
+    type BehavioralTranscriptTurn,
     type SystemDesignEvaluationAIResult,
 } from '../services/AIService.js';
 import {
@@ -15,11 +17,16 @@ import {
     buildSystemDesignEvaluationCacheKey,
     setCachedSystemDesignEvaluation,
     type SystemDesignEvaluationCachePayload,
+    buildBehavioralEvaluationCacheKey,
+    getCachedBehavioralEvaluation,
+    setCachedBehavioralEvaluation,
+    type BehavioralEvaluationCachePayload,
 } from '../services/CacheService.js';
 import {
     AI_EVAL_QUEUE_NAME,
     type AIEvalJobData,
     type SystemDesignEvalJobData,
+    type BehavioralEvalJobData,
     type AIQueueJobData,
 } from '../services/QueueService.js';
 import {
@@ -130,6 +137,55 @@ async function persistSystemDesignEvaluation(
         },
         update: {},
     });
+}
+
+async function persistBehavioralEvaluation(
+    data: BehavioralEvalJobData,
+    payload: BehavioralEvaluationCachePayload,
+): Promise<void> {
+    await prisma.behavioralEvaluation.upsert({
+        where: { sessionId: data.sessionId },
+        create: {
+            sessionId: data.sessionId,
+            userId: data.userId,
+            questionId: data.questionId,
+            evaluationMetrics: payload.evaluationMetrics as unknown as Prisma.InputJsonValue,
+            strongestAnswer: payload.strongestAnswer as unknown as Prisma.InputJsonValue,
+            weakestAnswer: payload.weakestAnswer as unknown as Prisma.InputJsonValue,
+            strengths: payload.strengths as Prisma.InputJsonValue,
+            weaknesses: payload.weaknesses as Prisma.InputJsonValue,
+            suggestions: payload.suggestions as Prisma.InputJsonValue,
+            summary: payload.summary,
+            model: payload.model,
+            tokensUsed: payload.tokensUsed,
+        },
+        update: {},
+    });
+}
+
+//changes id->turnId
+function buildBehavioralTranscript(
+    turns: Array<{
+        id: string;
+        phaseType: string;
+        orderIndex: number;
+        questionIndexInPhase: number;
+        questionText: string;
+        candidateAnswerText: string | null;
+        interviewerReplyText: string | null;
+        isFollowUp: boolean;
+    }>,
+): BehavioralTranscriptTurn[] {
+    return turns.map((turn) => ({
+        turnId: turn.id,
+        phaseType: turn.phaseType,
+        orderIndex: turn.orderIndex,
+        questionIndexInPhase: turn.questionIndexInPhase,
+        questionText: turn.questionText,
+        candidateAnswerText: turn.candidateAnswerText,
+        interviewerReplyText: turn.interviewerReplyText,
+        isFollowUp: turn.isFollowUp,
+    }));
 }
 
 //checks dsaevalauation table
@@ -258,6 +314,77 @@ async function processSystemDesignEvalJob(
     await setCachedSystemDesignEvaluation(cacheKey, cachePayload);
     await persistSystemDesignEvaluation(data, cachePayload);
 }
+
+async function processBehavioralEvalJob(
+    data: BehavioralEvalJobData,
+): Promise<void> {
+    const existing = await prisma.behavioralEvaluation.findUnique({
+        where: { sessionId: data.sessionId },
+    });
+
+    if (existing) {
+        return;
+    }
+
+    const session = await prisma.behavioralSession.findUnique({
+        where: { id: data.sessionId },
+        include: {
+            question: true,
+            turns: {
+                orderBy: { orderIndex: 'asc' },
+            },
+        },
+    });
+
+    if (!session) {
+        throw new Error(`Behavioral session ${data.sessionId} not found`);
+    }
+
+    if (session.userId !== data.userId || session.questionId !== data.questionId) {
+        throw new Error('Job data does not match behavioral session record');
+    }
+
+    if (session.status !== 'COMPLETED') {
+        throw new Error('Behavioral session must be completed before evaluation');
+    }
+
+    const transcript = buildBehavioralTranscript(session.turns);
+
+    const cacheKey = buildBehavioralEvaluationCacheKey({
+        questionId: session.questionId,
+        resumeText: session.resumeText,
+        transcript,
+    });
+
+    let payload = await getCachedBehavioralEvaluation(cacheKey);
+
+    if (!payload) {
+        const aiResult = await evaluateBehavioral({
+            companyName: session.question.companyName,
+            roleName: session.question.roleName,
+            questionTitle: session.question.title,
+            questionDescription: session.question.description,
+            resumeText: session.resumeText,
+            transcript,
+        });
+
+        payload = {
+            evaluationMetrics: aiResult.evaluationMetrics,
+            strongestAnswer: aiResult.strongestAnswer,
+            weakestAnswer: aiResult.weakestAnswer,
+            strengths: aiResult.strengths,
+            weaknesses: aiResult.weaknesses,
+            suggestions: aiResult.suggestions,
+            summary: aiResult.summary,
+            model: aiResult.model,
+            tokensUsed: aiResult.tokensUsed,
+        };
+
+        await setCachedBehavioralEvaluation(cacheKey, payload);
+    }
+    await persistBehavioralEvaluation(data, payload);
+}
+
 //worker running (bullmq listening to redis continuosly for jobs)
 export function startAIEvaluationWorker(): Worker<AIQueueJobData> {
     if (aiEvaluationWorker) {
@@ -277,6 +404,11 @@ export function startAIEvaluationWorker(): Worker<AIQueueJobData> {
                 return;
             }
 
+            if (job.name === 'evaluate-behavioral') {
+                await processBehavioralEvalJob(job.data as BehavioralEvalJobData);
+                return;
+            }
+
             throw new Error(`Unknown AI evaluation job: ${job.name}`);
         },
         {
@@ -285,6 +417,7 @@ export function startAIEvaluationWorker(): Worker<AIQueueJobData> {
         },
     );
 
+    //inbuilt states: completed/failed
     aiEvaluationWorker.on('completed', (job) => {
         console.log(`AI evaluation job completed: ${job.id}`);
     });

@@ -15,8 +15,13 @@ export interface SystemDesignEvalJobData {
     questionId: string;
 }
 
+export interface BehavioralEvalJobData {
+    sessionId: string;
+    userId: string;
+    questionId: string;
+}
 
-export type AIQueueJobData = AIEvalJobData | SystemDesignEvalJobData;
+export type AIQueueJobData = AIEvalJobData | SystemDesignEvalJobData | BehavioralEvalJobData;
 let aiEvalQueue: Queue<AIQueueJobData> | undefined;
 
 //connection options given to bullMq to internally create a redis connection.
@@ -76,6 +81,16 @@ export async function enqueueSystemDesignEvaluation(
     return job.id ?? `sd-eval-${data.submissionId}`;
 }
 
+export async function enqueueBehavioralEvaluation(
+    data: BehavioralEvalJobData,
+): Promise<string> {
+    const job = await getAIEvalQueue().add('evaluate-behavioral', data, {
+        jobId: `behavioral-eval-${data.sessionId}`,
+    });
+
+    return job.id ?? `behavioral-eval-${data.sessionId}`;
+}
+
 export async function getAIEvalJobState(
     submissionId: string,
 ): Promise<'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'unknown'> {
@@ -101,3 +116,16 @@ export async function getSystemDesignEvalJobState(
     const state = await job.getState();
     return state as 'waiting' | 'active' | 'completed' | 'failed' | 'delayed';
 }
+
+export async function getBehavioralEvalJobState(
+    sessionId: string,
+): Promise<'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'unknown'> {
+    const job = await getAIEvalQueue().getJob(`behavioral-eval-${sessionId}`);
+    if (!job) {
+        return 'unknown';
+    }
+    const state = await job.getState();
+    return state as 'waiting' | 'active' | 'completed' | 'failed' | 'delayed';
+}
+
+//get connection options -> get queue -> enqueue/getStatus
