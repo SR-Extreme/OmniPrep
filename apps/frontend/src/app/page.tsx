@@ -27,9 +27,9 @@ const FEATURES = [
         ),
     },
     {
-        title: 'Behavioural Aspect',
+        title: 'Behavioral Interviews',
         description:
-            'Prepare for behavioural interview rounds with company-style questions focused on leadership, teamwork, communication, problem-solving, and decision-making.',
+            'Run company- and role-specific mock interviews with resume-aware AI questions, a full 7-phase flow, and on-demand STAR-based review.',
         accent: 'border-zinc-200 bg-zinc-50/80',
         icon: (
             <svg className="h-5 w-5 text-zinc-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -62,6 +62,9 @@ export default function HomePage() {
                         <Link href="/system-design" className="text-sm text-zinc-600 transition hover:text-zinc-900">
                             System Design
                         </Link>
+                        <Link href="/behavioral" className="text-sm text-zinc-600 transition hover:text-zinc-900">
+                            Behavioral
+                        </Link>
                     </nav>
 
                     <div className="flex items-center gap-2">
@@ -73,8 +76,11 @@ export default function HomePage() {
                                 <Link href="/problems" className="btn-secondary !py-2 hidden sm:inline-flex">
                                     Problems
                                 </Link>
-                                <Link href="/system-design" className="btn-primary !py-2">
+                                <Link href="/system-design" className="btn-secondary !py-2 hidden lg:inline-flex">
                                     System Design
+                                </Link>
+                                <Link href="/behavioral" className="btn-primary !py-2">
+                                    Behavioral
                                 </Link>
                             </>
                         ) : (
@@ -102,8 +108,8 @@ export default function HomePage() {
                             <span className="text-emerald-600">interview-ready</span>
                         </h1>
                         <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-zinc-500 sm:text-lg">
-                            Master DSA with curated problems and instant judge feedback, then practice
-                            structured system design with AI follow-ups and review.
+                            Master DSA with curated problems and instant judge feedback, practice
+                            structured system design with AI follow-ups, and run full behavioral mock interviews.
                         </p>
 
                         <div className="mx-auto mt-10 max-w-lg">
@@ -114,13 +120,17 @@ export default function HomePage() {
                                         {user.name}
                                     </p>
                                     <p className="text-sm text-zinc-500">{user.email}</p>
-                                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                                        <Link href="/problems" className="btn-primary flex-1">
+                                    <div className="mt-5 flex flex-col gap-2">
+                                        <Link href="/problems" className="btn-primary w-full">
                                             DSA problems
                                             <span aria-hidden="true">→</span>
                                         </Link>
-                                        <Link href="/system-design" className="btn-secondary flex-1">
+                                        <Link href="/system-design" className="btn-secondary w-full">
                                             System design
+                                            <span aria-hidden="true">→</span>
+                                        </Link>
+                                        <Link href="/behavioral" className="btn-secondary w-full">
+                                            Behavioral interviews
                                             <span aria-hidden="true">→</span>
                                         </Link>
                                     </div>
@@ -140,7 +150,7 @@ export default function HomePage() {
                                             Ready to start?
                                         </p>
                                         <p className="mt-1 text-sm text-zinc-500">
-                                            Create a free account and jump into DSA or system design practice.
+                                            Create a free account and jump into DSA, system design, or behavioral practice.
                                         </p>
                                     </div>
                                     <div className="flex flex-col gap-2 p-3 sm:flex-row">
