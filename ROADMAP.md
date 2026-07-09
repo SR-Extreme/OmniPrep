@@ -1,7 +1,7 @@
 # ROADMAP.md
 
-> **Last updated:** 2026-07-03  
-> **Overall progress:** ~85% (Phases 0–3 complete; Phase 4 code complete — E2E verification pending; Phases 5–8 not started)  
+> **Last updated:** 2026-07-09  
+> **Overall progress:** ~90% of Phases 0–5 (implementation complete); ~70% of full 8-phase MVP (Phases 6–8 not started)  
 > Sync with `PROJECT_CONTEXT.md` and `SESSION_HANDOFF.md` after each session.
 
 ---
@@ -19,7 +19,7 @@
 * [x] `.env.example` (Neon + Upstash + Gemini + Cloudinary)
 * [x] `apps/frontend/.env.local` with `NEXT_PUBLIC_API_URL`
 * [x] `apps/backend/.env` with core vars
-* [x] Phase 0–3 work committed to git
+* [x] Phase 0–5 work committed to git
 * [ ] `README.md` run instructions
 
 **Status:** Completed  
@@ -91,7 +91,7 @@
 
 **Goal:** Structured system design prompts; text and/or diagram submission; two-round follow-up flow; multimodal Gemini final evaluation with dynamic rubric scores.
 
-**Status:** Near Complete | **Progress:** ~95% (code done; manual browser E2E pending)
+**Status:** Completed | **Progress:** 95%
 
 ### Completed (backend)
 
@@ -109,6 +109,7 @@
 * [x] `AIEvaluationWorker.ts` — `evaluate-system-design` jobs
 * [x] `requestSystemDesignEvaluation` — DB short-circuit before cache (DSA parity)
 * [x] Backend `tsc --noEmit` passes
+* [x] Manual browser E2E verified
 
 ### Completed (frontend)
 
@@ -120,18 +121,47 @@
 
 ### Remaining
 
-* [ ] Manual browser E2E test: full SD flow (text, optional diagram, follow-ups, AI review)
 * [ ] Fix follow-up submitted answers display (`{answer}` not "Submitted" label only)
-* [ ] Optional: add System Design link to `/problems` page headers
-* [ ] Optional: align follow-up button copy with spec ("Get evaluation for follow up")
+* [ ] Optional: add Behavioral link to `/problems` and `/system-design` page headers
 
 ---
 
 ## Phase 5 — Behavioral Module
 
-**Status:** Not Started | **Progress:** 0%
+**Goal:** Company- and role-specific behavioral mock interviews with resume-aware AI questions, 7-phase flow, and on-demand STAR-based evaluation.
 
-**Goal:** STAR-style behavioral practice with AI follow-ups and evaluation.
+**Status:** Near Complete | **Progress:** ~95% (code done; manual browser E2E pending)
+
+### Completed (backend)
+
+* [x] Prisma: `BehavioralQuestion`, `BehavioralSession`, `BehavioralTurn`, `BehavioralEvaluation` + enums
+* [x] Migration: `20260705113944_add_behavioral_module`
+* [x] Seed: 3 questions (Google SWE, Amazon SDE, Microsoft SWE) via `behavioral-questions.ts`
+* [x] `src/types/behavioral.types.ts` — phase Zod schema, evaluation metrics, helpers
+* [x] `ResumeParserService.ts` — PDF only, 5 MB
+* [x] `CloudinaryService.ts` — `uploadBehavioralResume()` (`resource_type: 'raw'`)
+* [x] `AIService.ts` — `generateBehavioralQuestion()`, `answerCandidateQuestions()`, `evaluateBehavioral()`
+* [x] `CacheService.ts` — behavioral cache (`omniprep:behavioral-evaluation:*`)
+* [x] `QueueService.ts` — `enqueueBehavioralEvaluation()`, job `evaluate-behavioral`
+* [x] `AIEvaluationWorker.ts` — `processBehavioralEvalJob()`
+* [x] `modules/behavioral/` — validation, service, turn service, evaluation service, controller, routes
+* [x] `app.ts` — mount `/api/behavioral`
+* [x] Evaluation lookup: **DB → Redis → Queue**
+* [x] Backend `tsc --noEmit` passes
+
+### Completed (frontend)
+
+* [x] `src/types/behavioral.ts`
+* [x] `src/lib/api/behavioral.ts` — all 10 endpoints; multipart `resume`
+* [x] `/behavioral` question bank (company/role/difficulty/search + `filterOptions`)
+* [x] `/behavioral/[id]` — single-column flow: intro/resume → 7-phase interview → transcript → AI review → submissions history
+* [x] Home page nav + CTAs for Behavioral
+
+### Remaining
+
+* [ ] **Manual browser E2E** — full 7-phase flow + AI review (see `PROJECT_CONTEXT.md` checklist)
+* [ ] Optional: rename `behavioralPage` → `BehavioralPage` in bank page
+* [ ] Optional: add Behavioral nav to `/problems` and `/system-design` headers
 
 ---
 
@@ -141,6 +171,8 @@
 
 **Status:** Not Started | **Progress:** 0%
 
+**Planned:** Socket.io, Redis session state, `MockInterview` + `MockInterviewReport` models.
+
 ---
 
 ## Phase 7 — Admin & Adaptive Engine
@@ -148,6 +180,8 @@
 **Goal:** Admin dashboard, study plans, analytics; CRUD UI for questions.
 
 **Status:** Not Started | **Progress:** 0%
+
+**Planned:** `AIUsageLog`, `TopicPerformance`, `StudyPlan`, admin CRUD for all question types.
 
 ---
 
@@ -166,10 +200,10 @@
 | M0 — Repo runs locally | Phase 0 | **Done** |
 | M1 — Auth + DB live | Phase 1 | **Done** |
 | M1.5 — DSA API + Judge0 + 100 problems | Phase 2 | **Done** |
-| M2.5 — DSA E2E in browser | Phase 2 | **Done** |
-| M2 — First AI feedback on code | Phase 3 | **Done** |
-| M2.5 — System design backend API | Phase 4 | **Done** |
-| **M3 — System design E2E in browser** | **Phase 4** | **In progress** (code ready; verification pending) |
+| M2 — DSA E2E in browser | Phase 2 | **Done** |
+| M2.5 — First AI feedback on code | Phase 3 | **Done** |
+| M3 — System design E2E in browser | Phase 4 | **Done** |
+| **M3.5 — Behavioral E2E in browser** | **Phase 5** | **In progress** (code ready; verification pending) |
 | M4 — Mock interview E2E | Phase 6 | Pending |
 | M5 — Production deploy | Phase 8 | Pending |
 
@@ -183,9 +217,10 @@
 | **v0.2** | Auth + Prisma on Neon | Phase 1 ✅ |
 | **v0.3** | DSA + Judge0 + browser UI | Phase 2 ✅ |
 | **v0.4** | AI DSA evaluation (on-demand) | Phase 3 ✅ |
-| **v0.5** | System design + behavioral | Phase 4–5 *(SD code complete)* |
-| **v0.6** | Mock interview | Phase 6 |
-| **v0.7** | Admin + adaptive plans | Phase 7 |
+| **v0.5** | System design module | Phase 4 ✅ |
+| **v0.6** | Behavioral module | Phase 5 *(code complete; E2E pending)* |
+| **v0.7** | Mock interview | Phase 6 |
+| **v0.8** | Admin + adaptive plans | Phase 7 |
 | **v1.0** | Deployed MVP | Phase 8 |
 
 ---
@@ -198,21 +233,25 @@
 * DSA module + Judge0 + browser UI  
 * DSA AI evaluation pipeline (on-demand)  
 * Prisma + Neon  
-* System design backend (full async pipeline)  
-* System design frontend (bank + practice + AI report UI)
+* System design backend + frontend (full async pipeline)  
+* Behavioral backend + frontend (full 7-phase flow + async eval)
 
 ### High Priority (now)
 
-* **Manual SD browser E2E verification**  
+* **Manual behavioral browser E2E verification**  
 * Fix SD follow-up answer display bug  
 * README + deployment docs  
 
 ### Medium Priority
 
 * `AIUsageLog` + admin analytics (Phase 7)  
-* Behavioral module (Phase 5)  
 * Auth refresh-on-401 UX  
-* Nav consistency across DSA pages  
+* Nav consistency across all module pages  
+
+### Low Priority
+
+* Mock interview (Phase 6)  
+* Production deployment (Phase 8)  
 
 ---
 
@@ -220,19 +259,22 @@
 
 | Risk | Mitigation |
 |------|------------|
-| SD flow untested end-to-end in browser | Run manual E2E checklist before closing Phase 4 |
+| Behavioral flow untested end-to-end in browser | Run manual E2E checklist in `PROJECT_CONTEXT.md` |
 | `prisma generate` EPERM on Windows | Stop dev server before generate |
 | Gemini multimodal diagram fetch fails | Cloudinary public URLs; error handling in AIService |
+| Resume PDF parse returns empty text | Validate in `ResumeParserService`; user-facing error |
 | Judge0 on Windows Docker | mrkushalsm/judge0 + LF config |
-| Missing env vars block SD features | Document in README; `.env.example` at root |
+| Missing env vars block features | Document in README; `.env.example` at root |
+| Upstash eviction policy warning | Set policy to `noeviction` for BullMQ reliability |
 
 | Dependency | Phase | Status |
 |------------|-------|--------|
 | Neon | 1 | ✅ |
 | Judge0 CE (Docker) | 2 | ✅ |
-| Upstash Redis | 3–4 | ✅ |
-| Google Gemini | 3–4 | ✅ |
-| Cloudinary | 4 | ✅ (code integrated; env required) |
+| Upstash Redis | 3–5 | ✅ |
+| Google Gemini | 3–5 | ✅ |
+| Cloudinary | 4–5 | ✅ (SD diagrams + behavioral resumes) |
+| pdf-parse | 5 | ✅ |
 | Socket.io | 6 | Pending |
 
 ---

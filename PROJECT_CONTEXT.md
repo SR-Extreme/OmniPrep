@@ -1,6 +1,6 @@
 # PROJECT_CONTEXT.md
 
-> **Last updated:** 2026-07-03  
+> **Last updated:** 2026-07-09  
 > **Project:** OmniPrep (interview-prep-platform)  
 > **Maintainer note:** Update this file whenever architecture, features, or env vars change.
 
@@ -12,10 +12,10 @@
 |-------|--------|
 | **Project Name** | OmniPrep |
 | **Package Name (root)** | `interview-prep-platform` |
-| **Description** | Production-grade, AI-powered adaptive interview preparation platform — evaluates reasoning, system design, behavioral communication, and generates personalized study plans. |
+| **Description** | Production-grade, AI-powered adaptive interview preparation platform — evaluates reasoning, system design, behavioral communication, and (planned) generates personalized study plans. |
 | **Problem Being Solved** | Most platforms test syntax only. OmniPrep evaluates conceptual depth, trade-offs, scalability thinking, and communication — then adapts learning paths from performance data. |
-| **Target Users** | **Candidates** preparing for technical interviews; **Admins** managing questions, users, and platform analytics. |
-| **Current Completion %** | **~85%** (Phases 0–3 complete; **Phase 4 code complete** — manual E2E verification pending; Phases 5–8 not started) |
+| **Target Users** | **Candidates** preparing for technical interviews; **Admins** managing questions, users, and platform analytics (Phase 7). |
+| **Current Completion %** | **~90% of Phases 0–5** (implementation complete); **~70% of full 8-phase MVP** (Phases 6–8 not started). Phase 5 behavioral **manual E2E verification pending**. |
 
 **Source of truth for full product spec:** `AI_Interview_Platform_Blueprint (1).pdf` (Desktop).  
 **Rebuild stack:** Next.js 14 + TypeScript + Tailwind (frontend); Express + TypeScript + ESM (backend) — *not* original blueprint's React/Redux/Vite stack.
@@ -26,7 +26,7 @@
 
 ### Purpose
 
-Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system design (multimodal), behavioral (STAR), full mock interviews (WebSockets), adaptive study plans, and admin tooling.
+Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system design (multimodal), behavioral mock interviews (company/role-specific), full mock interviews (WebSockets), adaptive study plans, and admin tooling.
 
 ### Long-Term Vision
 
@@ -40,8 +40,8 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 1. **Sign up / login** → JWT access + refresh tokens ✅  
 2. **DSA practice** → browse problems → Monaco editor → Run/Submit → Judge0 → **on-demand AI review** ✅  
-3. **System design** → structured prompt → text and/or diagram → follow-up round → **on-demand final AI review** ✅ *(code complete; manual browser E2E pending)*  
-4. **Behavioral** → STAR-style conversation with AI follow-ups *(Phase 5)*  
+3. **System design** → structured prompt → text and/or diagram → follow-up round → **on-demand final AI review** ✅  
+4. **Behavioral** → company/role-specific 7-phase mock interview → resume upload → AI questions one-at-a-time → candidate Q&A → **on-demand AI review** ✅ *(code complete; manual browser E2E pending)*  
 5. **Mock interview** → ~90 min live session → 20-point report *(Phase 6)*  
 6. **Study plan** → generated async via BullMQ from weak topics *(Phase 7)*  
 7. **Admin** → CRUD questions, users, AI cost tracking, analytics *(Phase 7)*  
@@ -52,15 +52,16 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 
 | Layer | Technology | Status |
 |-------|------------|--------|
-| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3, Zustand 5, `@monaco-editor/react` | **Active** — auth, DSA, system design UI |
-| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | **Active** — auth, DSA, full system design API + async pipeline |
-| **Database** | PostgreSQL via **Neon** + **Prisma ORM** 6 | **Active** — **6 migrations**; DSA + system design models |
-| **Cache / queues** | **Upstash Redis** + **BullMQ** 5 + **ioredis** 5 | **Active** — DSA + SD evaluation cache; shared `ai-eval-queue` |
+| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS 3, Zustand 5, `@monaco-editor/react` | **Active** — auth, DSA, system design, behavioral UI |
+| **Backend** | Node.js, Express 4, TypeScript, ESM (`"type": "module"`) | **Active** — auth, DSA, system design, behavioral API + async pipeline |
+| **Database** | PostgreSQL via **Neon** + **Prisma ORM** 6 | **Active** — **7 migrations**; DSA + SD + behavioral models |
+| **Cache / queues** | **Upstash Redis** + **BullMQ** 5 + **ioredis** 5 | **Active** — DSA + SD + behavioral evaluation cache; shared `ai-eval-queue` |
 | **Authentication** | JWT + bcrypt + DB-stored refresh tokens | **Implemented** (Phase 1) |
 | **Code execution** | **Judge0 CE** | **Implemented** — local Docker (`mrkushalsm/judge0`) |
-| **AI** | **Google Gemini** `gemini-2.5-flash` via `@google/genai` | **DSA + SD follow-ups + SD final eval** in `AIService.ts` |
-| **File storage** | **Cloudinary** | **Implemented** — `CloudinaryService.ts` for SD diagram uploads |
-| **Multipart uploads** | **multer** (memory storage, 5 MB) | **Implemented** — `POST /api/system-design/submissions` |
+| **AI** | **Google Gemini** `gemini-2.5-flash` via `@google/genai` | **DSA + SD + behavioral** in `AIService.ts` |
+| **File storage** | **Cloudinary** | **SD diagrams** + **behavioral resume PDFs** (`resource_type: 'raw'`) |
+| **Resume parsing** | **pdf-parse** | **PDF only**, 5 MB max — `ResumeParserService.ts` |
+| **Multipart uploads** | **multer** (memory storage, 5 MB) | SD `diagram`; behavioral `resume` |
 | **Real-time** | Socket.io (planned) | Not started (Phase 6) |
 | **Deployment** | Vercel, Railway, Neon, Upstash, Cloudinary | Not started (Phase 8) |
 | **Monorepo** | npm workspaces (`apps/frontend`, `apps/backend`) | Active |
@@ -68,8 +69,8 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 ### Frontend state management
 
 - **Zustand** (`authStore`) — auth session persisted to `localStorage` (`omniprep-auth`)  
-- Client components for auth, home, DSA pages, and system design pages  
-- Routes: `/`, `/login`, `/signup`, `/problems`, `/problems/[id]`, `/system-design`, `/system-design/[id]`  
+- Client components for auth, home, DSA, system design, and behavioral pages  
+- Routes: `/`, `/login`, `/signup`, `/problems`, `/problems/[id]`, `/system-design`, `/system-design/[id]`, **`/behavioral`**, **`/behavioral/[id]`**  
 - Shared UI primitives in `globals.css` (`btn-primary`, `card`, `badge-easy`, etc.)
 
 ---
@@ -82,19 +83,22 @@ Build an adaptive AI ecosystem for interview prep: DSA with AI feedback, system 
 apps/frontend/
 ├── src/app/
 │   ├── layout.tsx
-│   ├── page.tsx                    # Landing — DSA + System Design CTAs
+│   ├── page.tsx                    # Landing — DSA + SD + Behavioral CTAs
 │   ├── globals.css
 │   ├── (auth)/login, signup
 │   ├── problems/
 │   │   ├── page.tsx                # DSA problem bank
 │   │   └── [id]/page.tsx           # Monaco + Run/Submit + Generate AI Review
-│   └── system-design/
-│       ├── page.tsx                # SD question bank (filters, pagination)
-│       └── [id]/page.tsx           # Full SD flow + AI review report
+│   ├── system-design/
+│   │   ├── page.tsx                # SD question bank (filters, pagination)
+│   │   └── [id]/page.tsx           # Full SD flow + AI review report
+│   └── behavioral/
+│       ├── page.tsx                # Behavioral bank (company/role/difficulty filters)
+│       └── [id]/page.tsx           # 7-phase interview + transcript + AI review + submissions
 ├── src/components/MonacoEditor.tsx
-├── src/lib/api/                    # auth, problems, submissions, evaluations, system-design
+├── src/lib/api/                    # auth, problems, submissions, evaluations, system-design, behavioral
 ├── src/store/authStore.ts
-└── src/types/dsa.ts, system-design.ts
+└── src/types/dsa.ts, system-design.ts, behavioral.ts
 ```
 
 ### Backend Architecture (modular, not MVC)
@@ -102,26 +106,28 @@ apps/frontend/
 ```
 apps/backend/
 ├── prisma/
-│   ├── schema.prisma               # User, Problem, DsaEvaluation, SystemDesign*, …
-│   ├── seed.ts                     # 100 DSA problems + 3 system design questions
-│   └── migrations/                 # 6 migrations
+│   ├── schema.prisma               # User, Problem, DsaEvaluation, SystemDesign*, Behavioral*
+│   ├── seed.ts                     # 100 DSA + 3 SD + 3 behavioral questions
+│   └── migrations/                 # 7 migrations
 ├── src/
 │   ├── server.ts                   # API + AIEvaluationWorker (if REDIS_URL)
-│   ├── app.ts                      # /health, auth, problems, submissions, evaluations, system-design
+│   ├── app.ts                      # /health, auth, problems, submissions, evaluations, system-design, behavioral
 │   ├── config/env.ts, db.ts, redis.ts
 │   ├── middleware/auth.middleware.ts
-│   ├── types/dsa.types.ts, system-design.types.ts
+│   ├── types/dsa.types.ts, system-design.types.ts, behavioral.types.ts
 │   ├── services/
 │   │   ├── Judge0Service.ts
-│   │   ├── AIService.ts            # evaluateDSA, generateSystemDesignFollowUps, evaluateSystemDesign
-│   │   ├── CloudinaryService.ts
-│   │   ├── CacheService.ts         # DSA + SD evaluation cache (7-day TTL)
-│   │   ├── QueueService.ts         # DSA + SD jobs on ai-eval-queue
+│   │   ├── AIService.ts            # DSA, SD, behavioral AI methods
+│   │   ├── CloudinaryService.ts    # SD diagrams + behavioral resumes
+│   │   ├── ResumeParserService.ts  # PDF text extraction
+│   │   ├── CacheService.ts         # DSA + SD + behavioral evaluation cache (7-day TTL)
+│   │   ├── QueueService.ts         # DSA + SD + behavioral jobs on ai-eval-queue
 │   │   └── problem-runner/
 │   ├── modules/
 │   │   ├── auth/, problems/, submissions/, evaluations/
-│   │   └── system-design/          # Full REST module (see API section)
-│   └── workers/AIEvaluationWorker.ts   # evaluate-dsa + evaluate-system-design jobs
+│   │   ├── system-design/          # Full REST module
+│   │   └── behavioral/             # Full REST module (see API section)
+│   └── workers/AIEvaluationWorker.ts   # evaluate-dsa + evaluate-system-design + evaluate-behavioral
 ```
 
 **Principle:** Controllers thin; business logic in services; workers decoupled from HTTP.
@@ -142,7 +148,7 @@ Generate AI Review → POST /api/evaluations/:submissionId
   → Frontend polls GET /api/evaluations/:submissionId
 ```
 
-### System Design Flow (Phase 4 — code complete)
+### System Design Flow (Phase 4 — complete)
 
 ```
 1. GET /api/system-design/questions/:idOrSlug     → structured prompt
@@ -158,8 +164,39 @@ Generate AI Review → POST /api/evaluations/:submissionId
 
 **User input rule:** At least **text or diagram** on initial submit (both allowed).  
 **Final review rule:** Requires follow-up answers submitted first.  
-**Scoring:** Gemini returns dynamic `metricScores` keyed by `evaluationMetrics[].id`; server computes weighted `overallScore` via `computeOverallScore()`.  
-**Queue job IDs:** `dsa-eval-{submissionId}` / `sd-eval-{submissionId}` on shared queue `ai-eval-queue`.
+**Scoring:** Gemini returns dynamic `metricScores` keyed by `evaluationMetrics[].id`; server computes weighted `overallScore` via `computeOverallScore()`.
+
+### Behavioral Interview Flow (Phase 5 — code complete)
+
+**Design (locked — not a simple STAR chatbot):** Each `BehavioralQuestion` is tied to **companyName + roleName + difficulty**. Seven seeded phases in `phases` JSON:
+
+| # | Phase | AI questions | Notes |
+|---|-------|--------------|-------|
+| 1 | `INTRODUCTION` | 0 | Seeded `statement`; **resume PDF upload** required to start |
+| 2 | `ICE_BREAKER` | 2 | One AI question at a time |
+| 3 | `RESUME_DEEP_DIVE` | 3 | Resume-aware |
+| 4 | `CORE_BEHAVIORAL` | 3 | Company/role-specific |
+| 5 | `COMPANY_VALUES` | 2 | Company/role-specific |
+| 6 | `CANDIDATE_QUESTIONS` | 0 | User asks **all questions at once**; AI replies as company interviewer |
+| 7 | `WRAP_UP` | 0 | Seeded `statement` |
+
+**Session rules:**
+- `POST /sessions` with multipart `resume` → parses PDF, uploads to Cloudinary, sets `currentPhaseIndex: 1` (intro skipped after upload)
+- **Next question:** `POST /sessions/:id/next-question` — sync Gemini, one question per call; follow-ups count toward phase `totalQuestions`
+- **Answer:** `PATCH /sessions/:id/turns/:turnId` — must answer before next question
+- **Candidate phase:** `POST /sessions/:id/candidate-questions` → AI reply → session `COMPLETED`, advances to `WRAP_UP`
+- **AI review:** on-demand only after `COMPLETED`; **not** auto-triggered
+
+```
+Generate AI Review → POST /api/behavioral/evaluations/:id  (:id = sessionId)
+  → DB hit | Redis cache (omniprep:behavioral-evaluation:*) | BullMQ (evaluate-behavioral)
+  → AIEvaluationWorker → evaluateBehavioral → BehavioralEvaluation
+  → Frontend polls GET /api/behavioral/evaluations/:id
+```
+
+**Evaluation lookup order:** **DB → Redis → Queue** (same pattern as DSA/SD).
+
+**Queue job IDs:** `dsa-eval-{submissionId}` / `sd-eval-{submissionId}` / `behavioral-eval-{sessionId}` on shared queue `ai-eval-queue`.
 
 ### Judge0 Architecture
 
@@ -172,7 +209,7 @@ Production (Phase 8): Railway-hosted Judge0 CE
 
 ## Database Architecture (Prisma on Neon)
 
-**Implemented models:** `User`, `RefreshToken`, `Problem`, `TestCase`, `Submission`, `DsaEvaluation`, `SystemDesignQuestion`, `SystemDesignSubmission`, `SystemDesignEvaluation` (+ enums).
+**Implemented models:** `User`, `RefreshToken`, `Problem`, `TestCase`, `Submission`, `DsaEvaluation`, `SystemDesignQuestion`, `SystemDesignSubmission`, `SystemDesignEvaluation`, **`BehavioralQuestion`**, **`BehavioralSession`**, **`BehavioralTurn`**, **`BehavioralEvaluation`** (+ enums).
 
 **Migrations:**
 
@@ -184,47 +221,73 @@ Production (Phase 8): Railway-hosted Judge0 CE
 | `20260620173002_add_dsa_evaluation` | `DsaEvaluation` (`@@map("DSAEvaluation")`) |
 | `20260626090305_add_system_design` | System design question/submission/evaluation tables |
 | `20260628053657_add_system_design_scale_factors` | `scaleFactors` on `SystemDesignQuestion` |
+| `20260705113944_add_behavioral_module` | Behavioral question/session/turn/evaluation + enums |
 
 **Seed data:**
 
 - **100** published DSA problems, **1000** test cases  
 - **3** system design questions: `design-url-shortener`, `design-instagram-feed`, `design-rate-limiter`
+- **3** behavioral questions: `google-software-engineer-behavioral`, `amazon-sde-behavioral`, `microsoft-software-engineer-behavioral`
 
-### `SystemDesignQuestion` (key fields)
+### `BehavioralQuestion` (key fields)
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `description` | Text | Full prompt + how to proceed |
-| `requirements` | Json | `{ functional: string[], nonFunctional: string[] }` |
-| `deliverables` | Json | `string[]` |
-| `constraints` | String[] | Assumptions / limits |
-| `scaleFactors` | String[] | Back-of-envelope hints for candidates |
-| `evaluationMetrics` | Json | `EvaluationMetric[]`: `{ id, title, weight, criteria[] }` — weights sum to **100** |
+| `companyName`, `roleName` | String | Drive AI question specificity |
+| `phases` | Json | 7 phases — Zod-validated in `behavioral.types.ts` |
+| `difficulty` | `Difficulty` enum | EASY / MEDIUM / HARD |
 
-### `SystemDesignSubmission`
+### `BehavioralSession`
 
 | Field | Notes |
 |-------|-------|
-| `textAnswer?`, `diagramUrl?` | At least one required (service validation) |
-| `followUpQuestions?` | 2 AI-generated interview questions |
-| `followUpAnswers?` | 2 user text answers — required before final AI review |
+| `resumeUrl`, `resumeFileName`, `resumeMimeType`, `resumeText` | PDF upload + parsed text |
+| `currentPhaseIndex` | Starts at **1** after session create (ice-breaker) |
+| `status` | `IN_PROGRESS` \| `COMPLETED` |
 
-### `SystemDesignEvaluation`
+### `BehavioralTurn`
 
 | Field | Notes |
 |-------|-------|
-| `overallScore` | 0–100, weighted from `metricScores` + rubric weights |
-| `metricScores` | Json — `{ [metricId]: 0–100 }` |
-| `strengths`, `weaknesses`, `followUpQuestions`, `feedback`, `suggestions` | Report fields |
+| `phaseType` | `BehavioralPhaseType` enum |
+| `questionText`, `candidateAnswerText?`, `interviewerReplyText?` | Transcript |
+| `isFollowUp` | Follow-ups count toward phase quota |
+
+### `BehavioralEvaluation`
+
+| Field | Notes |
+|-------|-------|
+| `evaluationMetrics` | Json — see metrics below |
+| `strongestAnswer`, `weakestAnswer` | Json `AnswerHighlight` |
+| `strengths`, `weaknesses`, `suggestions` | string arrays |
+| `summary` | Narrative |
 | `model`, `tokensUsed` | Gemini metadata |
+
+**`evaluationMetrics` scores (0–100 except STAR components 0–25 each, summing to `starStructure.overall`):**  
+`overallScore`, `communication`, `starStructure` (overall + situation/task/action/result), `ownership`, `leadership`, `problemSolving`, `technicalDepth`, `impact`, `authenticity`, `confidence`
 
 ### Planned models (not in schema)
 
-`AIUsageLog`, `BehavioralQuestion`, `BehavioralSession`, `MockInterview`, `MockInterviewReport`, `TopicPerformance`, `StudyPlan`
+`AIUsageLog`, `MockInterview`, `MockInterviewReport`, `TopicPerformance`, `StudyPlan`
 
 ---
 
 ## API Documentation
+
+### Behavioral — `/api/behavioral` (Bearer required)
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/questions` | Paginated bank; filters: `company`, `role`, `difficulty`, `search`; returns `filterOptions` |
+| `GET` | `/questions/:idOrSlug` | Full question detail with `phases` |
+| `POST` | `/sessions` | Multipart: `questionId`, `resume` (PDF) → creates session |
+| `GET` | `/sessions/me` | User session history (`?questionId`) |
+| `GET` | `/sessions/:id` | Session + turns |
+| `POST` | `/sessions/:id/next-question` | Generate next AI question (sync Gemini) |
+| `PATCH` | `/sessions/:id/turns/:turnId` | Body: `{ answer }` |
+| `POST` | `/sessions/:id/candidate-questions` | Body: `{ questions }` — AI interviewer reply |
+| `POST` | `/evaluations/:id` | Request AI review — `200` completed or `202` pending (`:id` = **sessionId**) |
+| `GET` | `/evaluations/:id` | Poll/fetch evaluation report |
 
 ### System Design — `/api/system-design` (Bearer required)
 
@@ -249,7 +312,7 @@ Production (Phase 8): Railway-hosted Judge0 CE
 
 ### DSA Submissions, Problems, Auth, Health
 
-Mount points in `app.ts`: `/api/auth`, `/api/problems`, `/api/submissions`, `/api/evaluations`, `/api/system-design`, `/api/me`, `/health`.
+Mount points in `app.ts`: `/api/auth`, `/api/problems`, `/api/submissions`, `/api/evaluations`, `/api/system-design`, **`/api/behavioral`**, `/api/me`, `/health`.
 
 ---
 
@@ -261,9 +324,10 @@ Mount points in `app.ts`: `/api/auth`, `/api/problems`, `/api/submissions`, `/ap
 | Authentication | Completed | 95% | Optional refresh-on-401 UX |
 | DSA module + Judge0 + UI | Completed | 100% | |
 | AI evaluation pipeline (DSA) | Completed | 95% | E2E tested; `AIUsageLog` optional |
-| **System design — backend API** | **Completed** | **100%** | Full REST + cache/queue/worker; `tsc` passes |
-| **System design — frontend** | **Completed** | **95%** | Bank + practice + AI report UI; minor display bug; E2E pending |
-| Behavioral module | Not Started | 0% | Phase 5 |
+| System design — backend API | Completed | 100% | Full REST + cache/queue/worker |
+| System design — frontend | Completed | 95% | Bank + practice + AI report UI; minor display bug |
+| **Behavioral — backend API** | **Completed** | **100%** | Full REST + resume parse + cache/queue/worker |
+| **Behavioral — frontend** | **Completed** | **95%** | Bank + 7-phase interview + AI report; E2E pending |
 | Mock interview | Not Started | 0% | Phase 6 |
 | Admin + adaptive engine | Not Started | 0% | Phase 7 |
 | Deployment | Not Started | 0% | Phase 8 |
@@ -275,11 +339,11 @@ Mount points in `app.ts`: `/api/auth`, `/api/problems`, `/api/submissions`, `/ap
 
 | Service | Purpose | Status |
 |---------|---------|--------|
-| **Neon** | PostgreSQL | Connected — 6 migrations |
-| **Upstash Redis** | Cache + BullMQ | Connected — DSA + SD evaluations |
-| **Google Gemini** | DSA + system design AI | Integrated (`gemini-2.5-flash`) |
+| **Neon** | PostgreSQL | Connected — 7 migrations |
+| **Upstash Redis** | Cache + BullMQ | Connected — DSA + SD + behavioral evaluations |
+| **Google Gemini** | DSA + SD + behavioral AI | Integrated (`gemini-2.5-flash`) |
 | **Judge0 CE** | Code execution | Local Docker `:2358` |
-| **Cloudinary** | SD diagram uploads | Integrated — requires env vars |
+| **Cloudinary** | SD diagrams + behavioral resumes | Integrated — requires env vars |
 | **Socket.io** | Mock interviews | Not integrated |
 
 ---
@@ -298,8 +362,8 @@ Mount points in `app.ts`: `/api/auth`, `/api/problems`, `/api/submissions`, `/ap
 | `JUDGE0_BASE_URL` | Yes | Dev: `http://localhost:2358` |
 | `JUDGE0_API_KEY` | Optional | Empty for local CE |
 | `REDIS_URL` | For AI async | Upstash `rediss://…` — worker off if unset |
-| `GEMINI_API_KEY` | For AI features | Validated in `env.ts` (optional field) |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | For SD diagrams | Validated via `isCloudinaryConfigured()` |
+| `GEMINI_API_KEY` | For AI features | Required for behavioral questions + all evaluations |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | For uploads | SD diagrams + behavioral resume PDFs |
 
 ### `apps/frontend/.env.local`
 
@@ -339,6 +403,14 @@ Template: root `.env.example`
 | 2026-06-25 | SD diagrams | Cloudinary upload via `multer` field `diagram` | Centralized storage for Gemini fetch |
 | 2026-07-03 | SD async pipeline | Shared `ai-eval-queue`; job names `evaluate-dsa` / `evaluate-system-design` | Reuse BullMQ infra from Phase 3 |
 | 2026-07-03 | SD cache keys | `omniprep:sd-evaluation:{sha256}` | Parity with DSA cache pattern |
+| 2026-07-05 | Behavioral flow | **7-phase** company+role interview (not simple STAR chat) | User-locked design |
+| 2026-07-05 | Behavioral questions | **One AI question at a time**; follow-ups count toward phase total | Realistic interview pacing |
+| 2026-07-05 | Behavioral intro | Resume PDF upload gates progression; `currentPhaseIndex: 1` on create | Intro is seeded, not a turn |
+| 2026-07-05 | Candidate phase | User submits all questions at once; AI answers as company interviewer | Mirrors real closing round |
+| 2026-07-05 | Behavioral eval | On-demand only after `COMPLETED`; DB → Redis → Queue lookup | DSA/SD parity |
+| 2026-07-05 | Behavioral resume | PDF only, 5 MB; `pdf-parse`; Cloudinary `resource_type: 'raw'` | `ResumeParserService` |
+| 2026-07-05 | Behavioral multipart | Field name **`resume`** | Distinct from SD `diagram` |
+| 2026-07-05 | Behavioral cache | `omniprep:behavioral-evaluation:{sha256}`; job `evaluate-behavioral` | Shared worker queue |
 
 ---
 
@@ -349,13 +421,12 @@ Template: root `.env.example`
 | Judge0 cgroup v2 / CRLF on Windows | High | **Fixed** | |
 | Judge0 failure → generic 500 | Medium | **Fixed** | `Judge0Error` → 502/504 |
 | BullMQ + ioredis type mismatch | Medium | **Fixed** | |
-| Backend `tsc` — SD cache/queue imports | High | **Fixed** | CacheService + QueueService SD slice added |
-| SD evaluation missing DB short-circuit | Low | **Fixed** | `requestSystemDesignEvaluation` checks DB first |
 | SD follow-up answers show "Submitted" not text | Low | **Open** | `system-design/[id]/page.tsx` — should render `{answer}` |
 | `authStore.refresh()` not wired on 401 | Low | Open | Phase 1 polish; `refresh()` exists in `lib/api/auth.ts` only |
 | `prisma generate` EPERM on Windows | Medium | Open | Stop Node before generate |
 | `FRONTEND_URL` vs Next port | Low | Open | 3000 vs 3001 |
-| DSA/SD nav inconsistent on `/problems` pages | Low | Open | `/problems` header lacks System Design link |
+| DSA/SD pages missing Behavioral nav | Low | Open | Home + behavioral pages have it; `/problems` and `/system-design` headers lack Behavioral link |
+| Behavioral bank export name `behavioralPage` | Low | Open | Should be `BehavioralPage` (React convention) |
 
 ---
 
@@ -363,13 +434,13 @@ Template: root `.env.example`
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Manual E2E test system design (browser) | **High** | Full flow not yet verified end-to-end in browser |
+| **Manual E2E test behavioral (browser)** | **High** | Full 7-phase flow + AI review not yet verified end-to-end |
 | Fix SD follow-up answer display | Medium | One-line UI fix in practice page |
 | `AIUsageLog` model + logging | Medium | Phase 3 optional remainder |
 | Wire `authStore.refresh()` on 401 | Medium | |
 | README with local dev instructions | Medium | `.env.example` at root only |
+| Nav consistency (Behavioral on all module pages) | Low | |
 | SD worker cache read before Gemini | Low | DSA worker checks Redis first; SD worker always calls Gemini then caches |
-| Add System Design nav to `/problems` pages | Low | Home + SD pages have it; DSA pages do not |
 
 ---
 
@@ -381,8 +452,10 @@ Template: root `.env.example`
 | API integration | Not Started | |
 | E2E (automated) | Not Started | |
 | Manual DSA + AI review | **Done** | Phase 3 |
-| Manual system design (browser) | **Pending** | Code complete; awaiting full-flow verification |
-| Backend `tsc --noEmit` | **Passing** | Verified 2026-07-03 |
+| Manual system design (browser) | **Done** | Phase 4 |
+| Manual behavioral (browser) | **Pending** | Phase 5 code complete; awaiting full-flow verification |
+| Backend `tsc --noEmit` | **Passing** | Verified 2026-07-09 |
+| Frontend `tsc --noEmit` | Not verified | Run before Phase 5 sign-off |
 
 ---
 
@@ -405,6 +478,7 @@ Template: root `.env.example`
 - Never expose `solutionCode` or hidden test I/O  
 - **Do not auto-trigger AI on submission** — on-demand evaluation endpoints only  
 - System design multipart field name: **`diagram`**  
+- Behavioral multipart field name: **`resume`**  
 - Run Prisma CLI from `apps/backend`  
 - Dev process: one file at a time (learning-focused)
 
@@ -414,12 +488,23 @@ Template: root `.env.example`
 # Terminal 1 — Judge0 (DSA only)
 docker compose -f docker-compose.judge0.yml up -d
 
-# Terminal 2 — Backend (REDIS_URL + GEMINI_API_KEY + CLOUDINARY_* for full SD flow)
+# Terminal 2 — Backend (REDIS_URL + GEMINI_API_KEY + CLOUDINARY_* for full SD + behavioral flow)
 cd apps/backend && npm run dev
 
 # Terminal 3 — Frontend
 cd apps/frontend && npm run dev
 ```
+
+### Behavioral E2E checklist (manual)
+
+1. `npx prisma migrate deploy && npm run seed` — confirm 3 behavioral questions  
+2. Sign in → `/behavioral` — filters (company, role, difficulty, search)  
+3. Open `google-software-engineer-behavioral` → upload PDF resume → begin  
+4. Complete 10 AI questions (2+3+3+2) via Next question → answer loop  
+5. Submit candidate questions → wrap-up → session `COMPLETED`  
+6. Generate AI review → poll → report with STAR + metric scores  
+7. Submissions history → reload past session + evaluation  
+8. Re-request evaluation → instant DB short-circuit  
 
 ---
 
