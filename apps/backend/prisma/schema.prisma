@@ -51,6 +51,19 @@ enum BehavioralSessionStatus {
   COMPLETED
 }
 
+enum MockInterviewStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  AWAITING_FINAL_SUBMIT
+  COMPLETED
+}
+
+enum MockInterviewSection {
+  DSA
+  SYSTEM_DESIGN
+  BEHAVIORAL
+}
+
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
@@ -65,6 +78,7 @@ model User {
   systemDesignEvaluations SystemDesignEvaluation[]
   behavioralSessions      BehavioralSession[]
   behavioralEvaluations   BehavioralEvaluation[]
+  mockInterviews          MockInterview[]
 }
 
 model RefreshToken {
@@ -101,6 +115,7 @@ model Problem {
   testCases       TestCase[]
   submissions     Submission[]
   dsaEvaluations  DsaEvaluation[]
+  mockInterviewDsaSlots  MockInterviewDsaProblem[]
 
   @@index([difficulty])
   @@index([isPublished])
@@ -194,6 +209,8 @@ model SystemDesignQuestion {
   updatedAt         DateTime                 @updatedAt
   submissions       SystemDesignSubmission[]
   evaluations       SystemDesignEvaluation[]
+  mockInterviewAssignments MockInterviewSystemDesign[]
+
   @@index([difficulty])
   @@index([isPublished])
 }
@@ -255,6 +272,7 @@ model BehavioralQuestion {
   updatedAt   DateTime               @updatedAt
   sessions    BehavioralSession[]
   evaluations BehavioralEvaluation[]
+  mockInterviewAssignments MockInterviewBehavioral[]
 
   @@index([companyName])
   @@index([roleName])
@@ -280,6 +298,7 @@ model BehavioralSession {
   updatedAt         DateTime                @updatedAt
   turns             BehavioralTurn[]
   evaluation        BehavioralEvaluation?
+  mockInterviewAssignment MockInterviewBehavioral?
 
   @@index([userId])
   @@index([questionId])
@@ -332,4 +351,89 @@ model BehavioralEvaluation {
   @@index([userId])
   @@index([questionId])
   @@index([userId, questionId])
+}
+
+model MockInterview {
+  id                    String               @id @default(cuid())
+  userId                String
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status                MockInterviewStatus  @default(NOT_STARTED)
+  currentSection        MockInterviewSection @default(DSA)
+  startTime             DateTime?
+  dsaStartedAt          DateTime?
+  dsaSubmittedAt        DateTime?
+  systemDesignStartedAt DateTime?
+  systemDesignSubmittedAt DateTime?
+  behavioralStartedAt   DateTime?
+  behavioralSubmittedAt DateTime?
+  finalizedAt           DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  dsaProblems           MockInterviewDsaProblem[]
+  systemDesign          MockInterviewSystemDesign?
+  behavioral            MockInterviewBehavioral?
+  studyPlan             MockInterviewStudyPlan?
+
+  @@index([userId])
+  @@index([status])
+  @@index([userId, status])
+  @@index([createdAt])
+}
+
+model MockInterviewDsaProblem {
+  id              String        @id @default(cuid())
+  mockInterviewId String
+  mockInterview   MockInterview @relation(fields: [mockInterviewId], references: [id], onDelete: Cascade)
+  problemId       String
+  problem         Problem       @relation(fields: [problemId], references: [id], onDelete: Restrict)
+  slotIndex       Int
+  submissionId    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([mockInterviewId, slotIndex])
+  @@unique([mockInterviewId, problemId])
+  @@index([mockInterviewId])
+  @@index([problemId])
+}
+
+model MockInterviewSystemDesign {
+  id              String               @id @default(cuid())
+  mockInterviewId String               @unique
+  mockInterview   MockInterview        @relation(fields: [mockInterviewId], references: [id], onDelete: Cascade)
+  questionId      String
+  question        SystemDesignQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  submissionId    String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([questionId])
+}
+
+model MockInterviewBehavioral {
+  id              String              @id @default(cuid())
+  mockInterviewId String              @unique
+  mockInterview   MockInterview       @relation(fields: [mockInterviewId], references: [id], onDelete: Cascade)
+  roleName        String?
+  questionId      String?
+  question        BehavioralQuestion? @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  sessionId       String?             @unique
+  session         BehavioralSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([questionId])
+}
+
+model MockInterviewStudyPlan {
+  id              String        @id @default(cuid())
+  mockInterviewId String        @unique
+  mockInterview   MockInterview @relation(fields: [mockInterviewId], references: [id], onDelete: Cascade)
+  days            Json
+  summary         String        @db.Text
+  model           String
+  tokensUsed      Int
+  createdAt       DateTime      @default(now())
+  
+  @@index([mockInterviewId])
 }
