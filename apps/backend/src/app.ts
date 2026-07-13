@@ -7,6 +7,7 @@ import submissionsRouter from './modules/submissions/submissions.routes.js';
 import evaluationsRouter from './modules/evaluations/evaluations.routes.js';
 import systemDesignRouter from './modules/system-design/system-design.routes.js';
 import behavioralRouter from './modules/behavioral/behavioral.routes.js';
+import mockInterviewRouter from './modules/mock-interview/mock-interview.routes.js';
 import { authMiddleware, type AuthenticatedRequest } from './middleware/auth.middleware.js';
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/submissions', authMiddleware, submissionsRouter);
 app.use('/api/evaluations', authMiddleware, evaluationsRouter);
 app.use('/api/system-design', authMiddleware, systemDesignRouter);
 app.use('/api/behavioral', authMiddleware, behavioralRouter);
+app.use('/api/mock-interview', authMiddleware, mockInterviewRouter);
 
 //tells the current user logged in
 app.get('/api/me', authMiddleware, (req: AuthenticatedRequest, res: Response) => {

@@ -15,6 +15,10 @@ import {
     type SystemDesignRequirements,
 } from '../types/system-design.types.js';
 import type { DSAEvaluationCachePayload } from './CacheService.js';
+import {
+    studyPlanSchema,
+    type StudyPlan,
+} from '../types/mock-interview.types.js';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
@@ -65,6 +69,8 @@ const behavioralEvaluationResponseSchema = z.object({
     suggestions: stringArraySchema,
     summary: z.string().min(1),
 });
+
+const mockInterviewStudyPlanResponseSchema = studyPlanSchema;
 
 export class AIError extends Error {
     constructor(
@@ -192,6 +198,80 @@ export interface BehavioralEvaluationAIResult {
     weaknesses: string[];
     suggestions: string[];
     summary: string;
+    model: string;
+    tokensUsed: number;
+}
+
+export interface GenerateMockInterviewStudyPlanInput {
+    overallScore: number | null;
+    totalTimeTakenMs: number;
+    totalTimeCapMs: number;
+    sections: Array<{
+        section: string;
+        overallScore: number | null;
+        timeTakenMs: number;
+        timeCapMs: number;
+    }>;
+    evaluationStatuses: Array<{
+        section: string;
+        status: string;
+    }>;
+    dsaQuestions: Array<{
+        slotIndex: number;
+        problemId: string;
+        overallScore: number;
+        evalStatus: string;
+        message?: string;
+        evaluation: {
+            correctnessScore: number;
+            efficiencyScore: number;
+            codeQualityScore: number;
+            explanationScore: number;
+            complexityAnalysis: unknown;
+            feedback: string;
+            suggestions: string[];
+            followUpQuestions: string[];
+        } | null;
+    }>;
+    systemDesign: {
+        overallScore: number;
+        evalStatus: string;
+        message?: string;
+        evaluation: {
+            metricScores: MetricScores;
+            strengths: string[];
+            weaknesses: string[];
+            feedback: string;
+            suggestions: string[];
+            followUpQuestions: string[];
+        } | null;
+    } | null;
+    behavioral: {
+        overallScore: number;
+        evalStatus: string;
+        message?: string;
+        evaluation: {
+            evaluationMetrics: BehavioralEvaluationMetrics;
+            strengths: string[];
+            weaknesses: string[];
+            suggestions: string[];
+            summary: string;
+            strongestAnswer: {
+                phaseType: string;
+                question: string;
+                explanation: string;
+            };
+            weakestAnswer: {
+                phaseType: string;
+                question: string;
+                explanation: string;
+            };
+        } | null;
+    } | null;
+}
+
+export interface GenerateMockInterviewStudyPlanResult {
+    plan: StudyPlan;
     model: string;
     tokensUsed: number;
 }
@@ -663,6 +743,41 @@ function buildBehavioralEvaluationUserPrompt(
     );
 }
 
+function buildMockInterviewStudyPlanSystemPrompt(): string {
+    return [
+        'You are an expert interview coach creating a personalized 7-day study plan.',
+        'Respond with valid JSON only — no markdown, no code fences.',
+        'Use the full mock-interview report (scores, timing, and evaluation feedback).',
+        'Prioritize the weakest sections and concrete gaps from feedback/suggestions.',
+        'days must contain exactly 7 items with day=1..7 in order.',
+        'Each day needs a clear topic and a specific, actionable description.',
+        'summary must be a short overall coaching narrative.',
+        'If a section has evalStatus NO_SUBMISSION or PENDING, note the gap and plan accordingly.',
+    ].join(' ');
+}
+
+function buildMockInterviewStudyPlanUserPrompt(
+    input: GenerateMockInterviewStudyPlanInput,
+): string {
+    return JSON.stringify(
+        {
+            task: 'Generate a 7-day personalized study plan from this mock interview report',
+            report: input,
+            requiredJsonShape: {
+                days: [
+                    {
+                        day: 'integer 1-7',
+                        topic: 'string',
+                        description: 'string',
+                    },
+                ],
+                summary: 'string',
+            },
+        },
+        null,
+        2,
+    );
+}
 
 //makes call to Gemini and returns response object
 export async function evaluateDSA(
@@ -815,6 +930,28 @@ export async function evaluateBehavioral(
 
     return {
         ...evaluation,
+        model: DEFAULT_MODEL,
+        tokensUsed,
+    };
+}
+
+export async function generateMockInterviewStudyPlan(
+    input: GenerateMockInterviewStudyPlanInput,
+): Promise<GenerateMockInterviewStudyPlanResult> {
+    const { text, tokensUsed } = await generateJsonFromGemini(
+        buildMockInterviewStudyPlanSystemPrompt(),
+        buildMockInterviewStudyPlanUserPrompt(input),
+        null,
+    );
+
+    const plan = parseJsonResponse(
+        text,
+        mockInterviewStudyPlanResponseSchema,
+        'mock interview study plan',
+    );
+
+    return {
+        plan,
         model: DEFAULT_MODEL,
         tokensUsed,
     };

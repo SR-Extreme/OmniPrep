@@ -390,3 +390,4 @@ export interface MockInterviewReportDetail {
     evaluationStatuses: MockInterviewSectionEvalStatus[];
     finalizedAt: Date | null;
 }
+

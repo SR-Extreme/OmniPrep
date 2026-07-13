@@ -153,6 +153,15 @@ function isAiPhaseComplete(
     return answeredCount >= phase.totalQuestions;
 }
 
+async function isMockInterviewSession(sessionId: string): Promise<boolean> {
+    const assignment = await prisma.mockInterviewBehavioral.findFirst({
+        where: { sessionId },
+        select: { id: true },
+    });
+
+    return assignment != null;
+}
+
 function resolveActivePhaseIndex(
     phases: ReturnType<typeof parseBehavioralPhases>,
     currentPhaseIndex: number,
@@ -160,6 +169,7 @@ function resolveActivePhaseIndex(
         phaseType: string;
         candidateAnswerText: string | null;
     }>,
+    skipCandidateQuestions = false,
 ): number {
     let index = currentPhaseIndex;
 
@@ -170,9 +180,19 @@ function resolveActivePhaseIndex(
             index += 1;
             continue;
         }
-        if (phase.type === 'CANDIDATE_QUESTIONS' || phase.type === 'WRAP_UP') {
+
+        if (phase.type === 'CANDIDATE_QUESTIONS') {
+            if (skipCandidateQuestions) {
+                index += 1;
+                continue;
+            }
             return index;
         }
+
+        if (phase.type === 'WRAP_UP') {
+            return index;
+        }
+
         if (!isAiPhaseComplete(turns, phase)) {
             return index;
         }
@@ -193,12 +213,25 @@ async function syncSessionPhaseIndex(
         candidateAnswerText: string | null;
     }>,
 ): Promise<number> {
-    const nextIndex = resolveActivePhaseIndex(phases, currentPhaseIndex, turns);
+    const skipCandidateQuestions = await isMockInterviewSession(sessionId);
+    const nextIndex = resolveActivePhaseIndex(phases, currentPhaseIndex, turns, skipCandidateQuestions);
 
-    if (nextIndex !== currentPhaseIndex) {
+    const activePhase = getPhaseAtIndex(phases, nextIndex);
+    const shouldCompleteMockSession =
+        skipCandidateQuestions && activePhase.type === 'WRAP_UP';
+
+    if (nextIndex !== currentPhaseIndex || shouldCompleteMockSession) {
         await prisma.behavioralSession.update({
             where: { id: sessionId },
-            data: { currentPhaseIndex: nextIndex },
+            data: {
+                currentPhaseIndex: nextIndex,
+                ...(shouldCompleteMockSession
+                    ? {
+                        status: 'COMPLETED',
+                        completedAt: new Date(),
+                    }
+                    : {}),
+            },
         });
     }
 
@@ -404,6 +437,13 @@ export async function submitCandidateQuestions(
     role?: Role,
 ): Promise<BehavioralSessionDetail> {
     const session = await loadOwnedSession(sessionId, userId, role);
+
+    if (await isMockInterviewSession(sessionId)) {
+        throw new BehavioralError(
+            'Candidate questions are not part of the mock interview behavioral section.',
+            'INVALID_INPUT',
+        );
+    }
 
     if (session.status === 'COMPLETED') {
         throw new BehavioralError('Session is already completed.', 'INVALID_INPUT');

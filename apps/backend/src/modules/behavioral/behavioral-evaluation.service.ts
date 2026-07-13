@@ -97,6 +97,15 @@ function buildTranscriptForCache(
     }));
 }
 
+async function isMockInterviewSession(sessionId: string): Promise<boolean> {
+    const assignment = await prisma.mockInterviewBehavioral.findFirst({
+        where: { sessionId },
+        select: { id: true },
+    });
+
+    return assignment != null;
+}
+
 async function loadSessionForEvaluation(
     sessionId: string,
     userId: string,
@@ -126,15 +135,19 @@ async function loadSessionForEvaluation(
         );
     }
 
-    const hasCandidateQuestionsTurn = session.turns.some(
-        (turn) => turn.phaseType === 'CANDIDATE_QUESTIONS',
-    );
+    const isMockInterview = await isMockInterviewSession(sessionId);
 
-    if (!hasCandidateQuestionsTurn) {
-        throw new BehavioralEvaluationError(
-            'Submit candidate questions before requesting AI review.',
-            'INVALID_INPUT',
+    if (!isMockInterview) {
+        const hasCandidateQuestionsTurn = session.turns.some(
+            (turn) => turn.phaseType === 'CANDIDATE_QUESTIONS',
         );
+
+        if (!hasCandidateQuestionsTurn) {
+            throw new BehavioralEvaluationError(
+                'Submit candidate questions before requesting AI review.',
+                'INVALID_INPUT',
+            );
+        }
     }
 
     return session;

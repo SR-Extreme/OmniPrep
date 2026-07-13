@@ -420,7 +420,10 @@ export async function syncInterviewTimeouts(
     }
 
     if (section === 'BEHAVIORAL') {
-        return null;
+        const { autoSubmitMockBehavioralSection } = await import(
+            './mock-interview-behavioral.service.js'
+        );
+        return autoSubmitMockBehavioralSection(userId, interviewId);
     }
 
     return submitSection(userId, interviewId, section, role, { auto: true });
