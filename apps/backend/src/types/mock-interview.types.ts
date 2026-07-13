@@ -30,6 +30,7 @@ export const EVAL_STATUSES = [
     'PENDING',
     'COMPLETED',
     'FAILED',
+    'NO_SUBMISSION',
 ] as const;
 
 export type MockInterviewEvalStatus = (typeof EVAL_STATUSES)[number];
@@ -366,6 +367,18 @@ export interface MockInterviewReportSectionScore {
     timeCapMs: number;
 }
 
+export const DSA_SECTION_SUBMISSION_NOTE =
+    'You can submit each problem multiple times. When you submit the DSA section, your most recent submission per problem will be evaluated.';
+
+export interface MockInterviewReportDsaQuestionScore {
+    slotIndex: number;
+    problemId: string;
+    submissionId: string | null;
+    overallScore: number;
+    evalStatus: MockInterviewEvalStatus;
+    message?: string;
+}
+
 export interface MockInterviewReportDetail {
     id: string;
     status: MockInterviewStatus;
@@ -373,6 +386,7 @@ export interface MockInterviewReportDetail {
     totalTimeTakenMs: number;
     totalTimeCapMs: number;
     sections: MockInterviewReportSectionScore[];
+    dsaQuestions: MockInterviewReportDsaQuestionScore[];
     evaluationStatuses: MockInterviewSectionEvalStatus[];
     finalizedAt: Date | null;
 }
