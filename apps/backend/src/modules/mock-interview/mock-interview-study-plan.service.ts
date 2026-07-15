@@ -27,9 +27,9 @@ export interface MockInterviewStudyPlanDetail {
 }
 
 function assertStudyPlanReady(status: string): void {
-    if (status !== 'AWAITING_FINAL_SUBMIT' && status !== 'COMPLETED') {
+    if (status !== 'COMPLETED') {
         throw new MockInterviewError(
-            'Study plan is available after all sections are submitted',
+            'Study plan is available after the interview is finalized',
             'INVALID_STATE',
         );
     }

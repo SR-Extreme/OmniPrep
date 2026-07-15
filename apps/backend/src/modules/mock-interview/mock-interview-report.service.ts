@@ -110,9 +110,18 @@ function averageScores(scores: number[]): number | null {
 }
 
 function assertReportReady(status: string): void {
-    if (status !== 'AWAITING_FINAL_SUBMIT' && status !== 'COMPLETED') {
+    if (status !== 'COMPLETED') {
         throw new MockInterviewError(
-            'Report is available after all sections are submitted',
+            'Report is available after the interview is finalized',
+            'INVALID_STATE',
+        );
+    }
+}
+
+function assertCanFinalize(status: string): void {
+    if (status !== 'AWAITING_FINAL_SUBMIT') {
+        throw new MockInterviewError(
+            'Interview can only be finalized after all sections are submitted',
             'INVALID_STATE',
         );
     }
@@ -362,11 +371,11 @@ export async function finalizeMockInterview(
 ): Promise<MockInterviewSessionDetail> {
     const interview = await getOwnedInterviewOrThrow(userId, interviewId);
 
-    assertReportReady(interview.status);
-
-    if (interview.finalizedAt) {
+    if (interview.status === 'COMPLETED' && interview.finalizedAt) {
         return toSessionDetail(interview);
     }
+
+    assertCanFinalize(interview.status);
 
     const now = new Date();
     const updated = await prisma.mockInterview.update({

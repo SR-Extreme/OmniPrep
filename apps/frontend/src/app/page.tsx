@@ -37,6 +37,17 @@ const FEATURES = [
             </svg>
         ),
     },
+    {
+        title: 'Full Mock Interviews',
+        description:
+            'Run a timed 3-hour loop — DSA, System Design, and Behavioral in order — then get a report, hiring band, and personalized 7-day study plan.',
+        accent: 'border-emerald-200 bg-emerald-50/50',
+        icon: (
+            <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+        ),
+    },
 ] as const;
 
 export default function HomePage() {
@@ -65,6 +76,9 @@ export default function HomePage() {
                         <Link href="/behavioral" className="text-sm text-zinc-600 transition hover:text-zinc-900">
                             Behavioral
                         </Link>
+                        <Link href="/mock-interview" className="text-sm text-zinc-600 transition hover:text-zinc-900">
+                            Mock Interview
+                        </Link>
                     </nav>
 
                     <div className="flex items-center gap-2">
@@ -79,8 +93,11 @@ export default function HomePage() {
                                 <Link href="/system-design" className="btn-secondary !py-2 hidden lg:inline-flex">
                                     System Design
                                 </Link>
-                                <Link href="/behavioral" className="btn-primary !py-2">
+                                <Link href="/behavioral" className="btn-secondary !py-2 hidden lg:inline-flex">
                                     Behavioral
+                                </Link>
+                                <Link href="/mock-interview" className="btn-primary !py-2">
+                                    Mock Interview
                                 </Link>
                             </>
                         ) : (
@@ -121,7 +138,11 @@ export default function HomePage() {
                                     </p>
                                     <p className="text-sm text-zinc-500">{user.email}</p>
                                     <div className="mt-5 flex flex-col gap-2">
-                                        <Link href="/problems" className="btn-primary w-full">
+                                        <Link href="/mock-interview" className="btn-primary w-full">
+                                            Full mock interview
+                                            <span aria-hidden="true">→</span>
+                                        </Link>
+                                        <Link href="/problems" className="btn-secondary w-full">
                                             DSA problems
                                             <span aria-hidden="true">→</span>
                                         </Link>
@@ -169,7 +190,7 @@ export default function HomePage() {
                 </section>
 
                 <section className="border-t border-zinc-200/80 bg-white/60">
-                    <div className="mx-auto grid max-w-6xl gap-0 divide-y divide-zinc-200/80 px-6 md:grid-cols-3 md:divide-x md:divide-y-0">
+                    <div className="mx-auto grid max-w-6xl gap-0 divide-y divide-zinc-200/80 px-6 md:grid-cols-2 md:divide-x md:divide-y-0 lg:grid-cols-4">
                         {FEATURES.map((feature) => (
                             <article key={feature.title} className="px-2 py-10 md:px-8 md:py-14">
                                 <div
