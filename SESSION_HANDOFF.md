@@ -1,301 +1,308 @@
 # SESSION_HANDOFF.md
 
-> **Last session date:** 2026-07-09  
-> **Update this file at the end of every development session.**
+> **Last updated:** 2026-07-18
+> **Current focus:** Phase 7 — Admin Panel, User Profile & Premium Subscription (file-by-file)
+> Read `PROJECT_CONTEXT.md` for architecture and `ROADMAP.md` for phase history.
 
 ---
 
-# Last Session Summary
+## 1. Executive Handoff
 
-Completed **Phase 5 — Behavioral Module** (full backend + frontend). Built company/role-specific 7-phase interview flow with resume PDF upload, one-at-a-time AI questions, candidate Q&A round, async evaluation pipeline (DB → Redis → Queue), and single-column frontend (bank + interview + AI report + submissions history). Updated home page with Behavioral navigation. Documentation refresh pending until after manual E2E.
+Phases 0–6 are implemented. Phase 6 remains code-complete with E2E sign-off deferred. **Phase 7 is the active build**, per the official product specification in `PROJECT_CONTEXT.md` §13 / `ROADMAP.md` Phase 7.
 
-### Completed this session (Phase 5 — database & seed)
+The application currently supports:
 
-1. **`apps/backend/prisma/schema.prisma`** — `BehavioralQuestion`, `BehavioralSession`, `BehavioralTurn`, `BehavioralEvaluation`; enums `BehavioralPhaseType`, `BehavioralSessionStatus`
-2. **`apps/backend/prisma/migrations/20260705113944_add_behavioral_module/`**
-3. **`apps/backend/prisma/seeds/behavioral-questions.ts`** — 3 seeded questions (Google, Amazon, Microsoft); `buildStandardPhases()`
-4. **`apps/backend/prisma/seed.ts`** — behavioral upsert loop
+- Auth
+- DSA + Judge0 + on-demand AI evaluation
+- System Design + diagrams + follow-ups + AI evaluation
+- Standalone Behavioral + resume-aware seven-phase interview + AI evaluation
+- Full Mock Interview: DSA → System Design → Behavioral
+- Completed-only report, frontend hiring band, and persisted 7-day AI study plan
 
-### Completed this session (Phase 5 — backend services & types)
+**Not yet in the repo (Phase 7 work):** Stripe package/routes, premium fields, Subscription model, admin UI/APIs, profile pages, Recharts/Framer Motion/React Hook Form/Shadcn.
 
-5. **`apps/backend/src/types/behavioral.types.ts`** — phase Zod schema, evaluation metrics, `isAiQuestionPhase()`, `getPhaseAtIndex()`
-6. **`apps/backend/src/services/ResumeParserService.ts`** — PDF only, 5 MB
-7. **`apps/backend/src/services/CloudinaryService.ts`** — `uploadBehavioralResume()` (`resource_type: 'raw'`)
-8. **`apps/backend/src/services/AIService.ts`** — `generateBehavioralQuestion()`, `answerCandidateQuestions()`, `evaluateBehavioral()`
-9. **`apps/backend/src/services/CacheService.ts`** — `omniprep:behavioral-evaluation:{sha256}`
-10. **`apps/backend/src/services/QueueService.ts`** — `evaluate-behavioral` job; ID `behavioral-eval-{sessionId}`
-11. **`apps/backend/src/workers/AIEvaluationWorker.ts`** — `processBehavioralEvalJob()`
+TypeScript:
 
-### Completed this session (Phase 5 — backend module)
-
-12. **`apps/backend/src/modules/behavioral/behavioral.validation.ts`**
-13. **`apps/backend/src/modules/behavioral/behavioral.service.ts`** — list with `filterOptions`, session CRUD
-14. **`apps/backend/src/modules/behavioral/behavioral-turn.service.ts`** — next question, submit answer, candidate questions
-15. **`apps/backend/src/modules/behavioral/behavioral-evaluation.service.ts`** — `requestBehavioralEvaluation()`, `getBehavioralEvaluation()`; DB → Redis → Queue
-16. **`apps/backend/src/modules/behavioral/behavioral.controller.ts`**
-17. **`apps/backend/src/modules/behavioral/behavioral.routes.ts`**
-18. **`apps/backend/src/app.ts`** — mount `/api/behavioral`
-
-### Completed this session (Phase 5 — frontend)
-
-19. **`apps/frontend/src/types/behavioral.ts`**
-20. **`apps/frontend/src/lib/api/behavioral.ts`** — 10 API functions; multipart field `resume`
-21. **`apps/frontend/src/app/behavioral/page.tsx`** — bank with company/role/difficulty/search filters
-22. **`apps/frontend/src/app/behavioral/[id]/page.tsx`** — full interview UI + AI report + submissions
-23. **`apps/frontend/src/app/page.tsx`** — Behavioral nav + CTAs
-
-### Documentation session (2026-07-09)
-
-- Full repo analysis; updated `PROJECT_CONTEXT.md`, `ROADMAP.md`, `SESSION_HANDOFF.md`
+- Backend `npx tsc --noEmit`: **passing 2026-07-18**
+- Frontend `npx tsc --noEmit`: **passing 2026-07-18**
 
 ---
 
-# Current Project State
+## 2. Phase 7 Scope (Official — only this)
+
+Ignore any earlier “adaptive analytics / AIUsageLog / TopicPerformance” Phase 7 plans.
+
+### 1) Admin Panel
+
+- Landing: hero + 5 cards (3+2 grid): Create Questions, List Questions, Revenue Dashboard, Mock Analytics, User Management
+- Create DSA / System Design questions (full required Prisma fields + Published toggle)
+- List Published / Draft with specified card fields and actions
+- Revenue dashboard (stats + line/pie/bar + textual summaries)
+- Mock analytics (premium users, total mocks, avg score, hiring-band distribution)
+- User management (premium then free, search, confirm delete)
+- Admin profile page
+
+### 2) User Profile
+
+- Identity + premium status/duration + average interview score
+- DSA / System Design / Behavioral stats
+- Study plan history (newest first) with progress, checkboxes, Submit Progress, Completed badge
+- Logout
+
+### 3) Premium Subscription & Revenue
+
+- Pricing page: ₹999 Monthly / ₹3999 6 Months / ₹5999 12 Months
+- Stripe Checkout → webhook → Subscription row → update User premium → redirect home
+- Mock Interviews Premium-only (server enforce + professional modal, no `alert`)
+- Aggregate Prisma analytics only (no redundant analytics tables)
+
+### Database
+
+- Extend `User`: `image`, `phoneNo`, `isPremium`, `premiumFrom`, `premiumTill`, `averageInterviewScore`, `recentLogin`
+- New `Subscription` model for payment history
+- Plans: `MONTHLY` | `SIX_MONTHS` | `YEARLY`
+- Extend study plan for completion progress (profile history)
+
+---
+
+## 3. Current Project Snapshot
 
 | Area | State |
-|------|--------|
-| **Phase** | **Phase 5 — Behavioral (~95%; manual E2E verification pending)** |
-| **Overall** | **~90% of Phases 0–5**; **~70% of full 8-phase MVP** |
-| **Backend** | `:4000` — `/health`, `/api/auth/*`, `/api/me`, `/api/problems/*`, `/api/submissions/*`, `/api/evaluations/*`, `/api/system-design/*`, **`/api/behavioral/*`** |
-| **Worker** | `AIEvaluationWorker` — **DSA + SD + behavioral jobs** on `ai-eval-queue` |
-| **Frontend** | `:3000` — `/`, `/login`, `/signup`, `/problems`, `/problems/[id]`, `/system-design`, `/system-design/[id]`, **`/behavioral`**, **`/behavioral/[id]`** |
-| **Database** | Neon — **7 migrations**; 100 DSA + 3 SD + **3 behavioral questions** |
-| **Redis** | Upstash — DSA + SD + behavioral cache + BullMQ (`ai-eval-queue`) |
-| **AI** | Gemini `gemini-2.5-flash` — DSA eval, SD follow-ups + eval, behavioral questions + candidate replies + eval |
-| **Cloudinary** | SD diagrams + behavioral resume PDFs |
-| **Judge0** | Local Docker `:2358` |
-| **Compile status** | Backend **`npx tsc --noEmit` passes** (2026-07-09) |
-| **Auth gap** | `authStore.refresh()` not wired on 401 |
+|---|---|
+| Current phase | **Phase 7 In Progress** |
+| Backend | Express API on `:4000`; Phase 0–6 routers mounted |
+| Frontend | Next.js on `:3000`; mock interview + practice modules |
+| Database | Neon/PostgreSQL, Prisma, 8 migrations, 18 models |
+| Seed | 100 DSA, 3 SD, 3 Behavioral questions |
+| Worker | One BullMQ `ai-eval-queue` worker |
+| AI | Gemini `gemini-2.5-flash` |
+| Stripe | **Not installed yet** |
+| Automated tests | None |
+| Deployment | Not configured |
 
 ---
 
-# Files Created / Updated (Phase 5 — cumulative)
+## 4. Locked Decisions (Phase 6 + Phase 7)
 
-### Backend — database & config
+### Phase 6 (preserve)
 
-| File |
-|------|
-| `apps/backend/prisma/schema.prisma` |
-| `apps/backend/prisma/migrations/20260705113944_add_behavioral_module/` |
-| `apps/backend/prisma/seeds/behavioral-questions.ts` |
-| `apps/backend/prisma/seed.ts` |
-| `apps/backend/package.json` (+ `pdf-parse`, `@types/pdf-parse`) |
+1. DSA → System Design → Behavioral; no going back.
+2. One hour per section; REST + polling; no Socket.io.
+3. Report/study plan only after `COMPLETED`.
+4. Hiring recommendation is frontend band scale; completed page order: recommendation → report → study plan.
 
-### Backend — services, types, worker
+### Phase 7 (locked)
 
-| File |
-|------|
-| `apps/backend/src/types/behavioral.types.ts` |
-| `apps/backend/src/services/ResumeParserService.ts` |
-| `apps/backend/src/services/CloudinaryService.ts` (extended) |
-| `apps/backend/src/services/AIService.ts` (extended) |
-| `apps/backend/src/services/CacheService.ts` (behavioral slice) |
-| `apps/backend/src/services/QueueService.ts` (behavioral slice) |
-| `apps/backend/src/workers/AIEvaluationWorker.ts` (behavioral jobs) |
-
-### Backend — behavioral module
-
-| File |
-|------|
-| `apps/backend/src/modules/behavioral/behavioral.validation.ts` |
-| `apps/backend/src/modules/behavioral/behavioral.service.ts` |
-| `apps/backend/src/modules/behavioral/behavioral-turn.service.ts` |
-| `apps/backend/src/modules/behavioral/behavioral-evaluation.service.ts` |
-| `apps/backend/src/modules/behavioral/behavioral.controller.ts` |
-| `apps/backend/src/modules/behavioral/behavioral.routes.ts` |
-| `apps/backend/src/app.ts` |
-
-### Frontend
-
-| File |
-|------|
-| `apps/frontend/src/types/behavioral.ts` |
-| `apps/frontend/src/lib/api/behavioral.ts` |
-| `apps/frontend/src/app/behavioral/page.tsx` |
-| `apps/frontend/src/app/behavioral/[id]/page.tsx` |
-| `apps/frontend/src/app/page.tsx` (nav + CTAs) |
+1. Current premium status on `User` only; history in `Subscription`.
+2. Never trust frontend premium flags; enforce on server.
+3. Mock Interviews are Premium-only.
+4. Premium Required uses a modal + Upgrade Now (no browser alerts).
+5. Analytics via aggregate queries only.
+6. Do not redesign existing architecture; extend file-by-file.
+7. Admin routes require `adminMiddleware`; billing webhook verifies Stripe signatures.
 
 ---
 
-# Features Completed (cumulative)
+## 5. Exact Next Task
 
-| Feature | Notes |
-|---------|-------|
-| Phases 0–4 | Auth, DSA, Judge0, on-demand DSA AI review, system design full flow — E2E tested |
-| Behavioral Prisma models + seed | 3 company/role questions with 7-phase JSON |
-| Behavioral REST API | Questions, sessions, turns, candidate Q&A, evaluation request/poll |
-| Behavioral resume pipeline | PDF parse + Cloudinary upload; multipart field `resume` |
-| Behavioral AI questions | Sync — one question per `next-question` call; follow-ups count toward phase total |
-| Behavioral candidate phase | User questions bulk submit; AI interviewer reply |
-| Behavioral async eval | DB → Redis → Queue → worker → DB; on-demand after `COMPLETED` |
-| Behavioral frontend | Bank (company/role filters), interview page, AI report, submissions history |
-| Home page behavioral entry | Nav + CTAs for logged-in users |
+**Phase 7 file-by-file implementation.**
 
----
+Process:
 
-# Features In Progress
+1. Identify current phase/task.
+2. Produce **exactly one** next file.
+3. Wait for user `done` (or pasted review).
+4. Review → next file.
 
-| Feature | Progress | Notes |
-|---------|----------|-------|
-| Phase 5 manual browser E2E | 0% | Code complete; full 7-phase flow not yet verified in browser |
-| Phase 3 `AIUsageLog` | 0% | Optional — deferred |
-| README | 0% | `.env.example` exists at repo root |
-| Auth refresh-on-401 | ~5% | Optional |
+### First file
+
+`apps/backend/prisma/schema.prisma`
+
+- Add User premium/profile fields
+- Add `SubscriptionPlan`, `SubscriptionStatus` enums + `Subscription` model
+- Extend `MockInterviewStudyPlan` with progress fields
+- Wire `User.subscriptions` relation
+
+Do **not** generate other files until the user confirms.
 
 ---
 
-# Pending Tasks
+## 6. Ordered File List (Phase 7)
 
-**Phase 5 — close out (before Phase 6):**
+Implement strictly in this order. Do not skip or batch.
 
-1. **Manual browser E2E** — sign in → `/behavioral` → filters → open Google question → upload resume → complete 10 AI Q&A → candidate questions → wrap-up → Generate AI Review → confirm report → submissions history → re-request eval (DB short-circuit)
-2. Run `npx tsc --noEmit` in `apps/frontend` and fix any errors
-3. Optional polish: rename `behavioralPage` → `BehavioralPage`; add Behavioral nav to `/problems` and `/system-design` headers
+### A. Foundation / schema / config
 
-**Phase 6 — next major work (after Phase 5 sign-off):**
+1. `apps/backend/prisma/schema.prisma`
+2. `apps/backend/prisma/migrations/<timestamp>_add_phase7_premium_admin/migration.sql` (via `prisma migrate` after schema approval)
+3. `.env.example` (Stripe + related vars)
+4. `apps/backend/src/config/env.ts` (Stripe env validation)
+5. `apps/backend/package.json` (add `stripe` dependency — then `npm install` in backend)
+6. `apps/frontend/package.json` (add recharts, framer-motion, react-hook-form, and shadcn-supporting deps as needed)
 
-- Full mock interview module (Socket.io, Redis session state, `MockInterview` models) — not started
+### B. Shared backend types & middleware
 
-**Housekeeping (later):**
+7. `apps/backend/src/types/billing.types.ts` (plans, amounts INR, durations)
+8. `apps/backend/src/types/admin.types.ts` (analytics DTOs, hiring-band thresholds shared with analytics)
+9. `apps/backend/src/middleware/premium.middleware.ts`
+10. `apps/backend/src/services/StripeService.ts`
 
-- `README.md`
-- Fix SD follow-up answer display bug (`system-design/[id]/page.tsx`)
-- `AIUsageLog` (optional Phase 3 remainder)
-- `authStore.refresh()` on 401
+### C. Billing module
 
----
+11. `apps/backend/src/modules/billing/billing.validation.ts`
+12. `apps/backend/src/modules/billing/billing.service.ts`
+13. `apps/backend/src/modules/billing/billing.controller.ts`
+14. `apps/backend/src/modules/billing/billing.routes.ts`
+15. `apps/backend/src/app.ts` (mount billing + raw-body webhook; mount later admin/profile routers when added)
 
-# Current Blockers
+### D. Profile module
 
-| Blocker | Severity | Notes |
-|---------|----------|-------|
-| None critical | — | Behavioral pipeline compiles and is wired; awaiting manual verification |
+16. `apps/backend/src/modules/profile/profile.validation.ts`
+17. `apps/backend/src/modules/profile/profile.service.ts`
+18. `apps/backend/src/modules/profile/profile.controller.ts`
+19. `apps/backend/src/modules/profile/profile.routes.ts`
+20. Update `apps/backend/src/app.ts` (mount `/api/profile`)
 
-**Watch items:**
+### E. Admin module
 
-- `GEMINI_API_KEY` required for behavioral questions, candidate replies, and evaluation
-- `CLOUDINARY_*` required for resume uploads
-- `REDIS_URL` required for async evaluation (questions work sync without worker for generation, but eval needs queue)
-- Stop backend before `npx prisma generate` on Windows (EPERM)
-- Multipart field names: SD **`diagram`**, behavioral **`resume`**
-- Upstash eviction policy should be `noeviction` (warning logged if not)
+21. `apps/backend/src/modules/admin/admin.validation.ts`
+22. `apps/backend/src/modules/admin/admin-questions.service.ts`
+23. `apps/backend/src/modules/admin/admin-users.service.ts`
+24. `apps/backend/src/modules/admin/admin-analytics.service.ts`
+25. `apps/backend/src/modules/admin/admin.controller.ts`
+26. `apps/backend/src/modules/admin/admin.routes.ts`
+27. Update `apps/backend/src/app.ts` (mount `/api/admin`)
 
----
+### F. Wire premium + login side effects into existing modules
 
-# Known Bugs
+28. `apps/backend/src/modules/auth/auth.service.ts` (set `recentLogin` on login; return premium fields)
+29. `apps/backend/src/modules/mock-interview/mock-interview.service.ts` (premium check on create/start)
+30. `apps/backend/src/modules/mock-interview/mock-interview-report.service.ts` or finalize path (update `averageInterviewScore` when completed / report available)
+31. `apps/backend/src/modules/mock-interview/mock-interview-study-plan.service.ts` (progress submit helpers if owned here vs profile)
 
-| Bug | Status |
-|-----|--------|
-| Judge0 Windows / CRLF / cgroup | **Fixed** |
-| Judge0 failure → generic 500 | **Fixed** |
-| BullMQ ioredis type mismatch | **Fixed** |
-| SD follow-up answers display "Submitted" not text | **Open** |
-| `prisma generate` EPERM (Windows) | Open |
-| `authStore.refresh()` on 401 | Open |
-| `FRONTEND_URL` vs Next port | Open |
-| `/problems` and `/system-design` pages missing Behavioral nav | Open (low) |
-| Behavioral bank `behavioralPage` export name | Open (low) |
+### G. Frontend types + API clients
 
----
+32. `apps/frontend/src/types/billing.ts`
+33. `apps/frontend/src/types/profile.ts`
+34. `apps/frontend/src/types/admin.ts`
+35. `apps/frontend/src/lib/api/billing.ts`
+36. `apps/frontend/src/lib/api/profile.ts`
+37. `apps/frontend/src/lib/api/admin.ts`
+38. `apps/frontend/src/store/authStore.ts` (premium fields on user)
 
-# Important Context
+### H. Shared UI primitives / components
 
-### Behavioral user flow (locked design)
+39. Shadcn-style UI primitives as needed under `apps/frontend/src/components/ui/` (button, dialog, input, card, etc. — one file at a time)
+40. `apps/frontend/src/components/PremiumRequiredModal.tsx`
+41. `apps/frontend/src/components/PricingCards.tsx`
+42. `apps/frontend/src/components/admin/AdminFeatureCard.tsx`
+43. `apps/frontend/src/components/admin/QuestionListCard.tsx`
+44. `apps/frontend/src/components/admin/RevenueCharts.tsx`
+45. `apps/frontend/src/components/admin/MockAnalyticsCharts.tsx`
+46. `apps/frontend/src/components/admin/UserManagementCard.tsx`
+47. `apps/frontend/src/components/profile/ProfileHeader.tsx`
+48. `apps/frontend/src/components/profile/ProfileStats.tsx`
+49. `apps/frontend/src/components/profile/StudyPlanHistory.tsx`
+50. `apps/frontend/src/components/profile/StudyPlanDetail.tsx`
 
-1. Browse `/behavioral` — filter by company, role, difficulty, search
-2. Open question → read intro statement → **upload PDF resume** → session created (`currentPhaseIndex: 1`)
-3. **Ice-breaker (2)** → **Resume deep dive (3)** → **Core behavioral (3)** → **Company values (2)**  
-   For each: click **Next question** → answer → submit (one question at a time)
-4. **Candidate questions** — enter all questions at once → AI interviewer replies → session `COMPLETED`
-5. **Wrap-up** statement displayed
-6. Click **Generate AI review** (on-demand) → async report with STAR + metric scores
-7. **Submissions** section — reload past attempts
+### I. Frontend pages
 
-### Behavioral API base path
+51. `apps/frontend/src/app/premium/page.tsx`
+52. `apps/frontend/src/app/profile/page.tsx`
+53. `apps/frontend/src/app/admin/page.tsx`
+54. `apps/frontend/src/app/admin/create/page.tsx` (or DSA/SD subroutes)
+55. `apps/frontend/src/app/admin/create/dsa/page.tsx`
+56. `apps/frontend/src/app/admin/create/system-design/page.tsx`
+57. `apps/frontend/src/app/admin/questions/page.tsx`
+58. `apps/frontend/src/app/admin/questions/dsa/page.tsx`
+59. `apps/frontend/src/app/admin/questions/system-design/page.tsx`
+60. `apps/frontend/src/app/admin/revenue/page.tsx`
+61. `apps/frontend/src/app/admin/mock-analytics/page.tsx`
+62. `apps/frontend/src/app/admin/users/page.tsx`
+63. `apps/frontend/src/app/admin/profile/page.tsx`
+64. Update `apps/frontend/src/app/page.tsx` (Upgrade to Premium CTA + admin/profile nav links)
+65. Update `apps/frontend/src/app/mock-interview/page.tsx` (Premium Required modal gate)
 
-All behavioral routes: **`/api/behavioral`** (auth required)
+### J. Docs / close-out
 
-Evaluation routes use **session ID** as `:id` in `/evaluations/:id`.
+66. Update `PROJECT_CONTEXT.md` / `ROADMAP.md` / `SESSION_HANDOFF.md` when Phase 7 code-complete
+67. Manual Phase 7 E2E checklist sign-off
 
-### Evaluation lookup order (behavioral)
-
-**DB → Redis → Queue** (not Redis → DB)
-
-### Cache key prefixes
-
-- DSA: `omniprep:dsa-evaluation:{sha256}`
-- SD: `omniprep:sd-evaluation:{sha256}`
-- Behavioral: `omniprep:behavioral-evaluation:{sha256}`
-
-### Queue job names
-
-- `evaluate-dsa` — job ID `dsa-eval-{submissionId}`
-- `evaluate-system-design` — job ID `sd-eval-{submissionId}`
-- `evaluate-behavioral` — job ID `behavioral-eval-{sessionId}`
-
-### Behavioral evaluation metrics (0–100 unless noted)
-
-`overallScore`, `communication`, `starStructure` (overall + situation/task/action/result at 0–25 each), `ownership`, `leadership`, `problemSolving`, `technicalDepth`, `impact`, `authenticity`, `confidence`
-
-Plus narrative: `strongestAnswer`, `weakestAnswer`, `strengths`, `weaknesses`, `suggestions`, `summary`
-
-### System design (unchanged)
-
-- Two-round flow: submit → follow-ups → AI review
-- Multipart field: **`diagram`**
-
-### DSA (unchanged)
-
-- AI report hidden until **Generate AI Review** clicked
-- Full submit only for DSA AI review (`isSampleRun: false`)
+> Note: If a listed file is better split/merged to match existing conventions discovered during implementation, adjust **one step at a time** and document the change in handoff — never batch-generate.
 
 ---
 
-# Next Recommended Task
+## 7. Important Existing Files (do not redesign)
 
-**Task:** Manual browser E2E test of the full Behavioral flow (not a new file).
+| File | Role |
+|---|---|
+| `apps/backend/prisma/schema.prisma` | **Next edit target** |
+| `apps/backend/src/middleware/auth.middleware.ts` | `authMiddleware` + `adminMiddleware` already exist |
+| `apps/backend/src/app.ts` | Router mounts |
+| `apps/backend/src/modules/mock-interview/*` | Premium gate + score/plan hooks |
+| `apps/frontend/src/components/HiringRecommendation.tsx` | Band thresholds for analytics parity |
+| `apps/frontend/src/app/page.tsx` | Home CTA for Upgrade |
 
-**Steps:**
+---
 
-1. Ensure migration + seed: `cd apps/backend && npx prisma migrate deploy && npm run seed` (confirm 3 behavioral questions)
-2. Start backend (`REDIS_URL`, `GEMINI_API_KEY`, `CLOUDINARY_*` in `.env`)
-3. Start frontend (`NEXT_PUBLIC_API_URL=http://localhost:4000`)
-4. Sign in → Home → **Behavioral interviews** → open `google-software-engineer-behavioral`
-5. Upload PDF resume → complete all 10 AI questions → submit candidate questions
-6. **Generate AI review** → wait for report
-7. Verify submissions history + instant re-request (DB short-circuit)
+## 8. Deferred (not Phase 7)
 
-**If E2E passes:** Mark Phase 5 complete; begin **Phase 6 — Full Mock Interview** planning.
+- Full Phase 6 mock E2E sign-off
+- Study-plan generation gating on completed evaluations
+- System Design `?$${qs}` typo and follow-up answer display
+- Auth refresh-on-401
+- Automated tests / CI / deployment (Phase 8)
 
-**Prerequisites for local testing:**
+---
+
+## 9. Local Run Commands
 
 ```bash
-# Terminal 1 — Judge0 (DSA only; not needed for behavioral)
+cd apps/backend
+npx prisma migrate deploy
+npx prisma generate
+npm run seed:generate
+npm run seed
+
+# Terminal 1
 docker compose -f docker-compose.judge0.yml up -d
 
-# Terminal 2 — Backend
-cd apps/backend && npm run dev
+# Terminal 2
+cd apps/backend
+npm run dev
 
-# Terminal 3 — Frontend
-cd apps/frontend && npm run dev
+# Terminal 3
+cd apps/frontend
+npm run dev
+```
+
+Stripe local webhook (when billing is wired):
+
+```bash
+stripe listen --forward-to localhost:4000/api/billing/webhook
 ```
 
 ---
 
-# Quick Resume Prompt
+## 10. Quick Resume Prompt
 
-```
-Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Phases 0–4 complete and E2E verified. Phase 5 Behavioral code complete: 7-phase company/role interview, resume PDF upload, async eval (DB→Redis→Queue), full /api/behavioral, frontend bank + interview + AI report. Pending: manual browser E2E for behavioral. Next: E2E verify Phase 5, then Phase 6 Mock Interview. One file at a time.
+```text
+Read PROJECT_CONTEXT.md, ROADMAP.md, and SESSION_HANDOFF.md. Phases 0–6 are implemented. Current work is Phase 7 (Admin + Profile + Premium/Stripe) file-by-file. Do not redesign architecture. Do not batch files. Next file is listed in SESSION_HANDOFF §5. Preserve Phase 6 REST/polling mock design. Enforce premium on the server.
 ```
 
 ---
 
-## Maintenance checklist (end of session)
+## 11. Maintenance Checklist
 
-- [x] Update `PROJECT_CONTEXT.md`
-- [x] Update `ROADMAP.md`
-- [x] Update this file
-- [x] Verify all three agree on phase and next step
+- [x] Rewrite Phase 7 official scope across all three memory files
+- [x] Align current phase to Phase 7
+- [x] Ordered Phase 7 file list
+- [ ] Schema + migration
+- [ ] Billing / premium middleware
+- [ ] Admin APIs + UI
+- [ ] Profile + study-plan progress
+- [ ] Premium gate on mock interview
+- [ ] Phase 7 E2E sign-off
 
 ---
 

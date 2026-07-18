@@ -64,21 +64,46 @@ enum MockInterviewSection {
   BEHAVIORAL
 }
 
+enum SubscriptionPlan {
+  MONTHLY
+  SIX_MONTHS
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  FAILED
+  REFUNDED
+}
+
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String
-  role          Role           @default(CANDIDATE)
-  name          String
-  createdAt     DateTime       @default(now())
-  refreshTokens RefreshToken[]
-  submissions   Submission[]
-  dsaEvaluations DsaEvaluation[]
+  id                    String                   @id @default(cuid())
+  email                 String                   @unique
+  passwordHash          String
+  role                   Role                     @default(CANDIDATE)
+  name                   String
+  image                  String?
+  phoneNo                String?
+  isPremium              Boolean                  @default(false)
+  premiumFrom            DateTime?
+  premiumTill            DateTime?
+  averageInterviewScore  Float?
+  recentLogin            DateTime?
+  createdAt              DateTime                 @default(now())
+  refreshTokens          RefreshToken[]
+  subscriptions          Subscription[]
+  submissions            Submission[]
+  dsaEvaluations         DsaEvaluation[]
   systemDesignSubmissions SystemDesignSubmission[]
   systemDesignEvaluations SystemDesignEvaluation[]
-  behavioralSessions      BehavioralSession[]
-  behavioralEvaluations   BehavioralEvaluation[]
+  behavioralSessions     BehavioralSession[]
+  behavioralEvaluations  BehavioralEvaluation[]
   mockInterviews          MockInterview[]
+
+  @@index([isPremium])
+  @@index([role])
 }
 
 model RefreshToken {
@@ -92,33 +117,58 @@ model RefreshToken {
   @@index([userId])
 }
 
+model Subscription {
+  id                      String             @id @default(cuid())
+  userId                  String
+  user                    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                    SubscriptionPlan
+  amount                  Int
+  currency                String             @default("INR")
+  status                  SubscriptionStatus @default(PENDING)
+  stripeSessionId         String             @unique
+  stripePaymentIntentId   String?            @unique
+  startsAt                DateTime
+  expiresAt               DateTime
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([plan])
+  @@index([createdAt])
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
 model Problem {
-  id              String       @id @default(cuid())
-  slug            String       @unique
-  title           String
-  description     String       @db.Text
-  inputFormat     String?      @db.Text
-  outputFormat    String?      @db.Text
-  constraints     String?      @db.Text
-  examples        Json?
-  difficulty      Difficulty
-  topics          String[]     @default([])
-  timeLimitMs     Int          @default(2000)
-  memoryLimitKb   Int          @default(256000)
-  starterCode     Json?
-  solutionCode    Json?
-  hints           String[]     @default([])
-  acceptanceRate  Float?
-  isPublished     Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  testCases       TestCase[]
-  submissions     Submission[]
-  dsaEvaluations  DsaEvaluation[]
-  mockInterviewDsaSlots  MockInterviewDsaProblem[]
+  id                    String                    @id @default(cuid())
+  slug                  String                    @unique
+  title                 String
+  description           String                    @db.Text
+  inputFormat           String?                   @db.Text
+  outputFormat          String?                   @db.Text
+  constraints           String?                   @db.Text
+  examples              Json?
+  difficulty            Difficulty
+  topics                String[]                  @default([])
+  timeLimitMs           Int                       @default(2000)
+  memoryLimitKb         Int                       @default(256000)
+  starterCode           Json?
+  solutionCode          Json?
+  hints                 String[]                  @default([])
+  acceptanceRate        Float?
+  isPublished           Boolean                   @default(false)
+  publishedAt           DateTime?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  testCases             TestCase[]
+  submissions           Submission[]
+  dsaEvaluations        DsaEvaluation[]
+  mockInterviewDsaSlots MockInterviewDsaProblem[]
 
   @@index([difficulty])
   @@index([isPublished])
+  @@index([publishedAt])
 }
 
 model TestCase {
@@ -136,27 +186,27 @@ model TestCase {
 }
 
 model Submission {
-  id               String           @id @default(cuid())
-  userId           String
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  problemId        String
-  problem          Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  language         ProgrammingLanguage
-  sourceCode       String           @db.Text
-  status           SubmissionStatus @default(PENDING)
-  passedTests      Int              @default(0)
-  totalTests       Int              @default(0)
-  testResults      Json?
-  judge0Token      String?
-  stdout           String?          @db.Text
-  stderr           String?          @db.Text
-  compileOutput    String?          @db.Text
-  executionTimeMs  Float?
-  memoryKb         Int?
-  isSampleRun      Boolean          @default(false)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  dsaEvaluation    DsaEvaluation?
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId       String
+  problem         Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  language        ProgrammingLanguage
+  sourceCode      String           @db.Text
+  status          SubmissionStatus @default(PENDING)
+  passedTests     Int              @default(0)
+  totalTests      Int              @default(0)
+  testResults     Json?
+  judge0Token     String?
+  stdout          String?          @db.Text
+  stderr          String?          @db.Text
+  compileOutput   String?          @db.Text
+  executionTimeMs Float?
+  memoryKb        Int?
+  isSampleRun     Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  dsaEvaluation   DsaEvaluation?
 
   @@index([userId])
   @@index([problemId])
@@ -165,25 +215,25 @@ model Submission {
 }
 
 model DsaEvaluation {
-  id               String     @id @default(cuid())
-  submissionId     String     @unique
-  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  userId           String
-  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  problemId        String
-  problem          Problem    @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  overallScore     Int
-  correctnessScore Int
-  efficiencyScore  Int
-  codeQualityScore Int
-  explanationScore Int
+  id                 String     @id @default(cuid())
+  submissionId       String     @unique
+  submission         Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId          String
+  problem            Problem    @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  overallScore       Int
+  correctnessScore   Int
+  efficiencyScore    Int
+  codeQualityScore   Int
+  explanationScore   Int
   complexityAnalysis Json
   followUpQuestions  Json
-  feedback         String     @db.Text
-  suggestions      Json
-  model            String
-  tokensUsed       Int
-  createdAt        DateTime   @default(now())
+  feedback           String     @db.Text
+  suggestions        Json
+  model              String
+  tokensUsed         Int
+  createdAt          DateTime   @default(now())
 
   @@index([userId])
   @@index([problemId])
@@ -192,27 +242,29 @@ model DsaEvaluation {
 }
 
 model SystemDesignQuestion {
-  id                String                   @id @default(cuid())
-  slug              String                   @unique
-  title             String
-  description       String                   @db.Text
-  requirements      Json
-  deliverables      Json
-  constraints       String[]                 @default([])
-  scaleFactors      String[]                 @default([])
-  difficulty        Difficulty
-  topics            String[]                 @default([])
-  hints             String[]                 @default([])
-  evaluationMetrics Json
-  isPublished       Boolean                  @default(false)
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  submissions       SystemDesignSubmission[]
-  evaluations       SystemDesignEvaluation[]
+  id                       String                      @id @default(cuid())
+  slug                     String                      @unique
+  title                    String
+  description              String                      @db.Text
+  requirements             Json
+  deliverables             Json
+  constraints              String[]                    @default([])
+  scaleFactors             String[]                    @default([])
+  difficulty               Difficulty
+  topics                   String[]                    @default([])
+  hints                    String[]                    @default([])
+  evaluationMetrics        Json
+  isPublished              Boolean                     @default(false)
+  publishedAt              DateTime?
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+  submissions              SystemDesignSubmission[]
+  evaluations              SystemDesignEvaluation[]
   mockInterviewAssignments MockInterviewSystemDesign[]
 
   @@index([difficulty])
   @@index([isPublished])
+  @@index([publishedAt])
 }
 
 model SystemDesignSubmission {
@@ -253,25 +305,26 @@ model SystemDesignEvaluation {
   model             String
   tokensUsed        Int
   createdAt         DateTime               @default(now())
+
   @@index([userId])
   @@index([questionId])
   @@index([userId, questionId])
 }
 
 model BehavioralQuestion {
-  id          String                 @id @default(cuid())
-  slug        String                 @unique
-  title       String
-  description String                 @db.Text
-  companyName String
-  roleName    String
-  difficulty  Difficulty
-  phases      Json
-  isPublished Boolean                @default(false)
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
-  sessions    BehavioralSession[]
-  evaluations BehavioralEvaluation[]
+  id                       String                    @id @default(cuid())
+  slug                     String                    @unique
+  title                    String
+  description              String                    @db.Text
+  companyName              String
+  roleName                 String
+  difficulty               Difficulty
+  phases                   Json
+  isPublished              Boolean                   @default(false)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  sessions                 BehavioralSession[]
+  evaluations              BehavioralEvaluation[]
   mockInterviewAssignments MockInterviewBehavioral[]
 
   @@index([companyName])
@@ -282,22 +335,22 @@ model BehavioralQuestion {
 }
 
 model BehavioralSession {
-  id                String                  @id @default(cuid())
-  userId            String
-  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  questionId        String
-  question          BehavioralQuestion      @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  resumeUrl         String
-  resumeFileName    String
-  resumeMimeType    String
-  resumeText        String                  @db.Text
-  currentPhaseIndex Int                     @default(0)
-  status            BehavioralSessionStatus @default(IN_PROGRESS)
-  completedAt       DateTime?
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  turns             BehavioralTurn[]
-  evaluation        BehavioralEvaluation?
+  id                      String                  @id @default(cuid())
+  userId                  String
+  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId              String
+  question                BehavioralQuestion      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  resumeUrl               String
+  resumeFileName          String
+  resumeMimeType          String
+  resumeText              String                  @db.Text
+  currentPhaseIndex       Int                     @default(0)
+  status                  BehavioralSessionStatus @default(IN_PROGRESS)
+  completedAt             DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  turns                   BehavioralTurn[]
+  evaluation              BehavioralEvaluation?
   mockInterviewAssignment MockInterviewBehavioral?
 
   @@index([userId])
@@ -328,7 +381,6 @@ model BehavioralTurn {
   @@unique([sessionId, phaseType, questionIndexInPhase])
 }
 
-
 model BehavioralEvaluation {
   id                String             @id @default(cuid())
   sessionId         String             @unique
@@ -347,32 +399,32 @@ model BehavioralEvaluation {
   model             String
   tokensUsed        Int
   createdAt         DateTime           @default(now())
-  
+
   @@index([userId])
   @@index([questionId])
   @@index([userId, questionId])
 }
 
 model MockInterview {
-  id                    String               @id @default(cuid())
-  userId                String
-  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status                MockInterviewStatus  @default(NOT_STARTED)
-  currentSection        MockInterviewSection @default(DSA)
-  startTime             DateTime?
-  dsaStartedAt          DateTime?
-  dsaSubmittedAt        DateTime?
-  systemDesignStartedAt DateTime?
+  id                      String                    @id @default(cuid())
+  userId                  String
+  user                    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status                  MockInterviewStatus       @default(NOT_STARTED)
+  currentSection          MockInterviewSection      @default(DSA)
+  startTime               DateTime?
+  dsaStartedAt            DateTime?
+  dsaSubmittedAt          DateTime?
+  systemDesignStartedAt   DateTime?
   systemDesignSubmittedAt DateTime?
-  behavioralStartedAt   DateTime?
-  behavioralSubmittedAt DateTime?
-  finalizedAt           DateTime?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  dsaProblems           MockInterviewDsaProblem[]
-  systemDesign          MockInterviewSystemDesign?
-  behavioral            MockInterviewBehavioral?
-  studyPlan             MockInterviewStudyPlan?
+  behavioralStartedAt     DateTime?
+  behavioralSubmittedAt   DateTime?
+  finalizedAt             DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  dsaProblems             MockInterviewDsaProblem[]
+  systemDesign            MockInterviewSystemDesign?
+  behavioral              MockInterviewBehavioral?
+  studyPlan               MockInterviewStudyPlan?
 
   @@index([userId])
   @@index([status])
@@ -426,14 +478,19 @@ model MockInterviewBehavioral {
 }
 
 model MockInterviewStudyPlan {
-  id              String        @id @default(cuid())
-  mockInterviewId String        @unique
-  mockInterview   MockInterview @relation(fields: [mockInterviewId], references: [id], onDelete: Cascade)
-  days            Json
-  summary         String        @db.Text
-  model           String
-  tokensUsed      Int
-  createdAt       DateTime      @default(now())
-  
+  id                String        @id @default(cuid())
+  mockInterviewId   String        @unique
+  mockInterview     MockInterview @relation(fields: [mockInterviewId], references: [id], onDelete: Cascade)
+  days              Json
+  summary           String        @db.Text
+  completedTaskKeys Json          @default("[]")
+  completionPercent Int           @default(0)
+  completedAt       DateTime?
+  model             String
+  tokensUsed        Int
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
   @@index([mockInterviewId])
+  @@index([completionPercent])
 }

@@ -1,281 +1,311 @@
 # ROADMAP.md
 
-> **Last updated:** 2026-07-09  
-> **Overall progress:** ~90% of Phases 0–5 (implementation complete); ~70% of full 8-phase MVP (Phases 6–8 not started)  
-> Sync with `PROJECT_CONTEXT.md` and `SESSION_HANDOFF.md` after each session.
+> **Last updated:** 2026-07-18
+> **Current phase:** Phase 7 — Admin Panel, User Profile & Premium Subscription (In Progress)
+> **Overall:** Phases 0–6 code complete; Phase 7 in progress; Phase 8 not started
+> Keep synchronized with `PROJECT_CONTEXT.md` and `SESSION_HANDOFF.md`.
 
 ---
 
-## Phase 0 — Monorepo & Scaffolding
+## Status Legend
 
-**Goal:** Runnable monorepo with backend health check and frontend home page.
-
-**Tasks:**
-
-* [x] Root `package.json` + `.gitignore`
-* [x] `apps/backend` — ESM Express, `app.ts`, `server.ts`, `/health`
-* [x] `apps/frontend` — Next 14, Tailwind, `layout.tsx`, `page.tsx`
-* [x] `next.config.mjs` (not `.ts`)
-* [x] `.env.example` (Neon + Upstash + Gemini + Cloudinary)
-* [x] `apps/frontend/.env.local` with `NEXT_PUBLIC_API_URL`
-* [x] `apps/backend/.env` with core vars
-* [x] Phase 0–5 work committed to git
-* [ ] `README.md` run instructions
-
-**Status:** Completed  
-**Progress:** 100%
+- **Completed:** implementation and required verification complete
+- **Code Complete:** implementation exists and type-checks; final E2E/polish remains
+- **In Progress:** active implementation
+- **Not Started:** no substantive implementation
 
 ---
 
-## Phase 1 — Foundation & Authentication
+## Phase 0 — Monorepo and Scaffolding
 
-**Goal:** Database connected to Neon; users can sign up, login, refresh, logout.
+**Goal:** Runnable npm-workspace monorepo with Express health check and Next.js frontend.
 
-**Tasks:**
+- [x] Root npm workspaces
+- [x] Express/TypeScript/ESM backend
+- [x] Next.js 14/React/Tailwind frontend
+- [x] Shared environment template
+- [x] Local Judge0 Docker compose configuration
 
-* [x] Prisma + schema (`User`, `RefreshToken`, `Role`)
-* [x] Migrations on Neon
-* [x] `config/env.ts`, `config/db.ts`
-* [x] `modules/auth/` — full JWT auth module
-* [x] `authMiddleware`, `adminMiddleware`
-* [x] Frontend auth UI + Zustand persist
-* [x] `User.name` required
-* [ ] Optional: `authStore.refresh()` + auto-refresh on 401
-
-**Status:** Completed (optional refresh UX remaining)  
-**Progress:** 95%
+**Status:** Completed
+**Implementation:** 100%
 
 ---
 
-## Phase 2 — DSA Module Core
+## Phase 1 — Foundation and Authentication
 
-**Goal:** Browse problems, solve in Monaco, run against Judge0, store submissions.
+**Goal:** Neon/Prisma persistence and JWT authentication.
 
-**Tasks:**
+- [x] `User`, `RefreshToken`, `Role`
+- [x] Signup, login, refresh, logout
+- [x] bcrypt password hashing
+- [x] Access/refresh JWTs and hashed refresh-token persistence
+- [x] Auth/admin middleware
+- [x] Login/signup UI and persisted Zustand session
+- [ ] Wire automatic frontend refresh/retry on HTTP 401
 
-* [x] Prisma: `Problem`, `TestCase`, `Submission` + migrate
-* [x] `src/types/dsa.types.ts`
-* [x] `modules/problems/`, `modules/submissions/`
-* [x] `services/Judge0Service.ts` + `problem-runner/`
-* [x] `docker-compose.judge0.yml` + Windows cgroup fix
-* [x] Seed: 100 problems
-* [x] Frontend: Monaco, problem bank, solver, Run/Submit, results
-* [x] Light theme design system
-* [x] `Judge0Error` → 502/504
-
-**Status:** Completed  
-**Progress:** 100%
+**Status:** Completed (optional auth UX debt)
+**Implementation:** 95%
 
 ---
 
-## Phase 3 — AI Evaluation Pipeline (DSA)
+## Phase 2 — DSA Core
 
-**Goal:** AI evaluates DSA submissions on demand; async worker + Redis cache; rich report UI.
+**Goal:** Curated problem bank, Monaco solving experience, Judge0 execution, stored results.
 
-**Tasks:**
+- [x] DSA schema and migration
+- [x] 100-problem seed pipeline
+- [x] Problems and submissions APIs
+- [x] C++/Java/Python code wrappers and Judge0 integration
+- [x] Sample Run and full Submit
+- [x] Problem bank, Monaco editor, result rendering
+- [x] Windows/Docker cgroup workaround
+- [x] Judge0 error mapping
 
-* [x] Redis, CacheService, QueueService, AIService (`evaluateDSA`)
-* [x] `AIEvaluationWorker`, `DsaEvaluation` model
-* [x] `modules/evaluations/` API + frontend AI review UI
-* [x] On-demand Generate AI Review (not auto after submit)
-* [x] Manual E2E testing
-* [x] `GEMINI_API_KEY` in `env.ts` Zod validation
-* [ ] `AIUsageLog` model + token/cost logging *(optional — deferred)*
-
-**Status:** Completed (optional `AIUsageLog` deferred)  
-**Progress:** 95%
-
----
-
-## Phase 4 — System Design Module
-
-**Goal:** Structured system design prompts; text and/or diagram submission; two-round follow-up flow; multimodal Gemini final evaluation with dynamic rubric scores.
-
-**Status:** Completed | **Progress:** 95%
-
-### Completed (backend)
-
-* [x] Prisma: `SystemDesignQuestion`, `SystemDesignSubmission`, `SystemDesignEvaluation`
-* [x] Migrations: `add_system_design`, `add_system_design_scale_factors`
-* [x] Question fields: `requirements`, `deliverables`, `constraints`, `scaleFactors`, `evaluationMetrics[]`
-* [x] Seed: 3 questions (URL shortener, Instagram feed, rate limiter)
-* [x] `src/types/system-design.types.ts` — Zod parsers, `computeOverallScore()`
-* [x] `CloudinaryService.ts` + `multer` + env helpers
-* [x] `modules/system-design/` — validation, service, follow-up service, evaluation service, controller, routes
-* [x] `app.ts` — mount `/api/system-design`
-* [x] `AIService.ts` — `generateSystemDesignFollowUps()`, `evaluateSystemDesign()` (multimodal)
-* [x] `CacheService.ts` — SD evaluation cache (`omniprep:sd-evaluation:*`)
-* [x] `QueueService.ts` — `enqueueSystemDesignEvaluation()`, `getSystemDesignEvalJobState()`
-* [x] `AIEvaluationWorker.ts` — `evaluate-system-design` jobs
-* [x] `requestSystemDesignEvaluation` — DB short-circuit before cache (DSA parity)
-* [x] Backend `tsc --noEmit` passes
-* [x] Manual browser E2E verified
-
-### Completed (frontend)
-
-* [x] `src/types/system-design.ts`
-* [x] `src/lib/api/system-design.ts` (multipart diagram upload via FormData)
-* [x] `/system-design` question bank page
-* [x] `/system-design/[id]` practice page (submit → follow-ups → AI review + poll)
-* [x] Home page nav + CTAs for System Design
-
-### Remaining
-
-* [ ] Fix follow-up submitted answers display (`{answer}` not "Submitted" label only)
-* [ ] Optional: add Behavioral link to `/problems` and `/system-design` page headers
+**Status:** Completed
+**Implementation:** 100%
 
 ---
 
-## Phase 5 — Behavioral Module
+## Phase 3 — DSA AI Evaluation
 
-**Goal:** Company- and role-specific behavioral mock interviews with resume-aware AI questions, 7-phase flow, and on-demand STAR-based evaluation.
+**Goal:** Explicit, asynchronous AI review of full DSA submissions.
 
-**Status:** Near Complete | **Progress:** ~95% (code done; manual browser E2E pending)
+- [x] `DsaEvaluation`
+- [x] Gemini structured DSA evaluation
+- [x] Redis cache and BullMQ queue
+- [x] Shared AI worker
+- [x] Evaluation request/poll API
+- [x] Frontend Generate AI Review flow
+- [x] Prior project docs record manual E2E verification (no automated artifact)
 
-### Completed (backend)
+**Status:** Completed
+**Implementation:** 100%
 
-* [x] Prisma: `BehavioralQuestion`, `BehavioralSession`, `BehavioralTurn`, `BehavioralEvaluation` + enums
-* [x] Migration: `20260705113944_add_behavioral_module`
-* [x] Seed: 3 questions (Google SWE, Amazon SDE, Microsoft SWE) via `behavioral-questions.ts`
-* [x] `src/types/behavioral.types.ts` — phase Zod schema, evaluation metrics, helpers
-* [x] `ResumeParserService.ts` — PDF only, 5 MB
-* [x] `CloudinaryService.ts` — `uploadBehavioralResume()` (`resource_type: 'raw'`)
-* [x] `AIService.ts` — `generateBehavioralQuestion()`, `answerCandidateQuestions()`, `evaluateBehavioral()`
-* [x] `CacheService.ts` — behavioral cache (`omniprep:behavioral-evaluation:*`)
-* [x] `QueueService.ts` — `enqueueBehavioralEvaluation()`, job `evaluate-behavioral`
-* [x] `AIEvaluationWorker.ts` — `processBehavioralEvalJob()`
-* [x] `modules/behavioral/` — validation, service, turn service, evaluation service, controller, routes
-* [x] `app.ts` — mount `/api/behavioral`
-* [x] Evaluation lookup: **DB → Redis → Queue**
-* [x] Backend `tsc --noEmit` passes
+---
 
-### Completed (frontend)
+## Phase 4 — System Design
 
-* [x] `src/types/behavioral.ts`
-* [x] `src/lib/api/behavioral.ts` — all 10 endpoints; multipart `resume`
-* [x] `/behavioral` question bank (company/role/difficulty/search + `filterOptions`)
-* [x] `/behavioral/[id]` — single-column flow: intro/resume → 7-phase interview → transcript → AI review → submissions history
-* [x] Home page nav + CTAs for Behavioral
+**Goal:** Structured design prompts, multimodal submission, follow-up round, rubric evaluation.
 
-### Remaining
+- [x] Question/submission/evaluation schema and migrations
+- [x] 3 seeded questions
+- [x] Text and/or diagram submission
+- [x] Cloudinary diagram upload
+- [x] Exactly 2 Gemini follow-up questions
+- [x] Follow-up answer submission
+- [x] Dynamic rubric metrics and backend weighted overall score
+- [x] Async evaluation/cache/worker integration
+- [x] Question bank, practice UI, report UI
+- [ ] Fix filtered list URL typo in `src/lib/api/system-design.ts` (`?$${qs}`)
+- [ ] Render submitted follow-up answer text instead of only “Submitted”
 
-* [ ] **Manual browser E2E** — full 7-phase flow + AI review (see `PROJECT_CONTEXT.md` checklist)
-* [ ] Optional: rename `behavioralPage` → `BehavioralPage` in bank page
-* [ ] Optional: add Behavioral nav to `/problems` and `/system-design` headers
+**Status:** Completed with known frontend defects
+**Implementation:** 95%
+
+---
+
+## Phase 5 — Behavioral
+
+**Goal:** Company/role-specific, resume-aware, seven-phase behavioral interviews with STAR evaluation.
+
+### Implemented
+
+- [x] Behavioral question/session/turn/evaluation schema and migration
+- [x] 3 seeded company/role questions
+- [x] Seven-phase validated JSON configuration
+- [x] PDF-only resume parsing and Cloudinary upload
+- [x] One-at-a-time Gemini questions
+- [x] Follow-up questions count toward phase quota
+- [x] Candidate-questions closing round
+- [x] Async behavioral evaluation via DB/cache/queue/worker
+- [x] Question bank, filters, interview transcript, history, report UI
+- [x] Mock-linked behavioral mode skips candidate questions and completes at wrap-up
+
+### Verification/debt
+
+- [ ] Record a complete standalone behavioral browser E2E result
+- [ ] Add automated behavioral tests
+
+**Status:** Code Complete
+**Implementation:** 100% code; manual sign-off not recorded
 
 ---
 
 ## Phase 6 — Full Mock Interview
 
-**Goal:** Live ~90 min session; auto AI report when interview ends (reuse evaluation engine).
+**Goal:** A backend-timed, sequential DSA → System Design → Behavioral interview with asynchronous section evaluation, final report, hiring band, and study plan.
 
-**Status:** Not Started | **Progress:** 0%
+The implemented design supersedes the old ~90-minute Socket.io plan.
 
-**Planned:** Socket.io, Redis session state, `MockInterview` + `MockInterviewReport` models.
+### Product behavior implemented
+
+- [x] Three sequential sections with no return to submitted sections
+- [x] One-hour cap per section; three-hour nominal total
+- [x] Backend timestamp/deadline helpers
+- [x] REST polling and timeout synchronization (no Socket.io)
+- [x] Random assignment without AI
+- [x] Session status machine (`NOT_STARTED` → `IN_PROGRESS` → `AWAITING_FINAL_SUBMIT` → `COMPLETED`)
+- [x] Section evaluation trigger without blocking progression
+- [x] Deterministic report aggregation
+- [x] Finalize gate: report only after `COMPLETED`
+- [x] Rich 7-day Gemini study-plan generation and persistence
+- [x] Frontend interview shell, timer, workspaces, hiring recommendation, report, study plan
+
+### Verification and hardening still required (deferred; not blocking Phase 7 start)
+
+- [x] Backend/Frontend TypeScript passes (2026-07-18)
+- [x] Local app starts; DSA → System Design transition/timer behavior manually exercised
+- [ ] Complete full happy-path E2E through report and persisted study plan
+- [ ] Timeout/no-submission path coverage
+- [ ] Gate study-plan generation until all evaluations complete
+- [ ] Other Phase 6 correctness debt (see `PROJECT_CONTEXT.md` §11)
+
+**Status:** Code Complete; E2E Sign-off Pending (deferred)
+**Implementation:** 100% planned code; verification/hardening incomplete
 
 ---
 
-## Phase 7 — Admin & Adaptive Engine
+## Phase 7 — Admin Panel, User Profile & Premium Subscription
 
-**Goal:** Admin dashboard, study plans, analytics; CRUD UI for questions.
+**Goal:** Extend OmniPrep with an admin SaaS dashboard, candidate/admin profiles, study-plan history with progress, and a Stripe-backed premium subscription system. Mock Interviews become Premium-only. Do not redesign existing modules.
 
-**Status:** Not Started | **Progress:** 0%
+> **Official Phase 7 specification:** the three modules below are the only Phase 7 scope. Prior “adaptive analytics / AIUsageLog / TopicPerformance” plans are superseded and out of scope.
 
-**Planned:** `AIUsageLog`, `TopicPerformance`, `StudyPlan`, admin CRUD for all question types.
+### Module A — Database & foundation
+
+- [ ] Extend `User`: `image`, `phoneNo`, `isPremium`, `premiumFrom`, `premiumTill`, `averageInterviewScore`, `recentLogin`
+- [ ] Add `Subscription` model for payment history (`plan`, `amount`, `currency`, `status`, Stripe IDs, `startsAt`, `expiresAt`, timestamps)
+- [ ] Plans: `MONTHLY` | `SIX_MONTHS` | `YEARLY`
+- [ ] Extend `MockInterviewStudyPlan` for task completion / progress percentage (profile history)
+- [ ] Stripe + premium env vars; `stripe` package; webhook verification
+- [ ] `premiumMiddleware`; never trust frontend premium flags
+- [ ] Update `recentLogin` on login; recompute `averageInterviewScore` on completed mock interviews
+
+### Module B — Admin Panel
+
+- [ ] Admin landing: hero + five feature cards in responsive 3+2 grid
+  - Create Questions · List Questions · Revenue Dashboard · Mock Analytics · User Management
+- [ ] Create Questions → DSA or System Design forms (all required Prisma fields + Published toggle)
+- [ ] List Questions → DSA / System Design sidebars: Published vs Draft
+  - Published: title, difficulty, topics, total submissions, published date, delete; sort by submissions desc
+  - Draft: title, last edited, edit, publish, delete
+- [ ] Revenue Dashboard: top stats, line/pie/bar charts, textual summaries (aggregate Prisma only)
+- [ ] Mock Analytics: premium users, total mocks, avg score; hiring-band distribution graph + counts
+- [ ] User Management: premium then free; search; card fields; confirm-before-delete
+- [ ] Admin Profile page
+
+### Module C — User Profile & Study Plan History
+
+- [ ] Candidate profile: identity, premium status/duration, average interview score
+- [ ] Stats: DSA / System Design / Behavioral aggregates
+- [ ] Study plan history (newest first): progress, completed/total tasks; open full schedule with checkboxes; Submit Progress; Completed badge
+- [ ] Logout button at bottom of profile
+
+### Module D — Premium Subscription & Access Control
+
+- [ ] Homepage “Upgrade to Premium” → pricing page (₹999 / ₹3999 / ₹5999) with feature list + Subscribe
+- [ ] Stripe Checkout → webhook → `Subscription` row → update `User` premium → redirect home
+- [ ] Mock Interview premium gate (backend + professional frontend modal with Upgrade Now)
+- [ ] Revenue analytics derived from `Subscription` aggregates (no redundant analytics tables)
+
+### Dependencies to add during Phase 7
+
+| Area | Packages / tools |
+|---|---|
+| Backend | `stripe` |
+| Frontend | Recharts, Framer Motion, React Hook Form; Shadcn/UI primitives as needed |
+
+**Status:** In Progress
+**Implementation:** 0%
 
 ---
 
-## Phase 8 — Polish, Security & Deploy
+## Phase 8 — Polish, Security, and Deployment
 
-**Goal:** Production deploy including Railway-hosted Judge0 CE.
+**Goal:** Production-ready application and operational documentation.
 
-**Status:** Not Started | **Progress:** 0%
+### Planned
+
+- [ ] Root README and complete local setup
+- [ ] Automated unit/integration/E2E suite
+- [ ] CI type-check/build/test workflow
+- [ ] Auth refresh-on-401
+- [ ] Security review and rate limiting
+- [ ] Accessibility and responsive UX pass
+- [ ] Logging/monitoring/error tracking
+- [ ] Vercel frontend deployment
+- [ ] Railway API/worker deployment
+- [ ] Production Judge0 deployment
+- [ ] Production environment/runbooks
+- [ ] Phase 6 full E2E sign-off and remaining correctness debt
+
+**Status:** Not Started
 
 ---
 
 ## Milestones
 
-| Milestone | Target Phase | Status |
-|-----------|--------------|--------|
-| M0 — Repo runs locally | Phase 0 | **Done** |
-| M1 — Auth + DB live | Phase 1 | **Done** |
-| M1.5 — DSA API + Judge0 + 100 problems | Phase 2 | **Done** |
-| M2 — DSA E2E in browser | Phase 2 | **Done** |
-| M2.5 — First AI feedback on code | Phase 3 | **Done** |
-| M3 — System design E2E in browser | Phase 4 | **Done** |
-| **M3.5 — Behavioral E2E in browser** | **Phase 5** | **In progress** (code ready; verification pending) |
-| M4 — Mock interview E2E | Phase 6 | Pending |
-| M5 — Production deploy | Phase 8 | Pending |
+| Milestone | Status |
+|---|---|
+| M0 — Monorepo runs | Done |
+| M1 — Auth + Neon | Done |
+| M2 — DSA + Judge0 | Done |
+| M2.5 — DSA AI review | Done |
+| M3 — System Design flow | Done |
+| M3.5 — Behavioral implementation | Done |
+| M3.6 — Behavioral full manual sign-off | Pending record |
+| M4 — Mock interview implementation | Done |
+| M4.1 — Mock interview full E2E sign-off | Deferred (Phase 8 / parallel) |
+| M5 — Admin, profile, premium/Stripe | **Current (Phase 7)** |
+| M6 — Production deployment | Not started |
+
+---
+
+## Current Priority Order
+
+### Now — Phase 7
+
+1. Schema: User premium fields + `Subscription` + study-plan progress fields + migration.
+2. Backend: profile, admin, billing/Stripe webhook, premium middleware, analytics aggregates.
+3. Frontend: admin dashboard, profiles, pricing, premium modal, study-plan history UI.
+4. Protect mock-interview create/start on the server; gate UI with modal.
+5. Manual E2E of admin CRUD, Stripe test checkout, profile stats, premium gate.
+
+### Later — Phase 8 / deferred debt
+
+1. Phase 6 full E2E sign-off and timer/study-plan gating fixes.
+2. System Design frontend defects.
+3. Auth refresh-on-401, tests, README, deployment.
+
+---
+
+## Risks and Dependencies
+
+| Risk/dependency | Current mitigation/status |
+|---|---|
+| Stripe not yet in repo | Add `stripe` package + env + webhook signature verification in Phase 7 |
+| Frontend lacks Recharts/RHF/Framer/Shadcn | Install as Phase 7 UI dependencies; keep existing Tailwind patterns |
+| Premium must be server-enforced | `premiumMiddleware` + DB `isPremium`/`premiumTill`; ignore client flags |
+| Webhook vs Checkout race | Idempotent upsert by `stripeSessionId` / payment intent |
+| Hiring bands are frontend-only today | Mock analytics recomputes bands from completed interview scores via same band thresholds |
+| No automated tests | Type-checks + manual E2E for Phase 7 |
+| Phase 6 E2E still open | Documented debt; does not block Phase 7 per product direction |
 
 ---
 
 ## Release Plan
 
-| Version | Scope | Phase |
-|---------|--------|-------|
-| **v0.1** | Monorepo scaffold | Phase 0 ✅ |
-| **v0.2** | Auth + Prisma on Neon | Phase 1 ✅ |
-| **v0.3** | DSA + Judge0 + browser UI | Phase 2 ✅ |
-| **v0.4** | AI DSA evaluation (on-demand) | Phase 3 ✅ |
-| **v0.5** | System design module | Phase 4 ✅ |
-| **v0.6** | Behavioral module | Phase 5 *(code complete; E2E pending)* |
-| **v0.7** | Mock interview | Phase 6 |
-| **v0.8** | Admin + adaptive plans | Phase 7 |
-| **v1.0** | Deployed MVP | Phase 8 |
-
----
-
-## Feature Priority Matrix
-
-### Critical (done)
-
-* Authentication  
-* DSA module + Judge0 + browser UI  
-* DSA AI evaluation pipeline (on-demand)  
-* Prisma + Neon  
-* System design backend + frontend (full async pipeline)  
-* Behavioral backend + frontend (full 7-phase flow + async eval)
-
-### High Priority (now)
-
-* **Manual behavioral browser E2E verification**  
-* Fix SD follow-up answer display bug  
-* README + deployment docs  
-
-### Medium Priority
-
-* `AIUsageLog` + admin analytics (Phase 7)  
-* Auth refresh-on-401 UX  
-* Nav consistency across all module pages  
-
-### Low Priority
-
-* Mock interview (Phase 6)  
-* Production deployment (Phase 8)  
-
----
-
-## Risks & Dependencies
-
-| Risk | Mitigation |
-|------|------------|
-| Behavioral flow untested end-to-end in browser | Run manual E2E checklist in `PROJECT_CONTEXT.md` |
-| `prisma generate` EPERM on Windows | Stop dev server before generate |
-| Gemini multimodal diagram fetch fails | Cloudinary public URLs; error handling in AIService |
-| Resume PDF parse returns empty text | Validate in `ResumeParserService`; user-facing error |
-| Judge0 on Windows Docker | mrkushalsm/judge0 + LF config |
-| Missing env vars block features | Document in README; `.env.example` at root |
-| Upstash eviction policy warning | Set policy to `noeviction` for BullMQ reliability |
-
-| Dependency | Phase | Status |
-|------------|-------|--------|
-| Neon | 1 | ✅ |
-| Judge0 CE (Docker) | 2 | ✅ |
-| Upstash Redis | 3–5 | ✅ |
-| Google Gemini | 3–5 | ✅ |
-| Cloudinary | 4–5 | ✅ (SD diagrams + behavioral resumes) |
-| pdf-parse | 5 | ✅ |
-| Socket.io | 6 | Pending |
+| Version | Scope | State |
+|---|---|---|
+| v0.1 | Scaffold | Complete |
+| v0.2 | Auth + Prisma | Complete |
+| v0.3 | DSA + Judge0 | Complete |
+| v0.4 | DSA AI review | Complete |
+| v0.5 | System Design | Complete |
+| v0.6 | Behavioral | Code complete |
+| v0.7 | Full Mock Interview | Code complete; E2E sign-off deferred |
+| v0.8 | Admin + profile + premium | **In progress (Phase 7)** |
+| v1.0 | Tested, secured, deployed MVP | Not started |
 
 ---
 

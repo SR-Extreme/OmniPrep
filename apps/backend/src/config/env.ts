@@ -1,6 +1,15 @@
 //It is validating your environment variables (.env) when the server starts.
 import { z } from 'zod';
 
+const optionalNonEmptyString = z.preprocess(
+    (value) => (
+        typeof value === 'string' && value.trim() === ''
+            ? undefined
+            : value
+    ),
+    z.string().min(1).optional(),
+);
+
 const envSchema = z.object({
     NODE_ENV: z
         .enum(['development', 'production', 'test'])
@@ -12,28 +21,18 @@ const envSchema = z.object({
     JWT_ACCESS_EXPIRY: z.string().default('15m'),
     JWT_REFRESH_EXPIRY: z.string().default('7d'),
     FRONTEND_URL: z.string().url(),
-    REDIS_URL: z.string().min(1).optional(),
-    JUDGE0_API_KEY: z.preprocess(
-        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-        z.string().min(1).optional(),
-    ),
+    REDIS_URL: optionalNonEmptyString,
+    JUDGE0_API_KEY: optionalNonEmptyString,
     JUDGE0_BASE_URL: z.string().url(),
-    GEMINI_API_KEY: z.preprocess(
-        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-        z.string().min(1).optional(),
-    ),
-    CLOUDINARY_CLOUD_NAME: z.preprocess(
-        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-        z.string().min(1).optional(),
-    ),
-    CLOUDINARY_API_KEY: z.preprocess(
-        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-        z.string().min(1).optional(),
-    ),
-    CLOUDINARY_API_SECRET: z.preprocess(
-        (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-        z.string().min(1).optional(),
-    ),
+    GEMINI_API_KEY: optionalNonEmptyString,
+    CLOUDINARY_CLOUD_NAME: optionalNonEmptyString,
+    CLOUDINARY_API_KEY: optionalNonEmptyString,
+    CLOUDINARY_API_SECRET: optionalNonEmptyString,
+    STRIPE_SECRET_KEY: optionalNonEmptyString,
+    STRIPE_WEBHOOK_SECRET: optionalNonEmptyString,
+    STRIPE_PRICE_MONTHLY: optionalNonEmptyString,
+    STRIPE_PRICE_SIX_MONTHS: optionalNonEmptyString,
+    STRIPE_PRICE_YEARLY: optionalNonEmptyString,
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -64,4 +63,14 @@ export function isCloudinaryConfigured(envConfig: Env = env): boolean {
 
 export function isGeminiConfigured(envConfig: Env = env): boolean {
     return Boolean(envConfig.GEMINI_API_KEY);
+}
+
+export function isStripeConfigured(envConfig: Env = env): boolean {
+    return Boolean(
+        envConfig.STRIPE_SECRET_KEY
+        && envConfig.STRIPE_WEBHOOK_SECRET
+        && envConfig.STRIPE_PRICE_MONTHLY
+        && envConfig.STRIPE_PRICE_SIX_MONTHS
+        && envConfig.STRIPE_PRICE_YEARLY,
+    );
 }
