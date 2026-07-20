@@ -38,6 +38,7 @@ Ignore any earlier “adaptive analytics / AIUsageLog / TopicPerformance” Phas
 - Create DSA / System Design questions (full required Prisma fields + Published toggle)
 - List Published / Draft with specified card fields and actions
 - Revenue dashboard (stats + line/pie/bar + textual summaries)
+- Revenue vs Time line chart must support four ranges: Last 1 Month (`1M`), Six Months (`6M`), 1 Year (`1Y`), All (`ALL`); default `1M`; API query param filters the series
 - Mock analytics (premium users, total mocks, avg score, hiring-band distribution)
 - User management (premium then free, search, confirm delete)
 - Admin profile page
@@ -100,6 +101,8 @@ Ignore any earlier “adaptive analytics / AIUsageLog / TopicPerformance” Phas
 5. Analytics via aggregate queries only.
 6. Do not redesign existing architecture; extend file-by-file.
 7. Admin routes require `adminMiddleware`; billing webhook verifies Stripe signatures.
+8. **Follow prior-phase module structure:** each feature uses Zod validation modules (`*.validation.ts`), thin controllers, services, and routes — same pattern as auth, mock-interview, system-design, etc. Use Zod wherever request/query/body params are accepted (billing, profile, admin). Shared constants/DTOs stay in `types/`; external integrations stay in `services/`. Middleware files do not need Zod unless they parse input.
+9. **One active plan only:** a user cannot subscribe while already premium; at most one `Subscription` may be `ACTIVE` per user; webhook expires other ACTIVE rows. No stacking / mid-cycle plan switch in Phase 7.
 
 ---
 

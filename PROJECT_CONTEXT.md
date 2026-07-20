@@ -98,7 +98,7 @@ OmniPrep/
 └── SESSION_HANDOFF.md
 ```
 
-Backend convention: thin controllers, business logic in services, Zod validation modules, `.js` extensions in ESM imports.
+Backend convention: thin controllers, business logic in services, **Zod validation modules (`*.validation.ts`) for all request/query/body input**, `.js` extensions in ESM imports. Phase 7 billing/profile/admin modules must follow the same layout as prior phases.
 
 ---
 
@@ -472,6 +472,14 @@ Eight migrations today (Phase 7 adds a ninth):
 
 Keep only **current** premium status on `User`. All historical payments live in `Subscription`.
 
+**One active enrollment rule (locked):** at any time a user may have at most **one** active premium enrollment among `MONTHLY` / `SIX_MONTHS` / `YEARLY`.
+
+- `User.isPremium` + `premiumTill` represent that single current entitlement.
+- Creating a Checkout session is rejected if the user already has active premium (`premiumTill` in the future).
+- On successful webhook activation, any other `ACTIVE` `Subscription` rows for that user are marked `EXPIRED` before the new one becomes `ACTIVE`.
+- Historical rows remain for revenue analytics; only one may be `ACTIVE` at a time.
+- Stacking, concurrent plans, or mid-cycle plan switching is out of scope for Phase 7 (user waits until expiry, then can subscribe again).
+
 Analytics (revenue, premium %, hiring bands, averages, submission counts) are **computed with aggregate Prisma queries** — do not store redundant analytics tables.
 
 Eight migrations today; Phase 7 adds a ninth for User/Subscription/study-plan progress.
@@ -570,6 +578,9 @@ On Windows, stop processes using Prisma Client before `prisma generate` if an `E
 | 2026-07-18 | Mock Interviews are Premium-only; enforce on server; UI uses modal (no `alert`) |
 | 2026-07-18 | Premium plans: MONTHLY ₹999, SIX_MONTHS ₹3999, YEARLY ₹5999 (INR) |
 | 2026-07-18 | Analytics via aggregate Prisma queries only — no redundant analytics tables |
+| 2026-07-19 | Revenue vs Time chart supports four ranges: `1M`, `6M`, `1Y`, `ALL` (default `1M`) |
+| 2026-07-20 | Phase 7 modules follow existing pattern: Zod `*.validation.ts` + service + controller + routes; Zod on all API inputs where applicable |
+| 2026-07-20 | A user may hold only one active premium plan at a time; Checkout blocked while premium; webhook expires other ACTIVE rows |
 | 2026-07-18 | Phase 6 full E2E remains open debt; Phase 7 proceeds by product direction |
 
 ---
@@ -645,6 +656,17 @@ DSA / System Design → sidebar Published | Draft. Published cards: title, diffi
 ### Revenue Dashboard
 
 Stats: Total Users, Total Revenue, Monthly / 6-Month / 12-Month subscription counts. Charts: Revenue vs Time (line), Premium vs Free (pie), Subscription Distribution (bar: Total Premium, Monthly, Six Months, Twelve Months). Summaries: total revenue, premium %, ARPU, highest-selling plan, monthly/six-month/annual sales.
+
+**Revenue vs Time range selector (required):** the line chart must offer exactly four options and filter the series accordingly:
+
+| Option | Range key | Behavior |
+|---|---|---|
+| Last 1 Month | `1M` | Revenue for the last ~30 days |
+| Six Months | `6M` | Revenue for the last ~180 days |
+| 1 Year | `1Y` | Revenue for the last ~365 days |
+| All | `ALL` | Full payment history |
+
+Default range: `1M`. Range is a query param on the revenue dashboard API; aggregation stays Prisma-only (no redundant analytics tables).
 
 ### Mock Analytics
 

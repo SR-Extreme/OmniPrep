@@ -179,6 +179,7 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
 - [ ] Extend `MockInterviewStudyPlan` for task completion / progress percentage (profile history)
 - [ ] Stripe + premium env vars; `stripe` package; webhook verification
 - [ ] `premiumMiddleware`; never trust frontend premium flags
+- [ ] One active premium plan per user (block Checkout while premium; expire other ACTIVE rows on webhook)
 - [ ] Update `recentLogin` on login; recompute `averageInterviewScore` on completed mock interviews
 
 ### Module B — Admin Panel
@@ -190,6 +191,7 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
   - Published: title, difficulty, topics, total submissions, published date, delete; sort by submissions desc
   - Draft: title, last edited, edit, publish, delete
 - [ ] Revenue Dashboard: top stats, line/pie/bar charts, textual summaries (aggregate Prisma only)
+- [ ] Revenue vs Time chart: range selector with `1M` / `6M` / `1Y` / `ALL` (default `1M`)
 - [ ] Mock Analytics: premium users, total mocks, avg score; hiring-band distribution graph + counts
 - [ ] User Management: premium then free; search; card fields; confirm-before-delete
 - [ ] Admin Profile page
