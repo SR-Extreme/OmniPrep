@@ -131,7 +131,7 @@ export function constructStripeWebhookEvent(
     }
 
     try {
-        //webhook created by backend to validate incoming webhook
+        //returns stripe event object created by backend after validating incoming webhook
         return Stripe.webhooks.constructEvent(
             rawBody,
             signature,
