@@ -21,6 +21,12 @@ const DIAGRAM_MIME_TYPES = new Set([
     'image/gif',
 ])
 
+const AVATAR_MIME_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+]);
+
 const RESUME_MIME_TYPES = new Set(['application/pdf']);
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -32,6 +38,12 @@ export interface UploadDiagramInput {
 }
 
 export interface UploadResumeInput {
+    buffer: Buffer;
+    mimetype: string;
+    originalname: string;
+}
+
+export interface UploadAvatarInput {
     buffer: Buffer;
     mimetype: string;
     originalname: string;
@@ -76,6 +88,16 @@ function validateDiagramFile(input: UploadDiagramInput): void {
         );
     }
     validateFileSize(input.buffer, 'image');
+}
+
+function validateAvatarFile(input: UploadAvatarInput): void {
+    if (!AVATAR_MIME_TYPES.has(input.mimetype)) {
+        throw new CloudinaryError(
+            'Unsupported avatar type. Allowed: JPEG, PNG, WebP.',
+            'INVALID_FILE',
+        );
+    }
+    validateFileSize(input.buffer, 'avatar');
 }
 
 function validateResumeFile(input: UploadResumeInput): void {
@@ -150,6 +172,19 @@ export async function uploadSystemDesignDiagram(
         folder: `omniprep/system-design/${userId}`,
         resourceType: 'image',
         missingUrlMessage: 'Cloudinary returned no image URL.',
+    });
+}
+
+export async function uploadProfileAvatar(
+    input: UploadAvatarInput,
+    userId: string,
+): Promise<string> {
+    ensureCloudinaryReady();
+    validateAvatarFile(input);
+    return uploadToCloudinary(input, {
+        folder: `omniprep/profiles/${userId}`,
+        resourceType: 'image',
+        missingUrlMessage: 'Cloudinary returned no avatar URL.',
     });
 }
 

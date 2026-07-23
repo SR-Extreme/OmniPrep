@@ -46,7 +46,7 @@ Do not use any earlier Phase 7 “adaptive analytics / AIUsageLog / TopicPerform
 | Code execution | Judge0 CE; local Docker compose stack on port 2358 |
 | AI | Google Gemini `gemini-2.5-flash` via `@google/genai` |
 | Async jobs | BullMQ 5 + Upstash Redis/ioredis |
-| Uploads | Multer memory storage (5 MB), Cloudinary |
+| Uploads | Multer memory storage (5 MB), Cloudinary (diagrams, resumes, **profile avatars**) |
 | Resume parsing | `pdf-parse`; PDF only |
 | Editor | Monaco via `@monaco-editor/react` |
 | Payments | Stripe Checkout + webhooks (Phase 7) |
@@ -231,7 +231,7 @@ Question → text and/or diagram submission
 ```
 
 - Multipart field: `diagram`
-- Cloudinary stores diagrams
+- Cloudinary stores diagrams, behavioral resumes, and profile avatars
 - Initial answer requires text, diagram, or both
 - Evaluation requires completed follow-up answers
 - `evaluationMetrics` are question-defined; backend computes weighted overall score
@@ -403,7 +403,7 @@ All routes below require bearer authentication unless noted.
 
 | Area | Purpose |
 |---|---|
-| Profile / me | Get/update profile fields; DSA/SD/behavioral stats; study-plan history + progress submit |
+| Profile / me | Get/update profile fields; DSA/SD/behavioral stats; study-plan history + progress submit; profile image upload (Cloudinary) |
 | Admin questions | Create/list/edit/publish/delete DSA and System Design questions (published vs draft) |
 | Admin users | List/search/delete users (premium first); admin profile |
 | Admin analytics | Revenue aggregates + charts data; mock analytics + hiring-band distribution |
@@ -440,7 +440,7 @@ Eight migrations today (Phase 7 adds a ninth):
 
 | Field | Purpose |
 |---|---|
-| `image` | Profile picture URL |
+| `image` | Profile picture URL (Cloudinary `secure_url`; never store binary in Postgres) |
 | `phoneNo` | Phone number |
 | `isPremium` | Current premium flag |
 | `premiumFrom` | Current period start |
@@ -581,6 +581,7 @@ On Windows, stop processes using Prisma Client before `prisma generate` if an `E
 | 2026-07-19 | Revenue vs Time chart supports four ranges: `1M`, `6M`, `1Y`, `ALL` (default `1M`) |
 | 2026-07-20 | Phase 7 modules follow existing pattern: Zod `*.validation.ts` + service + controller + routes; Zod on all API inputs where applicable |
 | 2026-07-20 | A user may hold only one active premium plan at a time; Checkout blocked while premium; webhook expires other ACTIVE rows |
+| 2026-07-23 | Profile pictures upload via Multer + Cloudinary (same pattern as SD diagrams); `User.image` stores the Cloudinary `secure_url`; fetch via profile APIs and render from that URL |
 | 2026-07-18 | Phase 6 full E2E remains open debt; Phase 7 proceeds by product direction |
 
 ---
@@ -679,6 +680,21 @@ Sort premium then free. Cards: avatar, username, email, premium badge, average i
 ### Profiles
 
 Admin profile: picture, username, email, phone, joined, latest login. Candidate profile: same + premium status/duration + average interview score; DSA/SD/behavioral stats; study-plan history with checkboxes + Submit Progress + Completed badge; Logout.
+
+**Profile picture (Cloudinary — locked):**
+
+```text
+Client selects image file
+  → multipart upload to profile avatar endpoint (Multer, max 5 MB)
+  → CloudinaryService uploads to folder e.g. omniprep/profiles/{userId}
+  → backend saves returned secure_url on User.image
+  → GET /api/profile (and admin user cards) return image URL
+  → UI renders <img src={image} /> (or placeholder if null)
+```
+
+- Allowed types: JPEG / PNG / WebP (same family as diagram uploads).
+- Do not store image bytes in Postgres; only the Cloudinary URL.
+- Clearing the picture sets `User.image` to `null` (optional delete from Cloudinary is nice-to-have, not required for Phase 7).
 
 ### Premium
 

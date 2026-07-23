@@ -9,6 +9,7 @@ import systemDesignRouter from './modules/system-design/system-design.routes.js'
 import behavioralRouter from './modules/behavioral/behavioral.routes.js';
 import mockInterviewRouter from './modules/mock-interview/mock-interview.routes.js';
 import billingRouter from './modules/billing/billing.routes.js';
+import profileRouter from './modules/profile/profile.routes.js';
 import { stripeWebhookHandler } from './modules/billing/billing.controller.js';
 import { authMiddleware, type AuthenticatedRequest } from './middleware/auth.middleware.js';
 
@@ -44,6 +45,7 @@ app.use('/api/system-design', authMiddleware, systemDesignRouter);
 app.use('/api/behavioral', authMiddleware, behavioralRouter);
 app.use('/api/mock-interview', authMiddleware, mockInterviewRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/profile', authMiddleware, profileRouter);
 
 //tells the current user logged in
 app.get('/api/me', authMiddleware, (req: AuthenticatedRequest, res: Response) => {

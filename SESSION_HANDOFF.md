@@ -46,6 +46,7 @@ Ignore any earlier “adaptive analytics / AIUsageLog / TopicPerformance” Phas
 ### 2) User Profile
 
 - Identity + premium status/duration + average interview score
+- Profile picture via **Cloudinary** (upload → store URL on `User.image` → fetch/render URL)
 - DSA / System Design / Behavioral stats
 - Study plan history (newest first) with progress, checkboxes, Submit Progress, Completed badge
 - Logout
@@ -103,6 +104,7 @@ Ignore any earlier “adaptive analytics / AIUsageLog / TopicPerformance” Phas
 7. Admin routes require `adminMiddleware`; billing webhook verifies Stripe signatures.
 8. **Follow prior-phase module structure:** each feature uses Zod validation modules (`*.validation.ts`), thin controllers, services, and routes — same pattern as auth, mock-interview, system-design, etc. Use Zod wherever request/query/body params are accepted (billing, profile, admin). Shared constants/DTOs stay in `types/`; external integrations stay in `services/`. Middleware files do not need Zod unless they parse input.
 9. **One active plan only:** a user cannot subscribe while already premium; at most one `Subscription` may be `ACTIVE` per user; webhook expires other ACTIVE rows. No stacking / mid-cycle plan switch in Phase 7.
+10. **Profile pictures use Cloudinary:** Multer multipart upload → `CloudinaryService` → store `secure_url` on `User.image`; fetch via profile/admin APIs and render from URL. No binary storage in Postgres.
 
 ---
 
@@ -117,14 +119,9 @@ Process:
 3. Wait for user `done` (or pasted review).
 4. Review → next file.
 
-### First file
+### First file / current next
 
-`apps/backend/prisma/schema.prisma`
-
-- Add User premium/profile fields
-- Add `SubscriptionPlan`, `SubscriptionStatus` enums + `Subscription` model
-- Extend `MockInterviewStudyPlan` with progress fields
-- Wire `User.subscriptions` relation
+`apps/backend/src/services/CloudinaryService.ts` — add `uploadProfileAvatar` (profile module complete through mount; admin.validation already created; insert Cloudinary avatar before admin services).
 
 Do **not** generate other files until the user confirms.
 
@@ -166,70 +163,77 @@ Implement strictly in this order. Do not skip or batch.
 19. `apps/backend/src/modules/profile/profile.routes.ts`
 20. Update `apps/backend/src/app.ts` (mount `/api/profile`)
 
+### D2. Profile avatar (Cloudinary) — immediately after profile mount, before admin
+
+21. Update `apps/backend/src/services/CloudinaryService.ts` (`uploadProfileAvatar`)
+22. Update `apps/backend/src/modules/profile/profile.service.ts` (`uploadAvatar` → Cloudinary + save `User.image`)
+23. Update `apps/backend/src/modules/profile/profile.controller.ts` (avatar upload handler)
+24. Update `apps/backend/src/modules/profile/profile.routes.ts` (`POST /avatar` + multer)
+
 ### E. Admin module
 
-21. `apps/backend/src/modules/admin/admin.validation.ts`
-22. `apps/backend/src/modules/admin/admin-questions.service.ts`
-23. `apps/backend/src/modules/admin/admin-users.service.ts`
-24. `apps/backend/src/modules/admin/admin-analytics.service.ts`
-25. `apps/backend/src/modules/admin/admin.controller.ts`
-26. `apps/backend/src/modules/admin/admin.routes.ts`
-27. Update `apps/backend/src/app.ts` (mount `/api/admin`)
+25. `apps/backend/src/modules/admin/admin.validation.ts`
+26. `apps/backend/src/modules/admin/admin-questions.service.ts`
+27. `apps/backend/src/modules/admin/admin-users.service.ts`
+28. `apps/backend/src/modules/admin/admin-analytics.service.ts`
+29. `apps/backend/src/modules/admin/admin.controller.ts`
+30. `apps/backend/src/modules/admin/admin.routes.ts`
+31. Update `apps/backend/src/app.ts` (mount `/api/admin`)
 
 ### F. Wire premium + login side effects into existing modules
 
-28. `apps/backend/src/modules/auth/auth.service.ts` (set `recentLogin` on login; return premium fields)
-29. `apps/backend/src/modules/mock-interview/mock-interview.service.ts` (premium check on create/start)
-30. `apps/backend/src/modules/mock-interview/mock-interview-report.service.ts` or finalize path (update `averageInterviewScore` when completed / report available)
-31. `apps/backend/src/modules/mock-interview/mock-interview-study-plan.service.ts` (progress submit helpers if owned here vs profile)
+32. `apps/backend/src/modules/auth/auth.service.ts` (set `recentLogin` on login; return premium fields)
+33. `apps/backend/src/modules/mock-interview/mock-interview.service.ts` (premium check on create/start)
+34. `apps/backend/src/modules/mock-interview/mock-interview-report.service.ts` or finalize path (update `averageInterviewScore` when completed / report available)
+35. `apps/backend/src/modules/mock-interview/mock-interview-study-plan.service.ts` (progress submit helpers if owned here vs profile)
 
 ### G. Frontend types + API clients
 
-32. `apps/frontend/src/types/billing.ts`
-33. `apps/frontend/src/types/profile.ts`
-34. `apps/frontend/src/types/admin.ts`
-35. `apps/frontend/src/lib/api/billing.ts`
-36. `apps/frontend/src/lib/api/profile.ts`
-37. `apps/frontend/src/lib/api/admin.ts`
-38. `apps/frontend/src/store/authStore.ts` (premium fields on user)
+36. `apps/frontend/src/types/billing.ts`
+37. `apps/frontend/src/types/profile.ts`
+38. `apps/frontend/src/types/admin.ts`
+39. `apps/frontend/src/lib/api/billing.ts`
+40. `apps/frontend/src/lib/api/profile.ts`
+41. `apps/frontend/src/lib/api/admin.ts`
+42. `apps/frontend/src/store/authStore.ts` (premium fields on user)
 
 ### H. Shared UI primitives / components
 
-39. Shadcn-style UI primitives as needed under `apps/frontend/src/components/ui/` (button, dialog, input, card, etc. — one file at a time)
-40. `apps/frontend/src/components/PremiumRequiredModal.tsx`
-41. `apps/frontend/src/components/PricingCards.tsx`
-42. `apps/frontend/src/components/admin/AdminFeatureCard.tsx`
-43. `apps/frontend/src/components/admin/QuestionListCard.tsx`
-44. `apps/frontend/src/components/admin/RevenueCharts.tsx`
-45. `apps/frontend/src/components/admin/MockAnalyticsCharts.tsx`
-46. `apps/frontend/src/components/admin/UserManagementCard.tsx`
-47. `apps/frontend/src/components/profile/ProfileHeader.tsx`
-48. `apps/frontend/src/components/profile/ProfileStats.tsx`
-49. `apps/frontend/src/components/profile/StudyPlanHistory.tsx`
-50. `apps/frontend/src/components/profile/StudyPlanDetail.tsx`
+43. Shadcn-style UI primitives as needed under `apps/frontend/src/components/ui/` (button, dialog, input, card, etc. — one file at a time)
+44. `apps/frontend/src/components/PremiumRequiredModal.tsx`
+45. `apps/frontend/src/components/PricingCards.tsx`
+46. `apps/frontend/src/components/admin/AdminFeatureCard.tsx`
+47. `apps/frontend/src/components/admin/QuestionListCard.tsx`
+48. `apps/frontend/src/components/admin/RevenueCharts.tsx`
+49. `apps/frontend/src/components/admin/MockAnalyticsCharts.tsx`
+50. `apps/frontend/src/components/admin/UserManagementCard.tsx`
+51. `apps/frontend/src/components/profile/ProfileHeader.tsx`
+52. `apps/frontend/src/components/profile/ProfileStats.tsx`
+53. `apps/frontend/src/components/profile/StudyPlanHistory.tsx`
+54. `apps/frontend/src/components/profile/StudyPlanDetail.tsx`
 
 ### I. Frontend pages
 
-51. `apps/frontend/src/app/premium/page.tsx`
-52. `apps/frontend/src/app/profile/page.tsx`
-53. `apps/frontend/src/app/admin/page.tsx`
-54. `apps/frontend/src/app/admin/create/page.tsx` (or DSA/SD subroutes)
-55. `apps/frontend/src/app/admin/create/dsa/page.tsx`
-56. `apps/frontend/src/app/admin/create/system-design/page.tsx`
-57. `apps/frontend/src/app/admin/questions/page.tsx`
-58. `apps/frontend/src/app/admin/questions/dsa/page.tsx`
-59. `apps/frontend/src/app/admin/questions/system-design/page.tsx`
-60. `apps/frontend/src/app/admin/revenue/page.tsx`
-61. `apps/frontend/src/app/admin/mock-analytics/page.tsx`
-62. `apps/frontend/src/app/admin/users/page.tsx`
-63. `apps/frontend/src/app/admin/profile/page.tsx`
-64. Update `apps/frontend/src/app/page.tsx` (Upgrade to Premium CTA + admin/profile nav links)
-65. Update `apps/frontend/src/app/mock-interview/page.tsx` (Premium Required modal gate)
+55. `apps/frontend/src/app/premium/page.tsx`
+56. `apps/frontend/src/app/profile/page.tsx`
+57. `apps/frontend/src/app/admin/page.tsx`
+58. `apps/frontend/src/app/admin/create/page.tsx` (or DSA/SD subroutes)
+59. `apps/frontend/src/app/admin/create/dsa/page.tsx`
+60. `apps/frontend/src/app/admin/create/system-design/page.tsx`
+61. `apps/frontend/src/app/admin/questions/page.tsx`
+62. `apps/frontend/src/app/admin/questions/dsa/page.tsx`
+63. `apps/frontend/src/app/admin/questions/system-design/page.tsx`
+64. `apps/frontend/src/app/admin/revenue/page.tsx`
+65. `apps/frontend/src/app/admin/mock-analytics/page.tsx`
+66. `apps/frontend/src/app/admin/users/page.tsx`
+67. `apps/frontend/src/app/admin/profile/page.tsx`
+68. Update `apps/frontend/src/app/page.tsx` (Upgrade to Premium CTA + admin/profile nav links)
+69. Update `apps/frontend/src/app/mock-interview/page.tsx` (Premium Required modal gate)
 
 ### J. Docs / close-out
 
-66. Update `PROJECT_CONTEXT.md` / `ROADMAP.md` / `SESSION_HANDOFF.md` when Phase 7 code-complete
-67. Manual Phase 7 E2E checklist sign-off
+70. Update `PROJECT_CONTEXT.md` / `ROADMAP.md` / `SESSION_HANDOFF.md` when Phase 7 code-complete
+71. Manual Phase 7 E2E checklist sign-off
 
 > Note: If a listed file is better split/merged to match existing conventions discovered during implementation, adjust **one step at a time** and document the change in handoff — never batch-generate.
 
@@ -239,9 +243,10 @@ Implement strictly in this order. Do not skip or batch.
 
 | File | Role |
 |---|---|
-| `apps/backend/prisma/schema.prisma` | **Next edit target** |
+| `apps/backend/src/services/CloudinaryService.ts` | **Next edit target** — add profile avatar upload |
 | `apps/backend/src/middleware/auth.middleware.ts` | `authMiddleware` + `adminMiddleware` already exist |
-| `apps/backend/src/app.ts` | Router mounts |
+| `apps/backend/src/app.ts` | Router mounts (billing webhook, profile, billing) |
+| `apps/backend/src/modules/admin/admin.validation.ts` | Created; admin services resume after avatar upload |
 | `apps/backend/src/modules/mock-interview/*` | Premium gate + score/plan hooks |
 | `apps/frontend/src/components/HiringRecommendation.tsx` | Band thresholds for analytics parity |
 | `apps/frontend/src/app/page.tsx` | Home CTA for Upgrade |

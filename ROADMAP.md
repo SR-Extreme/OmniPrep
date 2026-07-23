@@ -199,6 +199,7 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
 ### Module C — User Profile & Study Plan History
 
 - [ ] Candidate profile: identity, premium status/duration, average interview score
+- [ ] Profile picture: Multer + Cloudinary upload; store `secure_url` on `User.image`; fetch via profile APIs
 - [ ] Stats: DSA / System Design / Behavioral aggregates
 - [ ] Study plan history (newest first): progress, completed/total tasks; open full schedule with checkboxes; Submit Progress; Completed badge
 - [ ] Logout button at bottom of profile
