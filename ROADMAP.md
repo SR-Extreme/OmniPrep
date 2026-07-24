@@ -192,7 +192,7 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
   - Draft: title, last edited, edit, publish, delete
 - [ ] Revenue Dashboard: top stats, line/pie/bar charts, textual summaries (aggregate Prisma only)
 - [ ] Revenue vs Time chart: range selector with `1M` / `6M` / `1Y` / `ALL` (default `1M`)
-- [ ] Mock Analytics: premium users, total mocks, avg score; hiring-band distribution graph + counts
+- [ ] Mock Analytics: premium users (ever paid + ≥1 mock), total mocks, avg score; hiring-band distribution graph + counts
 - [ ] User Management: premium then free; search; card fields; confirm-before-delete
 - [ ] Admin Profile page
 

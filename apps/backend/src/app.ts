@@ -10,8 +10,9 @@ import behavioralRouter from './modules/behavioral/behavioral.routes.js';
 import mockInterviewRouter from './modules/mock-interview/mock-interview.routes.js';
 import billingRouter from './modules/billing/billing.routes.js';
 import profileRouter from './modules/profile/profile.routes.js';
+import adminRouter from './modules/admin/admin.routes.js';
 import { stripeWebhookHandler } from './modules/billing/billing.controller.js';
-import { authMiddleware, type AuthenticatedRequest } from './middleware/auth.middleware.js';
+import { adminMiddleware, authMiddleware, type AuthenticatedRequest } from './middleware/auth.middleware.js';
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/api/behavioral', authMiddleware, behavioralRouter);
 app.use('/api/mock-interview', authMiddleware, mockInterviewRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/profile', authMiddleware, profileRouter);
+app.use('/api/admin', authMiddleware, adminMiddleware, adminRouter);
 
 //tells the current user logged in
 app.get('/api/me', authMiddleware, (req: AuthenticatedRequest, res: Response) => {

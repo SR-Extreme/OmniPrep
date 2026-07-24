@@ -4,6 +4,7 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import type { Role } from '@prisma/client';
 import { prisma } from '../../config/db.js';
 import { env } from '../../config/env.js';
+import { getUserPremiumStatus } from '../../middleware/premium.middleware.js';
 import type { LoginInput, RefreshTokenInput, SignupInput } from './auth.validation.js';
 
 const BCRYPT_ROUNDS = 12;
@@ -17,9 +18,13 @@ export class AuthError extends Error {
 
 export interface AuthUser {
     id: string;
-    email: string,
-    role: Role,
+    email: string;
+    role: Role;
     name: string;
+    image: string | null;
+    isPremium: boolean;
+    premiumFrom: Date | null;
+    premiumTill: Date | null;
 }
 
 export interface AuthTokens {
@@ -65,21 +70,28 @@ function getRefreshTokenExpiresAt(): Date {
     return new Date(Date.now() + value * multipliers[unit]!);
 }
 
-function toAuthUser(user: {
+async function toAuthUser(user: {
     id: string;
     email: string;
     role: Role;
     name: string;
-}): AuthUser {
+    image: string | null;
+}): Promise<AuthUser> {
+    const premium = await getUserPremiumStatus(user.id);
+
     return {
         id: user.id,
         email: user.email,
         role: user.role,
         name: user.name,
+        image: user.image,
+        isPremium: premium.isPremium,
+        premiumFrom: premium.premiumFrom,
+        premiumTill: premium.premiumTill,
     };
 }
 
-async function issueTokens(user: { id: string; email: string; role: Role; name: string; }): Promise<AuthResult> {
+async function issueTokens(user: { id: string; email: string; role: Role; name: string; image: string | null; }): Promise<AuthResult> {
     const signOptions: SignOptions = {
         expiresIn: env.JWT_ACCESS_EXPIRY as SignOptions['expiresIn'],
     };
@@ -106,7 +118,7 @@ async function issueTokens(user: { id: string; email: string; role: Role; name: 
     });
 
     return {
-        user: toAuthUser(user),
+        user: await toAuthUser(user),
         tokens: { accessToken, refreshToken },
     };
 }
@@ -121,6 +133,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const now = new Date();
 
     const user = await prisma.user.create({
         data: {
@@ -128,8 +141,17 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
             passwordHash,
             name: input.name,
             role: 'CANDIDATE',
+            recentLogin: now,
+        },
+        select: {
+            id: true,
+            email: true,
+            role: true,
+            name: true,
+            image: true,
         },
     });
+
     return issueTokens(user);
 }
 
@@ -148,6 +170,18 @@ export async function login(input: LoginInput): Promise<AuthResult> {
         throw new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
     }
 
+    const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: { recentLogin: new Date() },
+        select: {
+            id: true,
+            email: true,
+            role: true,
+            name: true,
+            image: true,
+        },
+    });
+
     return issueTokens(user);
 }
 
@@ -157,7 +191,17 @@ export async function refresh(input: RefreshTokenInput): Promise<AuthResult> {
 
     const stored = await prisma.refreshToken.findUnique({
         where: { tokenHash },
-        include: { user: true },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                    name: true,
+                    image: true,
+                },
+            },
+        },
     });
 
     if (!stored || stored.expiresAt < new Date()) {

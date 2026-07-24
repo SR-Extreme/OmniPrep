@@ -39,7 +39,7 @@ Ignore any earlier “adaptive analytics / AIUsageLog / TopicPerformance” Phas
 - List Published / Draft with specified card fields and actions
 - Revenue dashboard (stats + line/pie/bar + textual summaries)
 - Revenue vs Time line chart must support four ranges: Last 1 Month (`1M`), Six Months (`6M`), 1 Year (`1Y`), All (`ALL`); default `1M`; API query param filters the series
-- Mock analytics (premium users, total mocks, avg score, hiring-band distribution)
+- Mock analytics (premium users who ever paid and took ≥1 mock; total mocks; avg score; hiring-band distribution)
 - User management (premium then free, search, confirm delete)
 - Admin profile page
 

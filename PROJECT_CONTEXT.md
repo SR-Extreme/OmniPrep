@@ -671,7 +671,12 @@ Default range: `1M`. Range is a query param on the revenue dashboard API; aggreg
 
 ### Mock Analytics
 
-Cards: Premium Users, Total Mock Interviews, Average Interview Score. Hiring band distribution (Strong Hire → Strong Reject) as graph + textual counts. Bands match the frontend hiring scale.
+Cards:
+- **Premium Users** — count of users who have ever held a paid plan (`Subscription` status `ACTIVE` or `EXPIRED`, current or past) **and** have taken at least one mock interview
+- Total Mock Interviews
+- Average Interview Score
+
+Hiring band distribution (Strong Hire → Strong Reject) as graph + textual counts. Bands match the frontend hiring scale.
 
 ### User Management
 
