@@ -182,7 +182,7 @@ export async function login(input: LoginInput): Promise<AuthResult> {
         },
     });
 
-    return issueTokens(user);
+    return issueTokens(updated);
 }
 
 //fn to generate new access token

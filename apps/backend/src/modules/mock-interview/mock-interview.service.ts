@@ -1,4 +1,5 @@
 import type { MockInterview, Prisma } from '@prisma/client';
+import { getUserPremiumStatus } from '../../middleware/premium.middleware.js';
 import { prisma } from '../../config/db.js';
 import {
     DSA_DIFFICULTY,
@@ -29,7 +30,8 @@ export class MockInterviewError extends Error {
             | 'NOT_FOUND'
             | 'FORBIDDEN'
             | 'INVALID_STATE'
-            | 'CONFIG_ERROR',
+            | 'CONFIG_ERROR'
+            | 'PREMIUM_REQUIRED',
     ) {
         super(message);
         this.name = 'MockInterviewError';
@@ -126,6 +128,17 @@ export function toSessionDetail(
     };
 }
 
+async function assertPremiumAccess(userId: string): Promise<void> {
+    const status = await getUserPremiumStatus(userId);
+
+    if (!status.isPremium) {
+        throw new MockInterviewError(
+            'Mock Interviews are available only for Premium users.',
+            'PREMIUM_REQUIRED',
+        );
+    }
+}
+
 export async function getOwnedInterviewOrThrow(
     userId: string,
     interviewId: string,
@@ -149,6 +162,8 @@ export async function getOwnedInterviewOrThrow(
 export async function createMockInterview(
     userId: string,
 ): Promise<MockInterviewSessionDetail> {
+    await assertPremiumAccess(userId);
+
     const [dsaPool, sdPool] = await Promise.all([
         prisma.problem.findMany({
             where: {
@@ -230,6 +245,8 @@ export async function startMockInterview(
     userId: string,
     interviewId: string,
 ): Promise<MockInterviewSessionDetail> {
+    await assertPremiumAccess(userId);
+
     const interview = await getOwnedInterviewOrThrow(userId, interviewId);
 
     if (interview.status !== 'NOT_STARTED') {

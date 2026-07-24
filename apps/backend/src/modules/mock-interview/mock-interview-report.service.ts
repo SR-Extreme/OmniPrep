@@ -60,12 +60,6 @@ export interface MockInterviewReportResponse extends MockInterviewReportDetail {
     behavioralReport: MockInterviewBehavioralReport | null;
 }
 
-export interface MockInterviewReportResponse extends MockInterviewReportDetail {
-    dsaQuestionReports: MockInterviewDsaQuestionReport[];
-    systemDesignReport: MockInterviewSystemDesignReport | null;
-    behavioralReport: MockInterviewBehavioralReport | null;
-}
-
 function mapPipelineStatus(status: PipelineEvalStatus): MockInterviewEvalStatus {
     if (status === 'completed') {
         return 'COMPLETED';
@@ -107,6 +101,43 @@ function averageScores(scores: number[]): number | null {
 
     const total = scores.reduce((sum, score) => sum + score, 0);
     return Math.round(total / scores.length);
+}
+
+function isFullyEvaluated(
+    statuses: MockInterviewSectionEvalStatus[],
+): boolean {
+    return (
+        statuses.length > 0 &&
+        !statuses.some((row) => row.status === 'PENDING')
+    );
+}
+
+async function syncUserAverageInterviewScore(
+    userId: string,
+    role?: Role,
+): Promise<void> {
+    const completed = await prisma.mockInterview.findMany({
+        where: { userId, status: 'COMPLETED' },
+        select: { id: true },
+        orderBy: { finalizedAt: 'asc' },
+    });
+    const scores: number[] = [];
+    for (const row of completed) {
+        const report = await buildMockInterviewReport(userId, row.id, role);
+        if (
+            report.overallScore != null &&
+            isFullyEvaluated(report.evaluationStatuses)
+        ) {
+            scores.push(report.overallScore);
+        }
+    }
+    await prisma.user.update({
+        where: { id: userId },
+        data: {
+            averageInterviewScore:
+                scores.length === 0 ? null : averageScores(scores),
+        },
+    });
 }
 
 function assertReportReady(status: string): void {
@@ -255,7 +286,7 @@ async function resolveBehavioralReport(
 }
 
 //tells the actual report details calculation
-export async function getMockInterviewReport(
+export async function buildMockInterviewReport(
     userId: string,
     interviewId: string,
     role?: Role,
@@ -362,6 +393,21 @@ export async function getMockInterviewReport(
         systemDesignReport,
         behavioralReport,
     };
+}
+
+export async function getMockInterviewReport(
+    userId: string,
+    interviewId: string,
+    role?: Role,
+): Promise<MockInterviewReportResponse> {
+    const report = await buildMockInterviewReport(userId, interviewId, role);
+    if (
+        report.overallScore != null &&
+        isFullyEvaluated(report.evaluationStatuses)
+    ) {
+        await syncUserAverageInterviewScore(userId, role);
+    }
+    return report;
 }
 
 //triggered when final submit button is clicked

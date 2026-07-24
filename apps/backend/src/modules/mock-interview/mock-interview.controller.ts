@@ -51,6 +51,7 @@ function handleMockInterviewError(err: unknown, res: Response): void {
             FORBIDDEN: 404,
             INVALID_STATE: 409,
             CONFIG_ERROR: 503,
+            PREMIUM_REQUIRED: 403,
         };
 
         res.status(statusByCode[err.code]).json({ error: err.message });
