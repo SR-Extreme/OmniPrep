@@ -5,23 +5,23 @@ import { motion } from 'framer-motion';
 const SUPPORT_ITEMS = [
     {
         id: 'contact',
-        title: 'Contact',
-        body: 'Reach us at support@omniprep.app for product questions, billing help, or feedback.',
+        title: 'Contact Us',
+        body: 'Need assistance? Our support team is here to help with account issues, billing inquiries, technical questions, or product feedback. Reach us anytime at omniprep2004@gmail.com',
     },
     {
         id: 'privacy',
         title: 'Privacy Policy',
-        body: 'We protect your account data and only use interview content to power your practice experience.',
+        body: 'Your privacy is our priority. We securely protect your personal information and interview data, using it only to deliver, improve, and personalize your interview preparation experience.',
     },
     {
         id: 'terms',
-        title: 'Terms',
-        body: 'By using OmniPrep you agree to use the platform for personal interview preparation and respect fair-use limits.',
+        title: 'Terms & Conditions',
+        body: 'By using OmniPrep, you agree to our Terms of Service, including responsible use of the platform, compliance with fair-use policies, and adherence to applicable subscription and licensing terms.',
     },
     {
         id: 'faq',
         title: 'FAQ',
-        body: 'Start with DSA or system design for free practice. Full mock interviews require Premium and include AI reports.',
+        body: 'New to OmniPrep? Begin with free DSA and System Design practice. Upgrade to Premium to unlock full-length AI-powered mock interviews, personalized feedback, detailed performance reports, and advanced preparation tools.',
     },
 ] as const;
 

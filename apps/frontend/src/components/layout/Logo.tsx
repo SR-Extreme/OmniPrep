@@ -24,14 +24,14 @@ export function Logo({ className, priority = false, size = 'nav' }: LogoProps) {
             <Image
                 src="/logo.png"
                 alt="OmniPrep"
-                width={isFooter ? 420 : 400}
-                height={isFooter ? 110 : 96}
+                width={isFooter ? 220 : 200}
+                height={isFooter ? 64 : 52}
                 priority={priority}
                 className={cn(
-                    'w-auto max-w-[min(70vw,420px)] object-contain object-left',
+                    'w-auto max-w-[min(55vw,220px)] object-contain object-left',
                     isFooter
-                        ? 'h-[72px] sm:h-[84px]'
-                        : 'h-[64px] sm:h-[76px] lg:h-[88px]',
+                        ? 'h-11 sm:h-12'
+                        : 'h-10 sm:h-11 lg:h-12',
                 )}
             />
         </Link>

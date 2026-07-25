@@ -25,7 +25,7 @@ export function Navbar() {
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-zinc-200/80 bg-white/90 backdrop-blur-md">
-            <div className="mx-auto flex h-[96px] w-full max-w-7xl items-center justify-between gap-4 px-4 sm:h-[104px] sm:px-6 lg:h-[112px] lg:gap-8 lg:px-8">
+            <div className="mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between gap-4 px-4 sm:h-[76px] sm:px-6 lg:h-[80px] lg:gap-8 lg:px-8">
                 <Logo priority />
 
                 <nav

@@ -58,7 +58,7 @@ export function HeroSection() {
                             href="/problems"
                             className="btn-primary !rounded-2xl !px-6 !py-3 !text-base shadow-elevated"
                         >
-                            Start Practicing
+                            Start with DSA
                         </Link>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>

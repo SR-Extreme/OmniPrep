@@ -92,14 +92,6 @@ export function FlagshipMockInterview() {
                                         Start Mock Interview
                                     </Link>
                                 </motion.div>
-                                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
-                                    <Link
-                                        href="/premium"
-                                        className="btn-secondary !rounded-2xl !px-5 !py-3"
-                                    >
-                                        Learn More
-                                    </Link>
-                                </motion.div>
                             </div>
                         </div>
 

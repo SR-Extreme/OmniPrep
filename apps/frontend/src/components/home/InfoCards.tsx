@@ -104,12 +104,6 @@ export function InfoCards() {
                                 <p className="mt-3 text-sm leading-relaxed text-zinc-500 sm:text-base">
                                     {card.description}
                                 </p>
-                                <Link
-                                    href={card.href}
-                                    className="btn-primary mt-6 !rounded-xl self-start"
-                                >
-                                    {card.cta}
-                                </Link>
                             </div>
                         </div>
                     </motion.article>

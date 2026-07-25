@@ -2,6 +2,12 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { MockInterviewHero } from '@/components/mock-interview/MockInterviewHero';
+import { MockInterviewList } from '@/components/mock-interview/MockInterviewList';
+import {
+    MockInterviewStats,
+    type MockInterviewStatsData,
+} from '@/components/mock-interview/MockInterviewStats';
 import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
 import { ApiError } from '@/lib/api/client';
 import {
@@ -9,62 +15,18 @@ import {
     listMyMockInterviews,
     startMockInterview,
 } from '@/lib/api/mock-interview';
+import { getProfile } from '@/lib/api/profile';
 import { useAuthStore } from '@/store/authStore';
-import {
-    getSectionLabel,
-    type MockInterviewListItem,
-    type MockInterviewStatus,
-} from '@/types/mock-interview';
+import type { MockInterviewListItem } from '@/types/mock-interview';
 
 const PAGE_SIZE = 20;
+const STATS_PAGE_SIZE = 50;
 
-function statusBadge(status: MockInterviewStatus): {
-    label: string;
-    className: string;
-} {
-    switch (status) {
-        case 'NOT_STARTED':
-            return {
-                label: 'Not started',
-                className: 'bg-zinc-100 text-zinc-600 ring-zinc-500/15',
-            };
-        case 'IN_PROGRESS':
-            return {
-                label: 'In progress',
-                className: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-            };
-        case 'AWAITING_FINAL_SUBMIT':
-            return {
-                label: 'Awaiting Final Submit',
-                className: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-            };
-        case 'COMPLETED':
-            return {
-                label: 'Completed',
-                className: 'bg-sky-50 text-sky-800 ring-sky-600/20',
-            };
-        default:
-            return {
-                label: status,
-                className: 'bg-zinc-100 text-zinc-600 ring-zinc-500/15',
-            };
-    }
-}
-
-function actionLabel(status: MockInterviewStatus): string {
-    switch (status) {
-        case 'NOT_STARTED':
-            return 'Start';
-        case 'IN_PROGRESS':
-            return 'Resume';
-        case 'AWAITING_FINAL_SUBMIT':
-            return 'Finalize';
-        case 'COMPLETED':
-            return 'View report';
-        default:
-            return 'Open';
-    }
-}
+const EMPTY_STATS: MockInterviewStatsData = {
+    totalInterviews: 0,
+    completed: 0,
+    averageScore: null,
+};
 
 function isPremiumRequiredError(err: unknown): boolean {
     return (
@@ -72,6 +34,45 @@ function isPremiumRequiredError(err: unknown): boolean {
         err.status === 403 &&
         /premium/i.test(err.message)
     );
+}
+
+async function loadInterviewStats(
+    accessToken: string,
+): Promise<MockInterviewStatsData> {
+    const [profile, firstPage] = await Promise.all([
+        getProfile(accessToken),
+        listMyMockInterviews(accessToken, { page: 1, limit: STATS_PAGE_SIZE }),
+    ]);
+
+    let completed = firstPage.interviews.filter(
+        (interview) => interview.status === 'COMPLETED',
+    ).length;
+
+    const totalPages = firstPage.pagination.totalPages;
+    if (totalPages > 1) {
+        const remaining = await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) =>
+                listMyMockInterviews(accessToken, {
+                    page: index + 2,
+                    limit: STATS_PAGE_SIZE,
+                }),
+            ),
+        );
+        for (const pageResult of remaining) {
+            completed += pageResult.interviews.filter(
+                (interview) => interview.status === 'COMPLETED',
+            ).length;
+        }
+    }
+
+    const totalInterviews = firstPage.pagination.total;
+    const averageScore = profile.averageInterviewScore;
+
+    return {
+        totalInterviews,
+        completed,
+        averageScore,
+    };
 }
 
 export default function MockInterviewPage() {
@@ -84,6 +85,8 @@ export default function MockInterviewPage() {
     const [totalPages, setTotalPages] = useState(0);
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    const [stats, setStats] = useState<MockInterviewStatsData>(EMPTY_STATS);
+    const [statsLoading, setStatsLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
     const [openingId, setOpeningId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -145,6 +148,38 @@ export default function MockInterviewPage() {
             cancelled = true;
         };
     }, [hydrated, accessToken, page]);
+
+    useEffect(() => {
+        if (!hydrated || !accessToken) {
+            return;
+        }
+
+        let cancelled = false;
+
+        async function loadStats() {
+            setStatsLoading(true);
+            try {
+                const result = await loadInterviewStats(accessToken as string);
+                if (!cancelled) {
+                    setStats(result);
+                }
+            } catch (err) {
+                console.error(err);
+                if (!cancelled) {
+                    setStats(EMPTY_STATS);
+                }
+            } finally {
+                if (!cancelled) {
+                    setStatsLoading(false);
+                }
+            }
+        }
+
+        void loadStats();
+        return () => {
+            cancelled = true;
+        };
+    }, [hydrated, accessToken]);
 
     async function handleCreate() {
         if (!accessToken) {
@@ -216,149 +251,49 @@ export default function MockInterviewPage() {
 
     if (!hydrated || !accessToken) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
+            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-5xl space-y-6 px-6 py-8">
-                <section className="card p-5 sm:p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="max-w-2xl">
-                            <p className="section-label">Full mock</p>
-                            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900">
-                                Timed interview
-                            </h1>
-                            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-                                Three sequential sections — DSA, System Design, then
-                                Behavioral. One hour per section. You cannot go back after
-                                submitting a section. Evaluations run after each section
-                                submit; the final hiring band and study plan come after the
-                                interview.
-                            </p>
-                            {!user?.isPremium ? (
-                                <p className="mt-3 text-sm font-medium text-emerald-700">
-                                    Premium required to start a new mock interview.
-                                </p>
-                            ) : null}
-                        </div>
-                        <button
-                            type="button"
-                            className="btn-primary"
-                            disabled={isCreating}
-                            onClick={() => void handleCreate()}
-                        >
-                            {isCreating ? 'Starting…' : 'Start new interview'}
-                        </button>
-                    </div>
-                </section>
+        <div className="overflow-x-hidden bg-zinc-50">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div className="flex min-h-[calc(100svh-5rem)] flex-col justify-center py-4 sm:py-5 lg:min-h-[calc(100svh-5.5rem)] lg:py-6">
+                    <MockInterviewHero
+                        isCreating={isCreating}
+                        isPremium={Boolean(user?.isPremium)}
+                        onStart={() => void handleCreate()}
+                    />
+                </div>
 
                 {error ? (
                     <div
-                        className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                        className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
                         role="alert"
                     >
                         {error}
                     </div>
                 ) : null}
 
-                <section className="card overflow-hidden">
-                    <div className="border-b border-zinc-200 px-5 py-4 sm:px-6">
-                        <h2 className="text-base font-semibold text-zinc-900">
-                            Your interviews
-                        </h2>
-                        <p className="mt-1 text-sm text-zinc-500">
-                            {total} total
-                        </p>
-                    </div>
+                <div className="border-t border-zinc-200/80 py-8 sm:py-10">
+                    <MockInterviewStats stats={stats} isLoading={statsLoading} />
+                </div>
 
-                    {isLoading ? (
-                        <div className="flex items-center justify-center gap-2 px-6 py-16 text-sm text-zinc-500">
-                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                            Loading…
-                        </div>
-                    ) : interviews.length === 0 ? (
-                        <div className="px-5 py-16 text-center text-sm text-zinc-500 sm:px-6">
-                            No mock interviews yet. Start one to begin.
-                        </div>
-                    ) : (
-                        <ul className="divide-y divide-zinc-100">
-                            {interviews.map((interview) => {
-                                const badge = statusBadge(interview.status);
-                                const busy = openingId === interview.id;
-
-                                return (
-                                    <li
-                                        key={interview.id}
-                                        className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6"
-                                    >
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <p className="text-sm font-medium text-zinc-900">
-                                                    Interview
-                                                </p>
-                                                <span
-                                                    className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${badge.className}`}
-                                                >
-                                                    {badge.label}
-                                                </span>
-                                            </div>
-                                            <p className="mt-1 text-xs text-zinc-500">
-                                                Section:{' '}
-                                                {getSectionLabel(interview.currentSection)}
-                                                {' · '}
-                                                Created{' '}
-                                                {new Date(
-                                                    interview.createdAt,
-                                                ).toLocaleString()}
-                                            </p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className="btn-secondary !py-2"
-                                            disabled={busy}
-                                            onClick={() => void handleOpen(interview)}
-                                        >
-                                            {busy
-                                                ? 'Opening…'
-                                                : actionLabel(interview.status)}
-                                        </button>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    )}
-
-                    {totalPages > 1 ? (
-                        <div className="flex items-center justify-between border-t border-zinc-200 px-5 py-3 sm:px-6">
-                            <button
-                                type="button"
-                                className="btn-ghost"
-                                disabled={page <= 1 || isLoading}
-                                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                            >
-                                Previous
-                            </button>
-                            <p className="text-xs text-zinc-500">
-                                Page {page} of {totalPages}
-                            </p>
-                            <button
-                                type="button"
-                                className="btn-ghost"
-                                disabled={page >= totalPages || isLoading}
-                                onClick={() =>
-                                    setPage((prev) => Math.min(totalPages, prev + 1))
-                                }
-                            >
-                                Next
-                            </button>
-                        </div>
-                    ) : null}
-                </section>
-            </main>
+                <div className="border-t border-zinc-200/80 pb-12 pt-8 sm:pb-16 sm:pt-10">
+                    <MockInterviewList
+                        interviews={interviews}
+                        total={total}
+                        page={page}
+                        totalPages={totalPages}
+                        isLoading={isLoading}
+                        openingId={openingId}
+                        onOpen={(interview) => void handleOpen(interview)}
+                        onPageChange={setPage}
+                    />
+                </div>
+            </div>
 
             <PremiumRequiredModal
                 open={premiumModalOpen}

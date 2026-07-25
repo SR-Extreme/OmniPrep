@@ -18,7 +18,7 @@ const SOCIAL_LINKS = [
         icon: Linkedin,
     },
     {
-        href: 'mailto:support@omniprep.app',
+        href: 'mailto:omniprep2004@gmail.com',
         label: 'Email',
         icon: Mail,
     },

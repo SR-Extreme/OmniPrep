@@ -66,7 +66,7 @@ export function UserMenu() {
                 aria-expanded={open}
                 onClick={() => setOpen((value) => !value)}
                 className={cn(
-                    'flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-zinc-100 shadow-soft transition duration-200',
+                    'flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-zinc-100 shadow-soft transition duration-200',
                     'hover:border-emerald-300 hover:ring-2 hover:ring-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/30',
                 )}
             >
@@ -74,13 +74,13 @@ export function UserMenu() {
                     <Image
                         src={user.image}
                         alt={user.name}
-                        width={56}
-                        height={56}
+                        width={44}
+                        height={44}
                         className="h-full w-full object-cover"
                         unoptimized
                     />
                 ) : (
-                    <span className="text-sm font-semibold text-emerald-700">
+                    <span className="text-xs font-semibold text-emerald-700">
                         {initials(user.name)}
                     </span>
                 )}
