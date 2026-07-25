@@ -36,7 +36,7 @@ Ignore any earlier “adaptive analytics / AIUsageLog / TopicPerformance” Phas
 ### 1) Admin Panel
 
 - Landing: hero + 5 cards (3+2 grid): Create Questions, List Questions, Revenue Dashboard, Mock Analytics, User Management
-- Create DSA / System Design questions (full required Prisma fields + Published toggle)
+- Create DSA / System Design / Behavioral questions (full required Prisma fields + Published toggle)
 - List Published / Draft with specified card fields and actions; edit-with-prefill via `?id=`
 - Revenue dashboard (stats + line/pie/bar + textual summaries)
 - Revenue vs Time line chart: `1M` | `6M` | `1Y` | `ALL` (default `1M`)
@@ -152,7 +152,6 @@ All ordered Phase 7 files from the prior handoff are **implemented**. Reference 
 - Full Phase 6 mock E2E sign-off
 - Study-plan generation gating on completed evaluations
 - System Design `?$${qs}` typo and follow-up answer display
-- Auth refresh-on-401
 - Automated tests / CI / deployment (Phase 8)
 - Candidate profile name/phone edit form polish (API exists; UI may be display-heavy)
 

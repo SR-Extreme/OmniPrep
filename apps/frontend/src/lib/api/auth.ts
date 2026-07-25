@@ -91,7 +91,11 @@ export function resetPassword(body: ResetPasswordBody): Promise<MessageResponse>
 }
 
 export function refresh(body: RefreshBody): Promise<AuthResult> {
-    return apiRequest<AuthResult>('/api/auth/refresh', { method: 'POST', body });
+    return apiRequest<AuthResult>('/api/auth/refresh', {
+        method: 'POST',
+        body,
+        skipAuthRefresh: true,
+    });
 }
 
 export function logout(body: RefreshBody): Promise<void> {

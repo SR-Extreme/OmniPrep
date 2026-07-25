@@ -88,6 +88,7 @@ export interface BehavioralQuestionDetail {
     difficulty: Difficulty;
     phases: BehavioralPhases;
     isPublished: boolean;
+    publishedAt?: string | null;
     createdAt: string;
     updatedAt: string;
 }

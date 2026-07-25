@@ -68,9 +68,12 @@ export async function getRevenueDashboard(
         planGroups,
         rangedPaidSubscriptions,
     ] = await Promise.all([
-        prisma.user.count(),
+        prisma.user.count({
+            where: { role: 'CANDIDATE' },
+        }),
         prisma.user.count({
             where: {
+                role: 'CANDIDATE',
                 isPremium: true,
                 premiumTill: { gt: now },
             },
@@ -143,6 +146,16 @@ export async function getRevenueDashboard(
         }));
     }
 
+    // Cumulative revenue through each date (not daily amount)
+    let cumulativeRevenue = 0;
+    revenueOverTime = revenueOverTime.map((point) => {
+        cumulativeRevenue += point.revenueInr;
+        return {
+            date: point.date,
+            revenueInr: cumulativeRevenue,
+        };
+    });
+
     const freeUsers = Math.max(0, totalUsers - totalPremiumUsers);
     const premiumPercentage =
         totalUsers === 0
@@ -214,23 +227,34 @@ export async function getMockAnalytics(): Promise<MockAnalyticsResponse> {
         await Promise.all([
             prisma.user.count({
                 where: {
+                    role: 'CANDIDATE',
                     subscriptions: {
                         some: {
                             status: { in: [...PAID_SUBSCRIPTION_STATUSES] },
                         },
                     },
                     mockInterviews: {
-                        some: {},
+                        some: {
+                            status: 'COMPLETED',
+                        },
                     },
                 },
             }),
-            prisma.mockInterview.count(),
+            prisma.mockInterview.count({
+                where: { status: 'COMPLETED' },
+            }),
             prisma.user.aggregate({
-                where: { averageInterviewScore: { not: null } },
+                where: {
+                    role: 'CANDIDATE',
+                    averageInterviewScore: { not: null },
+                },
                 _avg: { averageInterviewScore: true },
             }),
             prisma.user.findMany({
-                where: { averageInterviewScore: { not: null } },
+                where: {
+                    role: 'CANDIDATE',
+                    averageInterviewScore: { not: null },
+                },
                 select: { averageInterviewScore: true },
             }),
         ]);

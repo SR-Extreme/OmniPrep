@@ -14,6 +14,7 @@ import type { Difficulty } from '@/types/dsa';
 export interface QuestionListCardProps {
     question: AdminQuestionListItem;
     mode: 'published' | 'draft';
+    metricLabel?: string;
     onEdit?: (question: AdminQuestionListItem) => void;
     onPublish?: (question: AdminQuestionListItem) => void;
     onDelete?: (question: AdminQuestionListItem) => void;
@@ -49,6 +50,7 @@ function formatDate(value: string | null): string {
 export function QuestionListCard({
     question,
     mode,
+    metricLabel = 'Submissions',
     onEdit,
     onPublish,
     onDelete,
@@ -120,7 +122,7 @@ export function QuestionListCard({
                 {mode === 'published' ? (
                     <dl className="grid gap-2 text-sm text-zinc-600 sm:grid-cols-2">
                         <div>
-                            <dt className="section-label">Submissions</dt>
+                            <dt className="section-label">{metricLabel}</dt>
                             <dd className="mt-1 font-medium text-zinc-900">
                                 {question.totalSubmissions}
                             </dd>

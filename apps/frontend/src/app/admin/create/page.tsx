@@ -1,15 +1,14 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Code2, Network } from 'lucide-react';
+import { Code2, MessageSquare, Network } from 'lucide-react';
 import { AdminFeatureCard } from '@/components/admin/AdminFeatureCard';
 import { useAuthStore } from '@/store/authStore';
 
 export default function AdminCreateHubPage() {
     const router = useRouter();
-    const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
+    const { user, accessToken } = useAuthStore();
     const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
@@ -44,46 +43,6 @@ export default function AdminCreateHubPage() {
 
     return (
         <div className="min-h-screen bg-zinc-50">
-            <header className="nav-header">
-                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
-                    <div className="flex items-center gap-6">
-                        <Link href="/" className="flex items-center gap-2.5">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
-                                O
-                            </span>
-                            <span className="text-base font-semibold tracking-tight text-zinc-900">
-                                OmniPrep
-                            </span>
-                        </Link>
-                        <nav className="hidden items-center gap-1 sm:flex">
-                            <Link
-                                href="/admin"
-                                className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                            >
-                                Admin
-                            </Link>
-                            <Link
-                                href="/admin/create"
-                                className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900"
-                            >
-                                Create
-                            </Link>
-                        </nav>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <p className="hidden text-sm text-zinc-500 md:block">{user.name}</p>
-                        <button
-                            type="button"
-                            onClick={() => logout()}
-                            disabled={authLoading}
-                            className="btn-secondary !py-2"
-                        >
-                            Sign out
-                        </button>
-                    </div>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-6xl px-6 py-10">
                 <section className="mb-10 max-w-2xl">
                     <p className="section-label">Create questions</p>
@@ -96,7 +55,7 @@ export default function AdminCreateHubPage() {
                     </p>
                 </section>
 
-                <section className="grid gap-4 md:grid-cols-2">
+                <section className="grid gap-4 md:grid-cols-3">
                     <AdminFeatureCard
                         href="/admin/create/dsa"
                         title="DSA Question"
@@ -108,6 +67,12 @@ export default function AdminCreateHubPage() {
                         title="System Design Question"
                         description="Requirements, deliverables, constraints, scale factors, and evaluation metrics."
                         icon={<Network className="h-5 w-5" />}
+                    />
+                    <AdminFeatureCard
+                        href="/admin/create/behavioral"
+                        title="Behavioral Question"
+                        description="Company, role, difficulty, and the fixed seven-phase interview schema."
+                        icon={<MessageSquare className="h-5 w-5" />}
                     />
                 </section>
             </main>

@@ -9,6 +9,7 @@ import type {
     EvaluationMetrics,
     SystemDesignRequirements,
 } from './system-design';
+import type { BehavioralPhases } from './behavioral';
 
 export const ADMIN_HIRING_BANDS = [
     {
@@ -249,6 +250,20 @@ export interface CreateSystemDesignQuestionBody {
 
 export type UpdateSystemDesignQuestionBody =
     Partial<CreateSystemDesignQuestionBody>;
+
+export interface CreateBehavioralQuestionBody {
+    slug: string;
+    title: string;
+    description: string;
+    companyName: string;
+    roleName: string;
+    difficulty: Difficulty;
+    phases: BehavioralPhases;
+    isPublished?: boolean;
+}
+
+export type UpdateBehavioralQuestionBody =
+    Partial<CreateBehavioralQuestionBody>;
 
 export interface PublishQuestionBody {
     isPublished: boolean;

@@ -36,11 +36,12 @@ export function MockAnalyticsCharts({ data }: MockAnalyticsChartsProps) {
                 <StatCard
                     label="Premium Users"
                     value={String(stats.premiumUsers)}
-                    hint="Paid plan (active or expired) and ≥1 mock interview"
+                    hint="Paid plan with ≥1 completed mock interview"
                 />
                 <StatCard
                     label="Total Mock Interviews"
                     value={String(stats.totalMockInterviews)}
+                    hint="Completed mock interviews only"
                 />
                 <StatCard
                     label="Average Interview Score"

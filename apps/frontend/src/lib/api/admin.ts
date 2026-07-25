@@ -3,6 +3,7 @@ import type {
     AdminProfileResponse,
     AdminQuestionListResult,
     AdminUserListResult,
+    CreateBehavioralQuestionBody,
     CreateDsaQuestionBody,
     CreateSystemDesignQuestionBody,
     ListAdminQuestionsQuery,
@@ -11,9 +12,11 @@ import type {
     PublishQuestionBody,
     RevenueDashboardQuery,
     RevenueDashboardResponse,
+    UpdateBehavioralQuestionBody,
     UpdateDsaQuestionBody,
     UpdateSystemDesignQuestionBody,
 } from '@/types/admin';
+import type { BehavioralQuestionDetail } from '@/types/behavioral';
 import type { ProblemDetail } from '@/types/dsa';
 import type { SystemDesignQuestionDetail } from '@/types/system-design';
 
@@ -258,6 +261,85 @@ export function deleteAdminSystemDesignQuestion(
 ): Promise<void> {
     return apiRequest<void>(
         `/api/admin/questions/system-design/${encodeURIComponent(questionId)}`,
+        {
+            method: 'DELETE',
+            token: accessToken,
+        },
+    );
+}
+
+// Behavioral questions
+
+export function listAdminBehavioralQuestions(
+    accessToken: string,
+    query: ListAdminQuestionsQuery,
+): Promise<AdminQuestionListResult> {
+    return apiRequest<AdminQuestionListResult>(
+        `/api/admin/questions/behavioral${buildQuestionsQueryString(query)}`,
+        { token: accessToken },
+    );
+}
+
+export function getAdminBehavioralQuestion(
+    accessToken: string,
+    questionId: string,
+): Promise<{ question: BehavioralQuestionDetail }> {
+    return apiRequest<{ question: BehavioralQuestionDetail }>(
+        `/api/admin/questions/behavioral/${encodeURIComponent(questionId)}`,
+        { token: accessToken },
+    );
+}
+
+export function createAdminBehavioralQuestion(
+    accessToken: string,
+    body: CreateBehavioralQuestionBody,
+): Promise<{ question: BehavioralQuestionDetail }> {
+    return apiRequest<{ question: BehavioralQuestionDetail }>(
+        '/api/admin/questions/behavioral',
+        {
+            method: 'POST',
+            token: accessToken,
+            body,
+        },
+    );
+}
+
+export function updateAdminBehavioralQuestion(
+    accessToken: string,
+    questionId: string,
+    body: UpdateBehavioralQuestionBody,
+): Promise<{ question: BehavioralQuestionDetail }> {
+    return apiRequest<{ question: BehavioralQuestionDetail }>(
+        `/api/admin/questions/behavioral/${encodeURIComponent(questionId)}`,
+        {
+            method: 'PATCH',
+            token: accessToken,
+            body,
+        },
+    );
+}
+
+export function publishAdminBehavioralQuestion(
+    accessToken: string,
+    questionId: string,
+    body: PublishQuestionBody,
+): Promise<{ question: BehavioralQuestionDetail }> {
+    return apiRequest<{ question: BehavioralQuestionDetail }>(
+        `/api/admin/questions/behavioral/${encodeURIComponent(questionId)}/publish`,
+        {
+            method: 'POST',
+            token: accessToken,
+            body,
+        },
+    );
+}
+
+export function deleteAdminBehavioralQuestion(
+    accessToken: string,
+    questionId: string,
+): Promise<void> {
+    return apiRequest<void>(
+        `/api/admin/questions/behavioral/${encodeURIComponent(questionId)}`,
         {
             method: 'DELETE',
             token: accessToken,

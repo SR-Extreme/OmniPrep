@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { UserManagementCard } from '@/components/admin/UserManagementCard';
@@ -15,7 +14,7 @@ const PAGE_SIZE = 20;
 
 export default function AdminUsersPage() {
     const router = useRouter();
-    const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
+    const { user, accessToken } = useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
     const [users, setUsers] = useState<AdminUserListItem[]>([]);
@@ -130,40 +129,6 @@ export default function AdminUsersPage() {
 
     return (
         <div className="min-h-screen bg-zinc-50">
-            <header className="nav-header">
-                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
-                    <div className="flex items-center gap-6">
-                        <Link href="/" className="flex items-center gap-2.5">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
-                                O
-                            </span>
-                            <span className="text-base font-semibold tracking-tight text-zinc-900">
-                                OmniPrep
-                            </span>
-                        </Link>
-                        <nav className="hidden items-center gap-1 sm:flex">
-                            <Link
-                                href="/admin"
-                                className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
-                            >
-                                Admin
-                            </Link>
-                            <span className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900">
-                                Users
-                            </span>
-                        </nav>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => logout()}
-                        disabled={authLoading}
-                        className="btn-secondary !py-2"
-                    >
-                        Sign out
-                    </button>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-6xl space-y-6 px-6 py-10">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>

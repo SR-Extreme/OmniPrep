@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
@@ -25,7 +24,7 @@ import type {
 
 export default function ProfilePage() {
     const router = useRouter();
-    const { user, accessToken, logout, setUser, isLoading: authLoading } =
+    const { accessToken, logout, setUser, isLoading: authLoading } =
         useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
@@ -214,39 +213,6 @@ export default function ProfilePage() {
 
     return (
         <div className="min-h-screen bg-zinc-50">
-            <header className="nav-header">
-                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
-                    <div className="flex items-center gap-6">
-                        <Link href="/" className="flex items-center gap-2.5">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
-                                O
-                            </span>
-                            <span className="text-base font-semibold tracking-tight text-zinc-900">
-                                OmniPrep
-                            </span>
-                        </Link>
-                        <nav className="hidden items-center gap-1 sm:flex">
-                            <Link
-                                href="/profile"
-                                className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900"
-                            >
-                                Profile
-                            </Link>
-                        </nav>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {user ? (
-                            <p className="hidden text-sm text-zinc-500 md:block">
-                                {user.name}
-                            </p>
-                        ) : null}
-                        <Link href="/premium" className="btn-secondary !py-2">
-                            Premium
-                        </Link>
-                    </div>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-6xl space-y-6 px-6 py-10">
                 {error ? (
                     <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PricingCards } from '@/components/PricingCards';
@@ -12,7 +11,7 @@ import { PLAN_CATALOG, type BillingPlan, type PremiumStatusResponse } from '@/ty
 export default function PremiumPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
+    const { accessToken } = useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
     const [status, setStatus] = useState<PremiumStatusResponse | null>(null);
@@ -109,44 +108,6 @@ export default function PremiumPage() {
 
     return (
         <div className="min-h-screen bg-zinc-50">
-            <header className="nav-header">
-                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
-                    <div className="flex items-center gap-6">
-                        <Link href="/" className="flex items-center gap-2.5">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
-                                O
-                            </span>
-                            <span className="text-base font-semibold tracking-tight text-zinc-900">
-                                OmniPrep
-                            </span>
-                        </Link>
-                        <nav className="hidden items-center gap-1 sm:flex">
-                            <Link
-                                href="/premium"
-                                className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900"
-                            >
-                                Premium
-                            </Link>
-                        </nav>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {user ? (
-                            <p className="hidden text-sm text-zinc-500 md:block">
-                                {user.name}
-                            </p>
-                        ) : null}
-                        <button
-                            type="button"
-                            onClick={() => logout()}
-                            disabled={authLoading}
-                            className="btn-secondary !py-2"
-                        >
-                            Sign out
-                        </button>
-                    </div>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-6xl px-6 py-10">
                 <div className="mx-auto max-w-2xl text-center">
                     <p className="section-label justify-center">OmniPrep Premium</p>

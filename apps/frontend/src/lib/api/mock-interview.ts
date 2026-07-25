@@ -1,4 +1,4 @@
-import { apiRequest, ApiError, getApiUrl } from './client';
+import { apiRequest } from './client';
 import type {
     CreateMockBehavioralSessionResponse,
     GenerateMockInterviewStudyPlanResponse,
@@ -26,33 +26,6 @@ function buildListQueryString(query: ListMyMockInterviewsQuery): string {
 
     const qs = params.toString();
     return qs ? `?${qs}` : '';
-}
-
-async function parseApiResponse<T>(response: Response): Promise<T> {
-    if (response.status === 204) {
-        return undefined as T;
-    }
-
-    const data: unknown = await response.json().catch(() => null);
-
-    if (!response.ok) {
-        const message =
-            typeof data === 'object' &&
-                data != null &&
-                'error' in data &&
-                typeof (data as { error: unknown }).error === 'string'
-                ? (data as { error: string }).error
-                : `Request failed with status ${response.status}`;
-
-        const details =
-            typeof data === 'object' && data !== null && 'details' in data
-                ? (data as { details: unknown }).details
-                : undefined;
-
-        throw new ApiError(message, response.status, details);
-    }
-
-    return data as T;
 }
 
 // Session
@@ -172,7 +145,7 @@ export function startMockBehavioralSection(
     );
 }
 
-export async function createMockBehavioralSession(
+export function createMockBehavioralSession(
     accessToken: string,
     interviewId: string,
     resume: File,
@@ -180,19 +153,14 @@ export async function createMockBehavioralSession(
     const formData = new FormData();
     formData.append('resume', resume);
 
-    const response = await fetch(
-        `${getApiUrl()}/api/mock-interview/${encodeURIComponent(interviewId)}/behavioral/session`,
+    return apiRequest<CreateMockBehavioralSessionResponse>(
+        `/api/mock-interview/${encodeURIComponent(interviewId)}/behavioral/session`,
         {
             method: 'POST',
-            credentials: 'include',
-            headers: {
-                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-            },
+            token: accessToken,
             body: formData,
         },
     );
-
-    return parseApiResponse<CreateMockBehavioralSessionResponse>(response);
 }
 
 export function finalizeMockBehavioralSection(

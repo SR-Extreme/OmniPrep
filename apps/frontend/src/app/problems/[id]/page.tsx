@@ -336,7 +336,7 @@ export default function ProblemSolverPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
 
-    const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
+    const { accessToken } = useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
 
@@ -516,45 +516,6 @@ export default function ProblemSolverPage() {
 
     return (
         <div className="min-h-screen bg-zinc-50">
-            <header className="nav-header">
-                <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3.5">
-                    <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
-                                O
-                            </span>
-                            <span className="hidden text-base font-semibold tracking-tight text-zinc-900 sm:inline">
-                                OmniPrep
-                            </span>
-                        </Link>
-                        <nav className="flex min-w-0 items-center gap-2 text-sm">
-                            <Link href="/problems" className="shrink-0 font-medium text-zinc-600 transition hover:text-zinc-900">
-                                Problems
-                            </Link>
-                            <span className="text-zinc-300">/</span>
-                            <span className="truncate font-medium text-emerald-700">
-                                {problem?.title ?? 'Solve'}
-                            </span>
-                        </nav>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                        {user && (
-                            <p className="hidden text-sm text-zinc-500 md:block">
-                                {user.name}
-                            </p>
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => logout()}
-                            disabled={authLoading}
-                            className="btn-secondary !py-2"
-                        >
-                            Sign out
-                        </button>
-                    </div>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-7xl px-6 py-6">
                 {isProblemLoading ? (
                     <div className="card flex items-center justify-center gap-2 px-6 py-20 text-zinc-500">

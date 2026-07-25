@@ -6,16 +6,22 @@ import {
 } from './admin-analytics.service.js';
 import {
     AdminQuestionsError,
+    createBehavioralQuestion,
     createDsaQuestion,
     createSystemDesignQuestion,
+    deleteBehavioralQuestion,
     deleteDsaQuestion,
     deleteSystemDesignQuestion,
+    getBehavioralQuestion,
     getDsaQuestion,
     getSystemDesignQuestion,
+    listBehavioralQuestions,
     listDsaQuestions,
     listSystemDesignQuestions,
+    publishBehavioralQuestion,
     publishDsaQuestion,
     publishSystemDesignQuestion,
+    updateBehavioralQuestion,
     updateDsaQuestion,
     updateSystemDesignQuestion,
 } from './admin-questions.service.js';
@@ -28,12 +34,14 @@ import {
 import {
     adminQuestionParamSchema,
     adminUserParamSchema,
+    createBehavioralQuestionBodySchema,
     createDsaQuestionBodySchema,
     createSystemDesignQuestionBodySchema,
     listAdminQuestionsQuerySchema,
     listAdminUsersQuerySchema,
     publishQuestionBodySchema,
     revenueDashboardQuerySchema,
+    updateBehavioralQuestionBodySchema,
     updateDsaQuestionBodySchema,
     updateSystemDesignQuestionBodySchema,
 } from './admin.validation.js';
@@ -420,6 +428,134 @@ export async function deleteSystemDesignQuestionHandler(
 
     try {
         await deleteSystemDesignQuestion(parsedParams.data.questionId);
+        res.status(204).send();
+    } catch (err) {
+        handleAdminError(err, res);
+    }
+}
+
+export async function listBehavioralQuestionsHandler(
+    req: AuthenticatedRequest,
+    res: Response,
+): Promise<void> {
+    const parsed = listAdminQuestionsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+        sendValidationError(res, parsed.error.flatten().fieldErrors);
+        return;
+    }
+
+    try {
+        const result = await listBehavioralQuestions(parsed.data);
+        res.status(200).json(result);
+    } catch (err) {
+        handleAdminError(err, res);
+    }
+}
+
+export async function getBehavioralQuestionHandler(
+    req: AuthenticatedRequest,
+    res: Response,
+): Promise<void> {
+    const parsedParams = adminQuestionParamSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+        sendValidationError(res, parsedParams.error.flatten().fieldErrors);
+        return;
+    }
+
+    try {
+        const question = await getBehavioralQuestion(
+            parsedParams.data.questionId,
+        );
+        res.status(200).json({ question });
+    } catch (err) {
+        handleAdminError(err, res);
+    }
+}
+
+export async function createBehavioralQuestionHandler(
+    req: AuthenticatedRequest,
+    res: Response,
+): Promise<void> {
+    const parsed = createBehavioralQuestionBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+        sendValidationError(res, parsed.error.flatten().fieldErrors);
+        return;
+    }
+
+    try {
+        const question = await createBehavioralQuestion(parsed.data);
+        res.status(201).json({ question });
+    } catch (err) {
+        handleAdminError(err, res);
+    }
+}
+
+export async function updateBehavioralQuestionHandler(
+    req: AuthenticatedRequest,
+    res: Response,
+): Promise<void> {
+    const parsedParams = adminQuestionParamSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+        sendValidationError(res, parsedParams.error.flatten().fieldErrors);
+        return;
+    }
+
+    const parsedBody = updateBehavioralQuestionBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+        sendValidationError(res, parsedBody.error.flatten().fieldErrors);
+        return;
+    }
+
+    try {
+        const question = await updateBehavioralQuestion(
+            parsedParams.data.questionId,
+            parsedBody.data,
+        );
+        res.status(200).json({ question });
+    } catch (err) {
+        handleAdminError(err, res);
+    }
+}
+
+export async function publishBehavioralQuestionHandler(
+    req: AuthenticatedRequest,
+    res: Response,
+): Promise<void> {
+    const parsedParams = adminQuestionParamSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+        sendValidationError(res, parsedParams.error.flatten().fieldErrors);
+        return;
+    }
+
+    const parsedBody = publishQuestionBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+        sendValidationError(res, parsedBody.error.flatten().fieldErrors);
+        return;
+    }
+
+    try {
+        const question = await publishBehavioralQuestion(
+            parsedParams.data.questionId,
+            parsedBody.data,
+        );
+        res.status(200).json({ question });
+    } catch (err) {
+        handleAdminError(err, res);
+    }
+}
+
+export async function deleteBehavioralQuestionHandler(
+    req: AuthenticatedRequest,
+    res: Response,
+): Promise<void> {
+    const parsedParams = adminQuestionParamSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+        sendValidationError(res, parsedParams.error.flatten().fieldErrors);
+        return;
+    }
+
+    try {
+        await deleteBehavioralQuestion(parsedParams.data.questionId);
         res.status(204).send();
     } catch (err) {
         handleAdminError(err, res);

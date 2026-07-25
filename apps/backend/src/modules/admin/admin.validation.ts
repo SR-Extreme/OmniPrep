@@ -8,6 +8,7 @@ import {
     solutionCodeSchema,
     starterCodeSchema,
 } from '../../types/dsa.types.js';
+import { behavioralPhasesSchema } from '../../types/behavioral.types.js';
 import {
     deliverablesSchema,
     evaluationMetricsSchema,
@@ -133,6 +134,33 @@ export const updateSystemDesignQuestionBodySchema =
             { message: 'At least one field must be provided' },
         );
 
+export const createBehavioralQuestionBodySchema = z.object({
+    slug: z
+        .string()
+        .trim()
+        .min(1, 'Slug is required')
+        .max(200, 'Slug is too long')
+        .regex(
+            /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+            'Slug must be lowercase kebab-case',
+        ),
+    title: z.string().trim().min(1, 'Title is required').max(200),
+    description: z.string().trim().min(1, 'Description is required'),
+    companyName: z.string().trim().min(1, 'Company name is required').max(200),
+    roleName: z.string().trim().min(1, 'Role name is required').max(200),
+    difficulty: z.enum(DIFFICULTIES),
+    phases: behavioralPhasesSchema,
+    isPublished: z.boolean().default(false),
+});
+
+export const updateBehavioralQuestionBodySchema =
+    createBehavioralQuestionBodySchema
+        .partial()
+        .refine(
+            (body) => Object.keys(body).length > 0,
+            { message: 'At least one field must be provided' },
+        );
+
 export const publishQuestionBodySchema = z.object({
     isPublished: z.boolean(),
 });
@@ -146,4 +174,6 @@ export type CreateDsaQuestionBody = z.infer<typeof createDsaQuestionBodySchema>;
 export type UpdateDsaQuestionBody = z.infer<typeof updateDsaQuestionBodySchema>;
 export type CreateSystemDesignQuestionBody = z.infer<typeof createSystemDesignQuestionBodySchema>;
 export type UpdateSystemDesignQuestionBody = z.infer<typeof updateSystemDesignQuestionBodySchema>;
+export type CreateBehavioralQuestionBody = z.infer<typeof createBehavioralQuestionBodySchema>;
+export type UpdateBehavioralQuestionBody = z.infer<typeof updateBehavioralQuestionBodySchema>;
 export type PublishQuestionBody = z.infer<typeof publishQuestionBodySchema>;

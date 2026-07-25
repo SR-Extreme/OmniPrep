@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/lib/api/client';
@@ -222,7 +221,7 @@ function phaseLabel(type: BehavioralPhaseType): string {
 export default function BehavioralPracticePage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
-    const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
+    const { accessToken } = useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
     const [question, setQuestion] = useState<BehavioralQuestionDetail | null>(null);
@@ -496,26 +495,6 @@ export default function BehavioralPracticePage() {
 
     return (
         <div className="min-h-screen bg-zinc-50">
-
-            <header className="nav-header">
-                <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-3.5">
-                    <div className="flex min-w-0 items-center gap-4">
-                        <Link href="/behavioral" className="shrink-0 text-sm font-medium text-zinc-600 hover:text-zinc-900">
-                            ← Behavioral
-                        </Link>
-                        <span className="truncate text-sm font-medium text-emerald-700">
-                            {question?.title ?? 'Interview'}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {user && <p className="hidden text-sm text-zinc-500 md:block">{user.name}</p>}
-                        <button type="button" onClick={() => logout()} disabled={authLoading} className="btn-secondary !py-2">
-                            Sign out
-                        </button>
-                    </div>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-3xl space-y-8 px-6 py-8">
                 {isQuestionLoading && (
                     <p className="py-16 text-center text-sm text-zinc-500">Loading interview…</p>

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
@@ -77,7 +76,7 @@ function isPremiumRequiredError(err: unknown): boolean {
 
 export default function MockInterviewPage() {
     const router = useRouter();
-    const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
+    const { user, accessToken } = useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
     const [interviews, setInterviews] = useState<MockInterviewListItem[]>([]);
@@ -225,41 +224,6 @@ export default function MockInterviewPage() {
 
     return (
         <div className="min-h-screen bg-zinc-50">
-            <header className="nav-header">
-                <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-3.5">
-                    <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
-                                O
-                            </span>
-                            <span className="hidden text-base font-semibold tracking-tight text-zinc-900 sm:inline">
-                                OmniPrep
-                            </span>
-                        </Link>
-                        <nav className="flex min-w-0 items-center gap-2 text-sm">
-                            <span className="font-medium text-emerald-700">
-                                Mock Interview
-                            </span>
-                        </nav>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                        {user ? (
-                            <p className="hidden text-sm text-zinc-500 md:block">
-                                {user.name}
-                            </p>
-                        ) : null}
-                        <button
-                            type="button"
-                            onClick={() => void logout()}
-                            disabled={authLoading}
-                            className="btn-secondary !py-2"
-                        >
-                            Sign out
-                        </button>
-                    </div>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-5xl space-y-6 px-6 py-8">
                 <section className="card p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4">

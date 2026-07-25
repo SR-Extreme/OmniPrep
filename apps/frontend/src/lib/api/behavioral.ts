@@ -1,4 +1,4 @@
-import { apiRequest, ApiError, getApiUrl } from './client';
+import { apiRequest } from './client';
 import type {
     BehavioralEvaluationResult,
     CreateBehavioralSessionInput,
@@ -56,32 +56,6 @@ function buildMySessionsQueryString(query: ListMyBehavioralSessionsQuery): strin
     return qs ? `?${qs}` : '';
 }
 
-async function parseApiResponse<T>(response: Response): Promise<T> {
-    if (response.status === 204) {
-        return undefined as T;
-    }
-
-    const data: unknown = await response.json().catch(() => null);
-
-    if (!response.ok) {
-        const message =
-            typeof data === 'object' &&
-                data != null &&
-                'error' in data &&
-                typeof (data as { error: unknown }).error === 'string'
-                ? (data as { error: string }).error
-                : `Request failed with status ${response.status}`;
-
-        const details =
-            typeof data === 'object' && data !== null && 'details' in data
-                ? (data as { details: unknown }).details
-                : undefined;
-        throw new ApiError(message, response.status, details);
-    }
-
-    return data as T;
-}
-
 export function listBehavioralQuestions(
     accessToken: string,
     query: ListBehavioralQuestionsQuery = {},
@@ -102,22 +76,19 @@ export function getBehavioralQuestion(
     );
 }
 
-export async function createBehavioralSession(
+export function createBehavioralSession(
     accessToken: string,
     input: CreateBehavioralSessionInput,
 ): Promise<CreateBehavioralSessionResponse> {
     const formData = new FormData();
     formData.append('questionId', input.questionId);
     formData.append('resume', input.resume);
-    const response = await fetch(`${getApiUrl()}/api/behavioral/sessions`, {
+
+    return apiRequest<CreateBehavioralSessionResponse>('/api/behavioral/sessions', {
         method: 'POST',
-        credentials: 'include',
-        headers: {
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
+        token: accessToken,
         body: formData,
     });
-    return parseApiResponse<CreateBehavioralSessionResponse>(response);
 }
 
 export function listMyBehavioralSessions(

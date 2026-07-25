@@ -1,13 +1,17 @@
 import { prisma } from '../../config/db.js';
 import type { AdminQuestionListItem } from '../../types/admin.types.js';
+import { parseBehavioralPhases } from '../../types/behavioral.types.js';
 import type {
+    CreateBehavioralQuestionBody,
     CreateDsaQuestionBody,
     CreateSystemDesignQuestionBody,
     ListAdminQuestionsQuery,
     PublishQuestionBody,
+    UpdateBehavioralQuestionBody,
     UpdateDsaQuestionBody,
     UpdateSystemDesignQuestionBody,
 } from './admin.validation.js';
+import { Prisma } from '@prisma/client';
 
 export class AdminQuestionsError extends Error {
     constructor(
@@ -68,6 +72,23 @@ async function assertSystemDesignSlugAvailable(
     if (existing && existing.id !== excludeId) {
         throw new AdminQuestionsError(
             'A system design question with this slug already exists',
+            'CONFLICT',
+        );
+    }
+}
+
+async function assertBehavioralSlugAvailable(
+    slug: string,
+    excludeId?: string,
+): Promise<void> {
+    const existing = await prisma.behavioralQuestion.findUnique({
+        where: { slug },
+        select: { id: true },
+    });
+
+    if (existing && existing.id !== excludeId) {
+        throw new AdminQuestionsError(
+            'A behavioral question with this slug already exists',
             'CONFLICT',
         );
     }
@@ -409,6 +430,209 @@ export async function deleteSystemDesignQuestion(
     } catch {
         throw new AdminQuestionsError(
             'System design question not found',
+            'NOT_FOUND',
+        );
+    }
+}
+
+export async function listBehavioralQuestions(
+    query: ListAdminQuestionsQuery,
+): Promise<AdminQuestionListResult> {
+    const isPublished = query.status === 'published';
+    const where = { isPublished };
+
+    const [total, rows] = await Promise.all([
+        prisma.behavioralQuestion.count({ where }),
+        prisma.behavioralQuestion.findMany({
+            where,
+            select: {
+                id: true,
+                title: true,
+                difficulty: true,
+                companyName: true,
+                roleName: true,
+                isPublished: true,
+                publishedAt: true,
+                updatedAt: true,
+                createdAt: true,
+                _count: { select: { sessions: true } },
+            },
+            orderBy: isPublished
+                ? [{ sessions: { _count: 'desc' } }, { publishedAt: 'desc' }]
+                : [{ updatedAt: 'desc' }],
+            skip: (query.page - 1) * query.limit,
+            take: query.limit,
+        }),
+    ]);
+
+    return {
+        questions: rows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            difficulty: row.difficulty,
+            topics: [row.companyName, row.roleName],
+            totalSubmissions: row._count.sessions,
+            isPublished: row.isPublished,
+            publishedAt: row.publishedAt,
+            updatedAt: row.updatedAt,
+            createdAt: row.createdAt,
+        })),
+        pagination: {
+            page: query.page,
+            limit: query.limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / query.limit)),
+        },
+    };
+}
+
+export async function getBehavioralQuestion(questionId: string) {
+    const question = await prisma.behavioralQuestion.findUnique({
+        where: { id: questionId },
+        include: {
+            _count: { select: { sessions: true } },
+        },
+    });
+
+    if (!question) {
+        throw new AdminQuestionsError(
+            'Behavioral question not found',
+            'NOT_FOUND',
+        );
+    }
+
+    return {
+        ...question,
+        phases: parseBehavioralPhases(question.phases),
+    };
+}
+
+export async function createBehavioralQuestion(
+    body: CreateBehavioralQuestionBody,
+) {
+    await assertBehavioralSlugAvailable(body.slug);
+
+    const created = await prisma.behavioralQuestion.create({
+        data: {
+            slug: body.slug,
+            title: body.title,
+            description: body.description,
+            companyName: body.companyName,
+            roleName: body.roleName,
+            difficulty: body.difficulty,
+            phases: body.phases as unknown as Prisma.InputJsonValue,
+            isPublished: body.isPublished,
+            publishedAt: publishedAtFor(body.isPublished),
+        },
+    });
+
+    return {
+        ...created,
+        phases: parseBehavioralPhases(created.phases),
+    };
+}
+
+export async function updateBehavioralQuestion(
+    questionId: string,
+    body: UpdateBehavioralQuestionBody,
+) {
+    const existing = await prisma.behavioralQuestion.findUnique({
+        where: { id: questionId },
+        select: { id: true, publishedAt: true, isPublished: true },
+    });
+
+    if (!existing) {
+        throw new AdminQuestionsError(
+            'Behavioral question not found',
+            'NOT_FOUND',
+        );
+    }
+
+    if (body.slug) {
+        await assertBehavioralSlugAvailable(body.slug, questionId);
+    }
+
+    const nextPublished =
+        body.isPublished !== undefined
+            ? body.isPublished
+            : existing.isPublished;
+
+    const updated = await prisma.behavioralQuestion.update({
+        where: { id: questionId },
+        data: {
+            ...(body.slug !== undefined ? { slug: body.slug } : {}),
+            ...(body.title !== undefined ? { title: body.title } : {}),
+            ...(body.description !== undefined
+                ? { description: body.description }
+                : {}),
+            ...(body.companyName !== undefined
+                ? { companyName: body.companyName }
+                : {}),
+            ...(body.roleName !== undefined ? { roleName: body.roleName } : {}),
+            ...(body.difficulty !== undefined
+                ? { difficulty: body.difficulty }
+                : {}),
+            ...(body.phases !== undefined
+                ? {
+                    phases: body.phases as unknown as Prisma.InputJsonValue,
+                }
+                : {}),
+            ...(body.isPublished !== undefined
+                ? {
+                    isPublished: body.isPublished,
+                    publishedAt: publishedAtFor(
+                        nextPublished,
+                        existing.publishedAt,
+                    ),
+                }
+                : {}),
+        },
+    });
+
+    return {
+        ...updated,
+        phases: parseBehavioralPhases(updated.phases),
+    };
+}
+
+export async function publishBehavioralQuestion(
+    questionId: string,
+    body: PublishQuestionBody,
+) {
+    const existing = await prisma.behavioralQuestion.findUnique({
+        where: { id: questionId },
+        select: { id: true, publishedAt: true },
+    });
+
+    if (!existing) {
+        throw new AdminQuestionsError(
+            'Behavioral question not found',
+            'NOT_FOUND',
+        );
+    }
+
+    const updated = await prisma.behavioralQuestion.update({
+        where: { id: questionId },
+        data: {
+            isPublished: body.isPublished,
+            publishedAt: publishedAtFor(body.isPublished, existing.publishedAt),
+        },
+    });
+
+    return {
+        ...updated,
+        phases: parseBehavioralPhases(updated.phases),
+    };
+}
+
+export async function deleteBehavioralQuestion(
+    questionId: string,
+): Promise<void> {
+    try {
+        await prisma.behavioralQuestion.delete({ where: { id: questionId } });
+    } catch {
+        throw new AdminQuestionsError(
+            'Behavioral question not found',
             'NOT_FOUND',
         );
     }

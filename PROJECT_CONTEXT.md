@@ -122,7 +122,7 @@ Backend convention: thin controllers, business logic in services, **Zod validati
 | `/admin` | Admin landing (hero + 5 feature cards) (Phase 7) |
 | `/admin/*` | Create/list questions, revenue, mock analytics, users, admin profile (Phase 7) |
 
-`authStore` persists the user and tokens to local storage under `omniprep-auth`. The API client sends bearer tokens and credentials. Automatic refresh/retry on HTTP 401 is not wired.
+`authStore` persists the user and tokens to local storage under `omniprep-auth`. The API client sends bearer tokens and credentials. On HTTP 401 for authenticated requests, it single-flights `POST /api/auth/refresh`, updates the store, and retries once; failed refresh clears the session.
 
 Mock interview components:
 
@@ -405,7 +405,7 @@ All routes below require bearer authentication unless noted.
 | Area | Purpose |
 |---|---|
 | Profile `/api/profile` | Get/update profile; avatar upload (Cloudinary); DSA/SD/behavioral stats; study-plan history + progress submit |
-| Admin `/api/admin` | Questions CRUD (DSA/SD); users list/search/delete; admin profile; revenue + mock analytics |
+| Admin `/api/admin` | Questions CRUD (DSA/SD/Behavioral); users list/search/delete; admin profile; revenue + mock analytics |
 | Billing `/api/billing` | Plan catalog; premium status; create Checkout Session; Stripe webhook (`POST /api/billing/webhook`, raw body + signature) |
 
 ---
@@ -420,7 +420,7 @@ Prisma currently defines **19 models** (Phase 7 added `Subscription`):
 - Behavioral: `BehavioralQuestion`, `BehavioralSession`, `BehavioralTurn`, `BehavioralEvaluation`
 - Mock Interview: `MockInterview`, `MockInterviewDsaProblem`, `MockInterviewSystemDesign`, `MockInterviewBehavioral`, `MockInterviewStudyPlan`
 
-Nine migrations:
+Eleven migrations:
 
 | Migration | Scope |
 |---|---|
@@ -433,6 +433,8 @@ Nine migrations:
 | `20260705113944_add_behavioral_module` | Behavioral |
 | `20260710160452_add_mock_interview` | Full mock interview and study plan |
 | `20260718123705_add_phase7_premium_admin` | User premium/profile fields, `Subscription`, study-plan progress |
+| `20260725131755_add_otp_challenges` | OTP challenges |
+| `20260725180000_add_behavioral_published_at` | Behavioral `publishedAt` for admin publish parity |
 
 ### Phase 7 schema extensions (official)
 
@@ -482,7 +484,7 @@ Keep only **current** premium status on `User`. All historical payments live in 
 
 Analytics (revenue, premium %, hiring bands, averages, submission counts) are **computed with aggregate Prisma queries** — do not store redundant analytics tables.
 
-Nine migrations including Phase 7 premium/admin (`20260718123705_add_phase7_premium_admin`).
+Eleven migrations including Phase 7 premium/admin and Behavioral admin publish parity (`20260725180000_add_behavioral_published_at`).
 
 Seed data:
 
@@ -649,11 +651,11 @@ Hero + five cards in responsive **3+2** grid: Create Questions, List Questions, 
 
 ### Create Questions
 
-DSA or System Design forms covering every required Prisma field for that model, plus a **Published** toggle (`isPublished`).
+DSA, System Design, or Behavioral forms covering every required Prisma field for that model, plus a **Published** toggle (`isPublished`).
 
 ### List Questions
 
-DSA / System Design → sidebar Published | Draft. Published cards: title, difficulty, topics, total submissions, published date, delete; sort by submissions desc. Draft cards: title, last edited, edit, publish, delete.
+DSA / System Design / Behavioral → sidebar Published | Draft. Published cards: title, difficulty, topics (company · role for Behavioral), total submissions/sessions, published date, delete; sort by submissions/sessions desc. Draft cards: title, last edited, edit, publish, delete.
 
 ### Revenue Dashboard
 
@@ -724,7 +726,7 @@ Local: `stripe listen --forward-to localhost:4000/api/billing/webhook`.
 
 **Run Phase 7 manual E2E sign-off**, then update these memory docs when signed off.
 
-Checklist: admin CRUD (create/edit/publish/delete DSA & SD), revenue ranges + mock analytics, user management, profile + avatar + study-plan progress, Stripe test Checkout → webhook → premium + Subscription row, mock premium gate modal, already-premium Checkout blocked (`ALREADY_PREMIUM`).
+Checklist: admin CRUD (create/edit/publish/delete DSA, SD & Behavioral), revenue ranges + mock analytics, user management, profile + avatar + study-plan progress, Stripe test Checkout → webhook → premium + Subscription row, mock premium gate modal, already-premium Checkout blocked (`ALREADY_PREMIUM`).
 
 Then Phase 8 / deferred: Phase 6 full E2E, auth refresh-on-401, README, tests, deployment.
 

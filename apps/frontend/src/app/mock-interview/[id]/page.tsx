@@ -49,7 +49,7 @@ function defaultSelection(
 export default function MockInterviewSessionPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
-    const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
+    const { accessToken } = useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
     const [interview, setInterview] = useState<MockInterviewSessionDetail | null>(
@@ -290,50 +290,6 @@ export default function MockInterviewSessionPage() {
 
     return (
         <div className="flex min-h-screen flex-col bg-zinc-50">
-            <header className="nav-header">
-                <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
-                    <div className="flex min-w-0 items-center gap-4">
-                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white">
-                                O
-                            </span>
-                            <span className="hidden text-base font-semibold tracking-tight text-zinc-900 sm:inline">
-                                OmniPrep
-                            </span>
-                        </Link>
-                        <nav className="flex min-w-0 items-center gap-2 text-sm">
-                            <Link
-                                href="/mock-interview"
-                                className="shrink-0 font-medium text-zinc-600 transition hover:text-zinc-900"
-                            >
-                                Mock Interview
-                            </Link>
-                            <span className="text-zinc-300">/</span>
-                            <span className="truncate font-medium text-emerald-700">
-                                {interview
-                                    ? getSectionLabel(interview.currentSection)
-                                    : 'Session'}
-                            </span>
-                        </nav>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                        {user ? (
-                            <p className="hidden text-sm text-zinc-500 md:block">
-                                {user.name}
-                            </p>
-                        ) : null}
-                        <button
-                            type="button"
-                            onClick={() => void logout()}
-                            disabled={authLoading}
-                            className="btn-secondary !py-2"
-                        >
-                            Sign out
-                        </button>
-                    </div>
-                </div>
-            </header>
-
             {isLoading ? (
                 <div className="flex flex-1 items-center justify-center gap-2 text-sm text-zinc-500">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />

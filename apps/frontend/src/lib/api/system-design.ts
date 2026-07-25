@@ -1,4 +1,4 @@
-import { apiRequest, ApiError, getApiUrl } from './client';
+import { apiRequest } from './client';
 import type {
     CreateSystemDesignSubmissionInput,
     CreateSystemDesignSubmissionResponse,
@@ -53,29 +53,6 @@ function buildMySubmissionsQueryString(
     return qs ? `?${qs}` : '';
 }
 
-async function parseApiResponse<T>(response: Response): Promise<T> {
-    if (response.status === 204) {
-        return undefined as T;
-    }
-
-    const data: unknown = await response.json().catch(() => null);
-
-    if (!response.ok) {
-        const message = typeof data === 'object' && data != null && 'error' in data &&
-            typeof (data as { error: unknown }).error === 'string' ?
-            (data as { error: string }).error : `Request failed with status ${response.status}`;
-
-        const details =
-            typeof data === 'object' && data !== null && 'details' in data
-                ? (data as { details: unknown }).details
-                : undefined;
-
-        throw new ApiError(message, response.status, details);
-    }
-
-    return data as T;
-}
-
 export function listSystemDesignQuestions(
     accessToken: string,
     query: ListSystemDesignQuestionsQuery = {},
@@ -96,7 +73,7 @@ export function getSystemDesignQuestion(
     );
 }
 
-export async function createSystemDesignSubmission(
+export function createSystemDesignSubmission(
     accessToken: string,
     input: CreateSystemDesignSubmissionInput,
 ): Promise<CreateSystemDesignSubmissionResponse> {
@@ -112,16 +89,14 @@ export async function createSystemDesignSubmission(
         formData.append('diagram', input.diagram);
     }
 
-    const response = await fetch(`${getApiUrl()}/api/system-design/submissions`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    return apiRequest<CreateSystemDesignSubmissionResponse>(
+        '/api/system-design/submissions',
+        {
+            method: 'POST',
+            token: accessToken,
+            body: formData,
         },
-        body: formData,
-    });
-
-    return parseApiResponse<CreateSystemDesignSubmissionResponse>(response);
+    );
 }
 
 export function getSystemDesignSubmission(

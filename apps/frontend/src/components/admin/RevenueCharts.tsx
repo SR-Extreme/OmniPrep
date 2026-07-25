@@ -84,7 +84,7 @@ export function RevenueCharts({
                     <div>
                         <CardTitle>Revenue vs Time</CardTitle>
                         <CardDescription>
-                            Filter by range — default last 1 month
+                            Cumulative revenue by date — default last 1 month
                         </CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -115,7 +115,7 @@ export function RevenueCharts({
                             <Line
                                 type="monotone"
                                 dataKey="revenueInr"
-                                name="Revenue"
+                                name="Cumulative Revenue"
                                 stroke="#059669"
                                 strokeWidth={2}
                                 dot={false}
@@ -192,7 +192,7 @@ export function RevenueCharts({
                         value={`${summaries.premiumPercentage.toFixed(1)}%`}
                     />
                     <StatCard
-                        label="ARPU"
+                        label="Average Revenue Per User (ARPU)"
                         value={formatInr(summaries.averageRevenuePerUserInr)}
                     />
                     <StatCard
