@@ -106,7 +106,7 @@ export default function SignupPage() {
                 email,
                 password,
             });
-            router.push('/');
+            router.push('/login');
         } catch {
             // error is set in the store
         }

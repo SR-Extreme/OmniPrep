@@ -1,16 +1,38 @@
-import crypto from "node:crypto";
-import bcrypt from "bcrypt";
+import crypto from 'node:crypto';
+import bcrypt from 'bcrypt';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import type { Role } from '@prisma/client';
 import { prisma } from '../../config/db.js';
 import { env } from '../../config/env.js';
 import { getUserPremiumStatus } from '../../middleware/premium.middleware.js';
-import type { LoginInput, RefreshTokenInput, SignupInput } from './auth.validation.js';
+import {
+    createOtpChallenge,
+    createPasswordResetAuthorization,
+    consumePasswordResetAuthorization,
+    resendOtpChallenge,
+    verifyOtpChallenge,
+} from '../../services/OtpService.js';
+import type {
+    ForgotPasswordInput,
+    LoginInput,
+    RefreshTokenInput,
+    ResendOtpInput,
+    ResetPasswordInput,
+    SignupInput,
+    VerifyOtpInput,
+} from './auth.validation.js';
 
 const BCRYPT_ROUNDS = 12;
 
 export class AuthError extends Error {
-    constructor(message: string, public readonly code: 'EMAIL_EXISTS' | 'INVALID_CREDENTIALS' | 'INVALID_REFRESH_TOKEN') {
+    constructor(
+        message: string,
+        public readonly code:
+            | 'EMAIL_EXISTS'
+            | 'EMAIL_NOT_FOUND'
+            | 'INVALID_CREDENTIALS'
+            | 'INVALID_REFRESH_TOKEN',
+    ) {
         super(message);
         this.name = 'AuthError';
     }
@@ -31,10 +53,21 @@ export interface AuthTokens {
     accessToken: string;
     refreshToken: string;
 }
+
 export interface AuthResult {
     user: AuthUser;
     tokens: AuthTokens;
 }
+
+export interface OtpChallengeResponse {
+    requiresOtp: true;
+    challengeToken: string;
+    expiresAt: string;
+    resendAvailableAt: string;
+    maskedEmail: string;
+    message: string;
+}
+
 export interface AccessTokenPayload {
     sub: string;
     email: string;
@@ -70,6 +103,25 @@ function getRefreshTokenExpiresAt(): Date {
     return new Date(Date.now() + value * multipliers[unit]!);
 }
 
+function toOtpChallengeResponse(
+    challenge: {
+        challengeToken: string;
+        expiresAt: Date;
+        resendAvailableAt: Date;
+        maskedEmail: string;
+    },
+    message: string,
+): OtpChallengeResponse {
+    return {
+        requiresOtp: true,
+        challengeToken: challenge.challengeToken,
+        expiresAt: challenge.expiresAt.toISOString(),
+        resendAvailableAt: challenge.resendAvailableAt.toISOString(),
+        maskedEmail: challenge.maskedEmail,
+        message,
+    };
+}
+
 async function toAuthUser(user: {
     id: string;
     email: string;
@@ -91,7 +143,13 @@ async function toAuthUser(user: {
     };
 }
 
-async function issueTokens(user: { id: string; email: string; role: Role; name: string; image: string | null; }): Promise<AuthResult> {
+async function issueTokens(user: {
+    id: string;
+    email: string;
+    role: Role;
+    name: string;
+    image: string | null;
+}): Promise<AuthResult> {
     const signOptions: SignOptions = {
         expiresIn: env.JWT_ACCESS_EXPIRY as SignOptions['expiresIn'],
     };
@@ -123,7 +181,7 @@ async function issueTokens(user: { id: string; email: string; role: Role; name: 
     };
 }
 
-export async function signup(input: SignupInput): Promise<AuthResult> {
+export async function signup(input: SignupInput): Promise<{ message: string }> {
     const existing = await prisma.user.findUnique({
         where: { email: input.email },
     });
@@ -133,29 +191,23 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-    const now = new Date();
 
-    const user = await prisma.user.create({
+    await prisma.user.create({
         data: {
             email: input.email,
             passwordHash,
             name: input.name,
             role: 'CANDIDATE',
-            recentLogin: now,
-        },
-        select: {
-            id: true,
-            email: true,
-            role: true,
-            name: true,
-            image: true,
         },
     });
 
-    return issueTokens(user);
+    return {
+        message: 'Account created successfully. Please sign in.',
+    };
 }
 
-export async function login(input: LoginInput): Promise<AuthResult> {
+/** Step 1: validate password, send OTP — does NOT issue JWTs */
+export async function login(input: LoginInput): Promise<OtpChallengeResponse> {
     const user = await prisma.user.findUnique({
         where: { email: input.email },
     });
@@ -170,8 +222,29 @@ export async function login(input: LoginInput): Promise<AuthResult> {
         throw new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
     }
 
-    const updated = await prisma.user.update({
-        where: { id: user.id },
+    const challenge = await createOtpChallenge({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        purpose: 'LOGIN',
+    });
+
+    return toOtpChallengeResponse(
+        challenge,
+        'A 6-digit verification code has been sent to your registered email.',
+    );
+}
+
+/** Step 2: verify login OTP → issue session */
+export async function verifyLoginOtp(input: VerifyOtpInput): Promise<AuthResult> {
+    const { userId } = await verifyOtpChallenge({
+        challengeToken: input.challengeToken,
+        otpCode: input.otp,
+        purpose: 'LOGIN',
+    });
+
+    const user = await prisma.user.update({
+        where: { id: userId },
         data: { recentLogin: new Date() },
         select: {
             id: true,
@@ -182,10 +255,93 @@ export async function login(input: LoginInput): Promise<AuthResult> {
         },
     });
 
-    return issueTokens(updated);
+    return issueTokens(user);
 }
 
-//fn to generate new access token
+export async function resendLoginOtp(input: ResendOtpInput): Promise<OtpChallengeResponse> {
+    const challenge = await resendOtpChallenge({
+        challengeToken: input.challengeToken,
+        purpose: 'LOGIN',
+    });
+
+    return toOtpChallengeResponse(
+        challenge,
+        'A new verification code has been sent to your registered email.',
+    );
+}
+
+export async function forgotPassword(
+    input: ForgotPasswordInput,
+): Promise<OtpChallengeResponse> {
+    const user = await prisma.user.findUnique({
+        where: { email: input.email },
+    });
+
+    if (!user) {
+        throw new AuthError('No account found with this email', 'EMAIL_NOT_FOUND');
+    }
+
+    const challenge = await createOtpChallenge({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        purpose: 'PASSWORD_RESET',
+    });
+
+    return toOtpChallengeResponse(
+        challenge,
+        'A verification code has been sent to your registered email.',
+    );
+}
+
+export async function verifyPasswordResetOtp(
+    input: VerifyOtpInput,
+): Promise<{ challengeToken: string; message: string }> {
+    const { userId } = await verifyOtpChallenge({
+        challengeToken: input.challengeToken,
+        otpCode: input.otp,
+        purpose: 'PASSWORD_RESET',
+    });
+
+    const authorization = await createPasswordResetAuthorization(userId);
+
+    return {
+        challengeToken: authorization.challengeToken,
+        message: 'OTP verified. You can now set a new password.',
+    };
+}
+
+export async function resendPasswordResetOtp(
+    input: ResendOtpInput,
+): Promise<OtpChallengeResponse> {
+    const challenge = await resendOtpChallenge({
+        challengeToken: input.challengeToken,
+        purpose: 'PASSWORD_RESET',
+    });
+
+    return toOtpChallengeResponse(
+        challenge,
+        'A new verification code has been sent to your registered email.',
+    );
+}
+
+export async function resetPassword(
+    input: ResetPasswordInput,
+): Promise<{ message: string }> {
+    const { userId } = await consumePasswordResetAuthorization(input.challengeToken);
+
+    const passwordHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash },
+    });
+
+    await prisma.refreshToken.deleteMany({ where: { userId } });
+
+    return { message: 'Password updated successfully. Please sign in.' };
+}
+
 export async function refresh(input: RefreshTokenInput): Promise<AuthResult> {
     const tokenHash = hashRefreshToken(input.refreshToken);
 

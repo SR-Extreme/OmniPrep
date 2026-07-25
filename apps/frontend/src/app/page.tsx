@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { getPremiumStatus } from '@/lib/api/billing';
 import { useAuthStore } from '@/store/authStore';
 
 const FEATURES = [
@@ -51,7 +54,57 @@ const FEATURES = [
 ] as const;
 
 export default function HomePage() {
-    const { user, logout, isLoading } = useAuthStore();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const { user, accessToken, logout, isLoading, setUser } = useAuthStore();
+    const confirmingCheckout = useRef(false);
+    const isAdmin = user?.role === 'ADMIN';
+    const isPremium = Boolean(user?.isPremium);
+
+    useEffect(() => {
+        const checkout = searchParams.get('checkout');
+
+        if (checkout !== 'success' || !accessToken) {
+            return;
+        }
+
+        if (confirmingCheckout.current) {
+            return;
+        }
+
+        confirmingCheckout.current = true;
+
+        void (async () => {
+            // Webhook activates premium; poll status until it lands (or give up).
+            const delaysMs = [500, 1000, 1500, 2000, 3000];
+
+            try {
+                for (const delayMs of delaysMs) {
+                    await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+                    const status = await getPremiumStatus(accessToken);
+                    if (!status.isPremium) {
+                        continue;
+                    }
+
+                    const currentUser = useAuthStore.getState().user;
+                    if (currentUser) {
+                        setUser({
+                            ...currentUser,
+                            isPremium: status.isPremium,
+                            premiumFrom: status.premiumFrom,
+                            premiumTill: status.premiumTill,
+                        });
+                    }
+                    break;
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                router.replace('/');
+            }
+        })();
+    }, [accessToken, router, searchParams, setUser]);
 
     return (
         <div className="min-h-screen grid-bg-fade">
@@ -79,6 +132,16 @@ export default function HomePage() {
                         <Link href="/mock-interview" className="text-sm text-zinc-600 transition hover:text-zinc-900">
                             Mock Interview
                         </Link>
+                        {user ? (
+                            <Link href="/profile" className="text-sm text-zinc-600 transition hover:text-zinc-900">
+                                Profile
+                            </Link>
+                        ) : null}
+                        {isAdmin ? (
+                            <Link href="/admin" className="text-sm text-zinc-600 transition hover:text-zinc-900">
+                                Admin
+                            </Link>
+                        ) : null}
                     </nav>
 
                     <div className="flex items-center gap-2">
@@ -87,15 +150,19 @@ export default function HomePage() {
                                 <span className="hidden text-sm text-zinc-500 md:inline">
                                     {user.name}
                                 </span>
-                                <Link href="/problems" className="btn-secondary !py-2 hidden sm:inline-flex">
-                                    Problems
+                                {!isPremium ? (
+                                    <Link href="/premium" className="btn-secondary !py-2 hidden sm:inline-flex">
+                                        Upgrade
+                                    </Link>
+                                ) : null}
+                                <Link href="/profile" className="btn-secondary !py-2 hidden lg:inline-flex">
+                                    Profile
                                 </Link>
-                                <Link href="/system-design" className="btn-secondary !py-2 hidden lg:inline-flex">
-                                    System Design
-                                </Link>
-                                <Link href="/behavioral" className="btn-secondary !py-2 hidden lg:inline-flex">
-                                    Behavioral
-                                </Link>
+                                {isAdmin ? (
+                                    <Link href="/admin" className="btn-secondary !py-2 hidden lg:inline-flex">
+                                        Admin
+                                    </Link>
+                                ) : null}
                                 <Link href="/mock-interview" className="btn-primary !py-2">
                                     Mock Interview
                                 </Link>
@@ -137,11 +204,39 @@ export default function HomePage() {
                                         {user.name}
                                     </p>
                                     <p className="text-sm text-zinc-500">{user.email}</p>
+                                    {isPremium ? (
+                                        <p className="mt-2 text-xs font-medium text-emerald-700">
+                                            Premium active
+                                        </p>
+                                    ) : null}
                                     <div className="mt-5 flex flex-col gap-2">
-                                        <Link href="/mock-interview" className="btn-primary w-full">
+                                        {!isPremium ? (
+                                            <Link href="/premium" className="btn-primary w-full">
+                                                Upgrade to Premium
+                                                <span aria-hidden="true">→</span>
+                                            </Link>
+                                        ) : null}
+                                        <Link
+                                            href="/mock-interview"
+                                            className={
+                                                isPremium
+                                                    ? 'btn-primary w-full'
+                                                    : 'btn-secondary w-full'
+                                            }
+                                        >
                                             Full mock interview
                                             <span aria-hidden="true">→</span>
                                         </Link>
+                                        <Link href="/profile" className="btn-secondary w-full">
+                                            View profile
+                                            <span aria-hidden="true">→</span>
+                                        </Link>
+                                        {isAdmin ? (
+                                            <Link href="/admin" className="btn-secondary w-full">
+                                                Admin panel
+                                                <span aria-hidden="true">→</span>
+                                            </Link>
+                                        ) : null}
                                         <Link href="/problems" className="btn-secondary w-full">
                                             DSA problems
                                             <span aria-hidden="true">→</span>

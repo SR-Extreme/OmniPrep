@@ -1,8 +1,8 @@
 # ROADMAP.md
 
-> **Last updated:** 2026-07-18
-> **Current phase:** Phase 7 — Admin Panel, User Profile & Premium Subscription (In Progress)
-> **Overall:** Phases 0–6 code complete; Phase 7 in progress; Phase 8 not started
+> **Last updated:** 2026-07-25
+> **Current phase:** Phase 7 — Admin Panel, User Profile & Premium Subscription (Code Complete; E2E Pending)
+> **Overall:** Phases 0–7 code complete; Phase 7 E2E pending; Phase 8 not started
 > Keep synchronized with `PROJECT_CONTEXT.md` and `SESSION_HANDOFF.md`.
 
 ---
@@ -173,43 +173,43 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
 
 ### Module A — Database & foundation
 
-- [ ] Extend `User`: `image`, `phoneNo`, `isPremium`, `premiumFrom`, `premiumTill`, `averageInterviewScore`, `recentLogin`
-- [ ] Add `Subscription` model for payment history (`plan`, `amount`, `currency`, `status`, Stripe IDs, `startsAt`, `expiresAt`, timestamps)
-- [ ] Plans: `MONTHLY` | `SIX_MONTHS` | `YEARLY`
-- [ ] Extend `MockInterviewStudyPlan` for task completion / progress percentage (profile history)
-- [ ] Stripe + premium env vars; `stripe` package; webhook verification
-- [ ] `premiumMiddleware`; never trust frontend premium flags
-- [ ] One active premium plan per user (block Checkout while premium; expire other ACTIVE rows on webhook)
-- [ ] Update `recentLogin` on login; recompute `averageInterviewScore` on completed mock interviews
+- [x] Extend `User`: `image`, `phoneNo`, `isPremium`, `premiumFrom`, `premiumTill`, `averageInterviewScore`, `recentLogin`
+- [x] Add `Subscription` model for payment history (`plan`, `amount`, `currency`, `status`, Stripe IDs, `startsAt`, `expiresAt`, timestamps)
+- [x] Plans: `MONTHLY` | `SIX_MONTHS` | `YEARLY`
+- [x] Extend `MockInterviewStudyPlan` for task completion / progress percentage (profile history)
+- [x] Stripe + premium env vars; `stripe` package; webhook verification
+- [x] `premiumMiddleware`; never trust frontend premium flags
+- [x] One active premium plan per user (block Checkout while premium; expire other ACTIVE rows on webhook)
+- [x] Update `recentLogin` on login; recompute `averageInterviewScore` on completed mock interviews
 
 ### Module B — Admin Panel
 
-- [ ] Admin landing: hero + five feature cards in responsive 3+2 grid
+- [x] Admin landing: hero + five feature cards in responsive 3+2 grid
   - Create Questions · List Questions · Revenue Dashboard · Mock Analytics · User Management
-- [ ] Create Questions → DSA or System Design forms (all required Prisma fields + Published toggle)
-- [ ] List Questions → DSA / System Design sidebars: Published vs Draft
+- [x] Create Questions → DSA or System Design forms (all required Prisma fields + Published toggle)
+- [x] List Questions → DSA / System Design sidebars: Published vs Draft
   - Published: title, difficulty, topics, total submissions, published date, delete; sort by submissions desc
   - Draft: title, last edited, edit, publish, delete
-- [ ] Revenue Dashboard: top stats, line/pie/bar charts, textual summaries (aggregate Prisma only)
-- [ ] Revenue vs Time chart: range selector with `1M` / `6M` / `1Y` / `ALL` (default `1M`)
-- [ ] Mock Analytics: premium users (ever paid + ≥1 mock), total mocks, avg score; hiring-band distribution graph + counts
-- [ ] User Management: premium then free; search; card fields; confirm-before-delete
-- [ ] Admin Profile page
+- [x] Revenue Dashboard: top stats, line/pie/bar charts, textual summaries (aggregate Prisma only)
+- [x] Revenue vs Time chart: range selector with `1M` / `6M` / `1Y` / `ALL` (default `1M`)
+- [x] Mock Analytics: premium users (ever paid + ≥1 mock), total mocks, avg score; hiring-band distribution graph + counts
+- [x] User Management: premium then free; search; card fields; confirm-before-delete
+- [x] Admin Profile page
 
 ### Module C — User Profile & Study Plan History
 
-- [ ] Candidate profile: identity, premium status/duration, average interview score
-- [ ] Profile picture: Multer + Cloudinary upload; store `secure_url` on `User.image`; fetch via profile APIs
-- [ ] Stats: DSA / System Design / Behavioral aggregates
-- [ ] Study plan history (newest first): progress, completed/total tasks; open full schedule with checkboxes; Submit Progress; Completed badge
-- [ ] Logout button at bottom of profile
+- [x] Candidate profile: identity, premium status/duration, average interview score
+- [x] Profile picture: Multer + Cloudinary upload; store `secure_url` on `User.image`; fetch via profile APIs
+- [x] Stats: DSA / System Design / Behavioral aggregates
+- [x] Study plan history (newest first): progress, completed/total tasks; open full schedule with checkboxes; Submit Progress; Completed badge
+- [x] Logout button at bottom of profile
 
 ### Module D — Premium Subscription & Access Control
 
-- [ ] Homepage “Upgrade to Premium” → pricing page (₹999 / ₹3999 / ₹5999) with feature list + Subscribe
-- [ ] Stripe Checkout → webhook → `Subscription` row → update `User` premium → redirect home
-- [ ] Mock Interview premium gate (backend + professional frontend modal with Upgrade Now)
-- [ ] Revenue analytics derived from `Subscription` aggregates (no redundant analytics tables)
+- [x] Homepage “Upgrade to Premium” → pricing page (₹999 / ₹3999 / ₹5999) with feature list + Subscribe
+- [x] Stripe Checkout → webhook → `Subscription` row → update `User` premium → redirect home
+- [x] Mock Interview premium gate (backend + professional frontend modal with Upgrade Now)
+- [x] Revenue analytics derived from `Subscription` aggregates (no redundant analytics tables)
 
 ### Dependencies to add during Phase 7
 
@@ -218,8 +218,8 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
 | Backend | `stripe` |
 | Frontend | Recharts, Framer Motion, React Hook Form; Shadcn/UI primitives as needed |
 
-**Status:** In Progress
-**Implementation:** 0%
+**Status:** Code Complete; E2E Sign-off Pending
+**Implementation:** 100% (feature code); manual E2E not signed off
 
 ---
 
@@ -259,20 +259,17 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
 | M3.6 — Behavioral full manual sign-off | Pending record |
 | M4 — Mock interview implementation | Done |
 | M4.1 — Mock interview full E2E sign-off | Deferred (Phase 8 / parallel) |
-| M5 — Admin, profile, premium/Stripe | **Current (Phase 7)** |
+| M5 — Admin, profile, premium/Stripe | **Code complete; E2E pending (Phase 7)** |
 | M6 — Production deployment | Not started |
 
 ---
 
 ## Current Priority Order
 
-### Now — Phase 7
+### Now — Phase 7 E2E
 
-1. Schema: User premium fields + `Subscription` + study-plan progress fields + migration.
-2. Backend: profile, admin, billing/Stripe webhook, premium middleware, analytics aggregates.
-3. Frontend: admin dashboard, profiles, pricing, premium modal, study-plan history UI.
-4. Protect mock-interview create/start on the server; gate UI with modal.
-5. Manual E2E of admin CRUD, Stripe test checkout, profile stats, premium gate.
+1. Manual E2E: admin CRUD, Stripe test Checkout + webhook (`stripe listen`), profile/avatar/study-plan progress, premium gate, `ALREADY_PREMIUM`.
+2. Mark Phase 7 Completed in these docs after sign-off.
 
 ### Later — Phase 8 / deferred debt
 
@@ -286,10 +283,10 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
 
 | Risk/dependency | Current mitigation/status |
 |---|---|
-| Stripe not yet in repo | Add `stripe` package + env + webhook signature verification in Phase 7 |
-| Frontend lacks Recharts/RHF/Framer/Shadcn | Install as Phase 7 UI dependencies; keep existing Tailwind patterns |
-| Premium must be server-enforced | `premiumMiddleware` + DB `isPremium`/`premiumTill`; ignore client flags |
-| Webhook vs Checkout race | Idempotent upsert by `stripeSessionId` / payment intent |
+| Local webhook delivery | `stripe listen --forward-to localhost:4000/api/billing/webhook`; `STRIPE_WEBHOOK_SECRET` from CLI |
+| Checkout Price IDs must be one-time | Checkout uses `mode: payment`; recurring prices fail |
+| Premium must be server-enforced | `assertPremiumAccess` / premium checks on mock create/start; DB `isPremium`/`premiumTill` |
+| Webhook vs Checkout race | Idempotent upsert by `stripeSessionId`; homepage polls `/api/billing/status` after success |
 | Hiring bands are frontend-only today | Mock analytics recomputes bands from completed interview scores via same band thresholds |
 | No automated tests | Type-checks + manual E2E for Phase 7 |
 | Phase 6 E2E still open | Documented debt; does not block Phase 7 per product direction |
@@ -307,7 +304,7 @@ The implemented design supersedes the old ~90-minute Socket.io plan.
 | v0.5 | System Design | Complete |
 | v0.6 | Behavioral | Code complete |
 | v0.7 | Full Mock Interview | Code complete; E2E sign-off deferred |
-| v0.8 | Admin + profile + premium | **In progress (Phase 7)** |
+| v0.8 | Admin + profile + premium | **Code complete; E2E pending (Phase 7)** |
 | v1.0 | Tested, secured, deployed MVP | Not started |
 
 ---

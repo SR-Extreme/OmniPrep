@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
 import { ApiError } from '@/lib/api/client';
 import {
     createMockInterview,
@@ -66,6 +67,14 @@ function actionLabel(status: MockInterviewStatus): string {
     }
 }
 
+function isPremiumRequiredError(err: unknown): boolean {
+    return (
+        err instanceof ApiError &&
+        err.status === 403 &&
+        /premium/i.test(err.message)
+    );
+}
+
 export default function MockInterviewPage() {
     const router = useRouter();
     const { user, accessToken, logout, isLoading: authLoading } = useAuthStore();
@@ -79,6 +88,7 @@ export default function MockInterviewPage() {
     const [isCreating, setIsCreating] = useState(false);
     const [openingId, setOpeningId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
     useEffect(() => {
         setHydrated(true);
@@ -142,6 +152,11 @@ export default function MockInterviewPage() {
             return;
         }
 
+        if (!user?.isPremium) {
+            setPremiumModalOpen(true);
+            return;
+        }
+
         setIsCreating(true);
         setError(null);
 
@@ -153,17 +168,26 @@ export default function MockInterviewPage() {
             );
             router.push(`/mock-interview/${started.interview.id}`);
         } catch (err) {
-            setError(
-                err instanceof ApiError
-                    ? err.message
-                    : 'Failed to start mock interview',
-            );
+            if (isPremiumRequiredError(err)) {
+                setPremiumModalOpen(true);
+            } else {
+                setError(
+                    err instanceof ApiError
+                        ? err.message
+                        : 'Failed to start mock interview',
+                );
+            }
             setIsCreating(false);
         }
     }
 
     async function handleOpen(interview: MockInterviewListItem) {
         if (!accessToken) {
+            return;
+        }
+
+        if (interview.status === 'NOT_STARTED' && !user?.isPremium) {
+            setPremiumModalOpen(true);
             return;
         }
 
@@ -178,11 +202,15 @@ export default function MockInterviewPage() {
             }
             router.push(`/mock-interview/${interview.id}`);
         } catch (err) {
-            setError(
-                err instanceof ApiError
-                    ? err.message
-                    : 'Failed to open mock interview',
-            );
+            if (isPremiumRequiredError(err)) {
+                setPremiumModalOpen(true);
+            } else {
+                setError(
+                    err instanceof ApiError
+                        ? err.message
+                        : 'Failed to open mock interview',
+                );
+            }
             setOpeningId(null);
         }
     }
@@ -247,6 +275,11 @@ export default function MockInterviewPage() {
                                 submit; the final hiring band and study plan come after the
                                 interview.
                             </p>
+                            {!user?.isPremium ? (
+                                <p className="mt-3 text-sm font-medium text-emerald-700">
+                                    Premium required to start a new mock interview.
+                                </p>
+                            ) : null}
                         </div>
                         <button
                             type="button"
@@ -362,6 +395,11 @@ export default function MockInterviewPage() {
                     ) : null}
                 </section>
             </main>
+
+            <PremiumRequiredModal
+                open={premiumModalOpen}
+                onOpenChange={setPremiumModalOpen}
+            />
         </div>
     );
 }

@@ -33,6 +33,15 @@ const envSchema = z.object({
     STRIPE_PRICE_MONTHLY: optionalNonEmptyString,
     STRIPE_PRICE_SIX_MONTHS: optionalNonEmptyString,
     STRIPE_PRICE_YEARLY: optionalNonEmptyString,
+    EMAILJS_PUBLIC_KEY: optionalNonEmptyString,
+    EMAILJS_PRIVATE_KEY: optionalNonEmptyString,
+    EMAILJS_SERVICE_ID: optionalNonEmptyString,
+    EMAILJS_TEMPLATE_LOGIN_OTP: optionalNonEmptyString,
+    EMAILJS_TEMPLATE_PASSWORD_RESET_OTP: optionalNonEmptyString,
+    EMAILJS_TEMPLATE_SUBSCRIPTION: optionalNonEmptyString,
+    EMAILJS_SUPPORT_EMAIL: optionalNonEmptyString,
+    OTP_EXPIRY_MINUTES: z.coerce.number().int().positive().default(10),
+    OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -72,5 +81,16 @@ export function isStripeConfigured(envConfig: Env = env): boolean {
         && envConfig.STRIPE_PRICE_MONTHLY
         && envConfig.STRIPE_PRICE_SIX_MONTHS
         && envConfig.STRIPE_PRICE_YEARLY,
+    );
+}
+
+export function isEmailJsConfigured(envConfig: Env = env): boolean {
+    return Boolean(
+        envConfig.EMAILJS_PUBLIC_KEY
+        && envConfig.EMAILJS_PRIVATE_KEY
+        && envConfig.EMAILJS_SERVICE_ID
+        && envConfig.EMAILJS_TEMPLATE_LOGIN_OTP
+        && envConfig.EMAILJS_TEMPLATE_PASSWORD_RESET_OTP
+        && envConfig.EMAILJS_TEMPLATE_SUBSCRIPTION,
     );
 }

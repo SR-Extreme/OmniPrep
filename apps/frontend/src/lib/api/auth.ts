@@ -1,60 +1,101 @@
-import { apiRequest } from "./client";
-export type Role = 'ADMIN' | 'CANDIDATE';
+import { apiRequest } from './client';
+import type {
+    AuthResult,
+    ForgotPasswordBody,
+    LoginBody,
+    MeResponse,
+    MessageResponse,
+    OtpChallengeResponse,
+    PasswordResetVerifiedResponse,
+    RefreshBody,
+    ResendOtpBody,
+    ResetPasswordBody,
+    SignupBody,
+    VerifyOtpBody,
+} from '@/types/auth';
 
-export interface AuthUser {
-    id: string;
-    email: string;
-    role: Role;
-    name: string;
+export type {
+    AuthResult,
+    AuthTokens,
+    AuthUser,
+    ForgotPasswordBody,
+    LoginBody,
+    MeResponse,
+    MessageResponse,
+    OtpChallengeResponse,
+    PasswordResetVerifiedResponse,
+    RefreshBody,
+    ResendOtpBody,
+    ResetPasswordBody,
+    Role,
+    SignupBody,
+    VerifyOtpBody,
+} from '@/types/auth';
+
+export function signup(body: SignupBody): Promise<MessageResponse> {
+    return apiRequest<MessageResponse>('/api/auth/signup', { method: 'POST', body });
 }
 
-export interface AuthTokens {
-    accessToken: string;
-    refreshToken: string;
+/** Validates credentials and sends OTP — does not return JWTs */
+export function login(body: LoginBody): Promise<OtpChallengeResponse> {
+    return apiRequest<OtpChallengeResponse>('/api/auth/login', {
+        method: 'POST',
+        body,
+    });
 }
 
-export interface AuthResult {
-    user: AuthUser;
-    tokens: AuthTokens;
+export function verifyLoginOtp(body: VerifyOtpBody): Promise<AuthResult> {
+    return apiRequest<AuthResult>('/api/auth/login/verify-otp', {
+        method: 'POST',
+        body,
+    });
 }
 
-export interface SignupBody {
-    email: string;
-    password: string;
-    name: string;
+export function resendLoginOtp(body: ResendOtpBody): Promise<OtpChallengeResponse> {
+    return apiRequest<OtpChallengeResponse>('/api/auth/login/resend-otp', {
+        method: 'POST',
+        body,
+    });
 }
 
-export interface LoginBody {
-    email: string;
-    password: string;
+export function forgotPassword(body: ForgotPasswordBody): Promise<OtpChallengeResponse> {
+    return apiRequest<OtpChallengeResponse>('/api/auth/forgot-password', {
+        method: 'POST',
+        body,
+    });
 }
 
-export interface RefreshBody {
-    refreshToken: string;
+export function verifyPasswordResetOtp(
+    body: VerifyOtpBody,
+): Promise<PasswordResetVerifiedResponse> {
+    return apiRequest<PasswordResetVerifiedResponse>(
+        '/api/auth/forgot-password/verify-otp',
+        { method: 'POST', body },
+    );
 }
 
-export interface MeResponse {
-    user: {
-        sub: string;
-        email: string;
-        role: Role;
-    };
+export function resendPasswordResetOtp(
+    body: ResendOtpBody,
+): Promise<OtpChallengeResponse> {
+    return apiRequest<OtpChallengeResponse>('/api/auth/forgot-password/resend-otp', {
+        method: 'POST',
+        body,
+    });
 }
 
-export function signup(body: SignupBody): Promise<AuthResult> {
-    return apiRequest<AuthResult>('/api/auth/signup', { method: 'POST', body });
-}
-
-export function login(body: LoginBody): Promise<AuthResult> {
-    return apiRequest<AuthResult>('/api/auth/login', { method: 'POST', body });
+export function resetPassword(body: ResetPasswordBody): Promise<MessageResponse> {
+    return apiRequest<MessageResponse>('/api/auth/forgot-password/reset', {
+        method: 'POST',
+        body,
+    });
 }
 
 export function refresh(body: RefreshBody): Promise<AuthResult> {
-    return apiRequest<AuthResult>('/api/auth/refresh', { method: 'POST', body, });
+    return apiRequest<AuthResult>('/api/auth/refresh', { method: 'POST', body });
 }
 
 export function logout(body: RefreshBody): Promise<void> {
-    return apiRequest<void>('/api/auth/logout', { method: 'POST', body, });
+    return apiRequest<void>('/api/auth/logout', { method: 'POST', body });
 }
 
 export function getMe(accessToken: string): Promise<MeResponse> {

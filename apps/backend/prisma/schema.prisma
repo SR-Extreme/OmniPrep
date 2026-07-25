@@ -78,6 +78,11 @@ enum SubscriptionStatus {
   REFUNDED
 }
 
+enum OtpPurpose {
+  LOGIN
+  PASSWORD_RESET
+}
+
 model User {
   id                    String                   @id @default(cuid())
   email                 String                   @unique
@@ -93,6 +98,7 @@ model User {
   recentLogin            DateTime?
   createdAt              DateTime                 @default(now())
   refreshTokens          RefreshToken[]
+  otpChallenges          OtpChallenge[]
   subscriptions          Subscription[]
   submissions            Submission[]
   dsaEvaluations         DsaEvaluation[]
@@ -115,6 +121,20 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model OtpChallenge {
+  id                 String     @id @default(cuid())
+  userId             String
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose            OtpPurpose
+  otpHash            String
+  challengeTokenHash String     @unique
+  expiresAt          DateTime
+  createdAt          DateTime   @default(now())
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
 }
 
 model Subscription {

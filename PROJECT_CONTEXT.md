@@ -1,6 +1,6 @@
 # PROJECT_CONTEXT.md
 
-> **Last updated:** 2026-07-18
+> **Last updated:** 2026-07-25
 > **Project:** OmniPrep (`interview-prep-platform`)
 > **Purpose:** Permanent architecture and product source of truth. Update whenever behavior, integrations, schema, or major decisions change.
 
@@ -20,13 +20,14 @@ Primary users are interview candidates. Admins manage content, users, and revenu
 
 ### Current state
 
-- **Phases 0–6 are implemented in code.**
+- **Phases 0–7 are implemented in code.**
 - Phase 6 has been partially exercised manually (application starts and section transition/timer behavior has been tested), but the full start-to-report E2E has not been signed off (deferred; does not block Phase 7).
-- **Phase 7 is the current implementation focus:** Admin Panel, User Profile, Premium Subscription & Revenue (Stripe).
+- **Phase 7 is code-complete:** Admin Panel, User Profile, Premium Subscription & Revenue (Stripe Checkout + webhook). Manual Phase 7 E2E sign-off is the next gate.
 - Phase 8 (deployment/polish) is not started.
-- Backend and frontend `npx tsc --noEmit` both pass as of **2026-07-18**.
+- Backend and frontend `npx tsc --noEmit` both pass as of **2026-07-18** (re-verify after Phase 7 E2E if needed).
 - There are no automated unit, integration, or E2E tests.
-- Stripe, Recharts, Framer Motion, React Hook Form, and Shadcn/UI are **not yet installed**; they are Phase 7 dependencies.
+- Phase 7 deps are in use: `stripe` (backend); Recharts + Shadcn-style UI primitives (frontend). Framer Motion / React Hook Form were listed as optional supporting deps and are lightly used or unused where `useState` forms suffice.
+- Stripe Checkout uses **`mode: 'payment'`** with **one-time** Price IDs (not recurring). Local webhook delivery requires `stripe listen --forward-to localhost:4000/api/billing/webhook` and matching `STRIPE_WEBHOOK_SECRET`.
 
 Do not use the older Phase 6 description of a ~90-minute Socket.io interview. The implemented and user-approved design is REST/polling with three one-hour sections.
 
@@ -399,29 +400,27 @@ All routes below require bearer authentication unless noted.
 | GET | `/:id/study-plan` | Existing plan or null |
 | POST | `/:id/study-plan` | Generate/return plan |
 
-### Phase 7 APIs (to implement)
+### Phase 7 APIs (implemented)
 
 | Area | Purpose |
 |---|---|
-| Profile / me | Get/update profile fields; DSA/SD/behavioral stats; study-plan history + progress submit; profile image upload (Cloudinary) |
-| Admin questions | Create/list/edit/publish/delete DSA and System Design questions (published vs draft) |
-| Admin users | List/search/delete users (premium first); admin profile |
-| Admin analytics | Revenue aggregates + charts data; mock analytics + hiring-band distribution |
-| Billing | Create Stripe Checkout Session; webhook; current premium status |
+| Profile `/api/profile` | Get/update profile; avatar upload (Cloudinary); DSA/SD/behavioral stats; study-plan history + progress submit |
+| Admin `/api/admin` | Questions CRUD (DSA/SD); users list/search/delete; admin profile; revenue + mock analytics |
+| Billing `/api/billing` | Plan catalog; premium status; create Checkout Session; Stripe webhook (`POST /api/billing/webhook`, raw body + signature) |
 
 ---
 
 ## 8. Database
 
-Prisma currently defines 18 models (pre–Phase 7):
+Prisma currently defines **19 models** (Phase 7 added `Subscription`):
 
-- Auth: `User`, `RefreshToken`
+- Auth: `User`, `RefreshToken`, `Subscription`
 - DSA: `Problem`, `TestCase`, `Submission`, `DsaEvaluation`
 - System Design: `SystemDesignQuestion`, `SystemDesignSubmission`, `SystemDesignEvaluation`
 - Behavioral: `BehavioralQuestion`, `BehavioralSession`, `BehavioralTurn`, `BehavioralEvaluation`
 - Mock Interview: `MockInterview`, `MockInterviewDsaProblem`, `MockInterviewSystemDesign`, `MockInterviewBehavioral`, `MockInterviewStudyPlan`
 
-Eight migrations today (Phase 7 adds a ninth):
+Nine migrations:
 
 | Migration | Scope |
 |---|---|
@@ -433,6 +432,7 @@ Eight migrations today (Phase 7 adds a ninth):
 | `20260628053657_add_system_design_scale_factors` | SD scale factors |
 | `20260705113944_add_behavioral_module` | Behavioral |
 | `20260710160452_add_mock_interview` | Full mock interview and study plan |
+| `20260718123705_add_phase7_premium_admin` | User premium/profile fields, `Subscription`, study-plan progress |
 
 ### Phase 7 schema extensions (official)
 
@@ -456,7 +456,7 @@ Eight migrations today (Phase 7 adds a ninth):
 | `plan` | `MONTHLY` \| `SIX_MONTHS` \| `YEARLY` |
 | `amount` | Charged amount |
 | `currency` | e.g. `INR` |
-| `status` | e.g. `PENDING` \| `COMPLETED` \| `FAILED` \| `EXPIRED` / refunded as needed |
+| `status` | `PENDING` \| `ACTIVE` \| `EXPIRED` \| `FAILED` \| `REFUNDED` |
 | `stripeSessionId` | Checkout session id (unique) |
 | `stripePaymentIntentId` | Payment intent id |
 | `startsAt` / `expiresAt` | Entitlement window |
@@ -482,7 +482,7 @@ Keep only **current** premium status on `User`. All historical payments live in 
 
 Analytics (revenue, premium %, hiring bands, averages, submission counts) are **computed with aggregate Prisma queries** — do not store redundant analytics tables.
 
-Eight migrations today; Phase 7 adds a ninth for User/Subscription/study-plan progress.
+Nine migrations including Phase 7 premium/admin (`20260718123705_add_phase7_premium_admin`).
 
 Seed data:
 
@@ -614,7 +614,8 @@ On Windows, stop processes using Prisma Client before `prisma generate` if an `E
 | Medium | Auth token refresh/retry on 401 is not wired into frontend state/API client. |
 | Medium | No automated test suite or CI checks exist. |
 | Medium | No `README.md`; local setup exists only in these memory documents and `.env.example`. |
-| Medium | Stripe / premium packages and routes are not yet in the repo (Phase 7 work). |
+| Medium | Local Stripe webhooks require `stripe listen` + matching `STRIPE_WEBHOOK_SECRET`; Checkout Price IDs must be **one-time** (`mode: payment`). |
+| Medium | Phase 7 manual E2E (admin CRUD, Stripe test checkout, profile, premium gate) not yet signed off. |
 | Low | Navigation is not fully consistent across all module pages. |
 | Low | Root `npm run dev` uses shell `&`; separate terminals are more reliable on Windows. |
 | Low | Mock DSA slot switches discard unsaved editor drafts. |
@@ -634,7 +635,7 @@ On Windows, stop processes using Prisma Client before `prisma generate` if an `E
 | System Design manual flow | Prior project docs record verification; no automated artifact |
 | Standalone Behavioral full E2E | Not recorded as complete |
 | Mock interview manual flow | Partial verification; full E2E pending |
-| Phase 7 admin/premium E2E | Not started |
+| Phase 7 admin/premium E2E | **Pending** (code complete; manual sign-off next) |
 | Staging | Not configured |
 | Production | Not configured |
 
@@ -708,22 +709,24 @@ Homepage Upgrade → pricing (₹999 / ₹3999 / ₹5999) with feature checklist
 ### Stripe flow
 
 ```text
-Subscribe → Checkout Session → Stripe Checkout → success
-  → webhook (verify signature)
-  → create Subscription record
+Subscribe → Checkout Session (mode: payment, one-time prices) → Stripe Checkout → success
+  → webhook checkout.session.completed (verify signature via stripeWebhookHandler)
+  → create/activate Subscription record
   → update User isPremium / premiumFrom / premiumTill
-  → redirect homepage
+  → redirect homepage (UI polls /api/billing/status to refresh auth store)
 ```
+
+Local: `stripe listen --forward-to localhost:4000/api/billing/webhook`.
 
 ---
 
 ## 14. Next Recommended Task
 
-**Begin Phase 7 file-by-file implementation** per `SESSION_HANDOFF.md`.
+**Run Phase 7 manual E2E sign-off**, then update these memory docs when signed off.
 
-First implementation file: extend `apps/backend/prisma/schema.prisma` (User fields, Subscription model/enums, study-plan progress fields).
+Checklist: admin CRUD (create/edit/publish/delete DSA & SD), revenue ranges + mock analytics, user management, profile + avatar + study-plan progress, Stripe test Checkout → webhook → premium + Subscription row, mock premium gate modal, already-premium Checkout blocked (`ALREADY_PREMIUM`).
 
-After Phase 7 code is complete, run Phase 7 manual E2E (admin CRUD, Stripe test mode, profile, premium gate), then address deferred Phase 6 E2E in Phase 8.
+Then Phase 8 / deferred: Phase 6 full E2E, auth refresh-on-401, README, tests, deployment.
 
 ---
 

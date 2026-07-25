@@ -1,5 +1,6 @@
 import type Stripe from 'stripe';
 import { prisma } from '../../config/db.js';
+import { isEmailJsConfigured } from '../../config/env.js';
 import { getUserPremiumStatus } from '../../middleware/premium.middleware.js';
 import {
     createPremiumCheckoutSession,
@@ -7,10 +8,12 @@ import {
     retrieveCheckoutSession,
     StripeError,
 } from '../../services/StripeService.js';
+import { sendSubscriptionConfirmationEmail } from '../../services/EmailJsService.js';
 import {
     BILLING_CURRENCY,
     PLAN_AMOUNTS_INR,
     PLAN_CATALOG,
+    PLAN_LABELS,
     getPlanExpiresAt,
     isBillingPlan,
     type BillingPlan,
@@ -92,7 +95,7 @@ function extractPaymentIntentId(
 
 async function activatePremiumFromCheckoutSession(
     session: Stripe.Checkout.Session,
-): Promise<void> {
+): Promise<{ activated: boolean; userId: string; plan: BillingPlan; startsAt: Date; expiresAt: Date; amountInr: number } | null> {
     const sessionId = session.id;
     const userId = session.metadata?.userId;
     const planRaw = session.metadata?.plan;
@@ -110,7 +113,7 @@ async function activatePremiumFromCheckoutSession(
     });
 
     if (existing?.status === 'ACTIVE') {
-        return;
+        return null;
     }
 
     const startsAt = new Date();
@@ -168,6 +171,15 @@ async function activatePremiumFromCheckoutSession(
             },
         });
     });
+
+    return {
+        activated: true,
+        userId,
+        plan,
+        startsAt,
+        expiresAt,
+        amountInr,
+    };
 }
 
 export function getPlanCatalog() {
@@ -226,8 +238,7 @@ export async function createCheckoutSession(
     }
 }
 
-//webhook check
-//called fn to update db accordingly
+// webhook check — activates premium from checkout.session.completed
 export async function handleStripeWebhook(
     rawBody: Buffer,
     signature: string,
@@ -263,8 +274,61 @@ export async function handleStripeWebhook(
             console.error(err);
         }
 
-        await activatePremiumFromCheckoutSession(fullSession);
+        const activation = await activatePremiumFromCheckoutSession(fullSession);
+
+        if (activation?.activated) {
+            await sendSubscriptionEmailAfterActivation({
+                userId: activation.userId,
+                plan: activation.plan,
+                startsAt: activation.startsAt,
+                expiresAt: activation.expiresAt,
+                amountInr: activation.amountInr,
+            });
+        }
     }
 
     return { received: true };
+}
+
+async function sendSubscriptionEmailAfterActivation(input: {
+    userId: string;
+    plan: BillingPlan;
+    startsAt: Date;
+    expiresAt: Date;
+    amountInr: number;
+}): Promise<void> {
+    if (!isEmailJsConfigured()) {
+        console.warn('EmailJS not configured; skipping subscription confirmation email');
+        return;
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { email: true, name: true },
+    });
+
+    if (!user) {
+        return;
+    }
+
+    const dateFormatter = new Intl.DateTimeFormat('en-IN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+
+    try {
+        await sendSubscriptionConfirmationEmail({
+            toEmail: user.email,
+            toName: user.name,
+            planLabel: PLAN_LABELS[input.plan],
+            amount: String(input.amountInr),
+            currency: BILLING_CURRENCY,
+            startsAt: dateFormatter.format(input.startsAt),
+            expiresAt: dateFormatter.format(input.expiresAt),
+        });
+    } catch (err) {
+        // Do not fail the Stripe webhook if email sending fails
+        console.error('Failed to send subscription confirmation email', err);
+    }
 }

@@ -2,71 +2,104 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { login as loginApi, logout as logoutApi, signup as signupApi, type AuthUser, type LoginBody, type SignupBody } from '@/lib/api/auth';
+import {
+    login as loginApi,
+    logout as logoutApi,
+    signup as signupApi,
+    verifyLoginOtp as verifyLoginOtpApi,
+    type AuthUser,
+    type LoginBody,
+    type OtpChallengeResponse,
+    type SignupBody,
+    type VerifyOtpBody,
+} from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/client';
 
 interface AuthState {
-    //states
     user: AuthUser | null;
     accessToken: string | null;
     refreshToken: string | null;
     isLoading: boolean;
     error: string | null;
 
-    //async fns
     signup: (body: SignupBody) => Promise<void>;
-    login: (body: LoginBody) => Promise<void>;
+    login: (body: LoginBody) => Promise<OtpChallengeResponse>;
+    verifyLoginOtp: (body: VerifyOtpBody) => Promise<void>;
     logout: () => Promise<void>;
 
-    //non-async fns
     clearError: () => void;
     setSession: (user: AuthUser, accessToken: string, refreshToken: string) => void;
+    setUser: (user: AuthUser) => void;
     clearSession: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
     persist(
         (set, get) => ({
-            //initial states
             user: null,
             accessToken: null,
             refreshToken: null,
             isLoading: false,
             error: null,
 
-            setSession: (user: AuthUser, accessToken: string, refreshToken: string) => {
+            setSession: (user, accessToken, refreshToken) => {
                 set({ user, accessToken, refreshToken, error: null });
             },
 
+            setUser: (user) => {
+                set({ user, error: null });
+            },
+
             clearSession: () => {
-                set({ user: null, accessToken: null, refreshToken: null, error: null });
+                set({
+                    user: null,
+                    accessToken: null,
+                    refreshToken: null,
+                    error: null,
+                });
             },
 
             clearError: () => {
                 set({ error: null });
             },
 
-            signup: async (body: SignupBody) => {
+            signup: async (body) => {
                 set({ isLoading: true, error: null });
                 try {
-                    const result = await signupApi(body);
+                    await signupApi(body);
+                    // Account created — user must sign in with OTP on the login page
                     set({
-                        user: result.user,
-                        accessToken: result.tokens.accessToken,
-                        refreshToken: result.tokens.refreshToken,
+                        user: null,
+                        accessToken: null,
+                        refreshToken: null,
                         isLoading: false,
                     });
                 } catch (err) {
-                    const message = err instanceof ApiError ? err.message : 'Sign up failed';
+                    const message =
+                        err instanceof ApiError ? err.message : 'Sign up failed';
                     set({ error: message, isLoading: false });
                     throw err;
                 }
             },
 
-            login: async (body: LoginBody) => {
+            login: async (body) => {
                 set({ isLoading: true, error: null });
                 try {
-                    const result = await loginApi(body);
+                    const challenge = await loginApi(body);
+                    set({ isLoading: false });
+                    return challenge;
+                } catch (err) {
+                    const message =
+                        err instanceof ApiError ? err.message : 'Login failed';
+                    set({ error: message, isLoading: false });
+                    throw err;
+                }
+            },
+
+            verifyLoginOtp: async (body) => {
+                set({ isLoading: true, error: null });
+                try {
+                    const result = await verifyLoginOtpApi(body);
                     set({
                         user: result.user,
                         accessToken: result.tokens.accessToken,
@@ -75,7 +108,9 @@ export const useAuthStore = create<AuthState>()(
                     });
                 } catch (err) {
                     const message =
-                        err instanceof ApiError ? err.message : 'Login failed';
+                        err instanceof ApiError
+                            ? err.message
+                            : 'OTP verification failed';
                     set({ error: message, isLoading: false });
                     throw err;
                 }
@@ -91,7 +126,7 @@ export const useAuthStore = create<AuthState>()(
                         await logoutApi({ refreshToken });
                     }
                 } catch {
-
+                    // clear local session even if API logout fails
                 } finally {
                     set({
                         user: null,
@@ -103,7 +138,6 @@ export const useAuthStore = create<AuthState>()(
             },
         }),
 
-        //what to store in localStorage
         {
             name: 'omniprep-auth',
             partialize: (state) => ({
