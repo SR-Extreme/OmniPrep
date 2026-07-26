@@ -146,6 +146,7 @@ export interface SubmissionListItem {
     passedTests: number;
     totalTests: number;
     isSampleRun: boolean;
+    hasEvaluation: boolean;
     createdAt: string;
 }
 

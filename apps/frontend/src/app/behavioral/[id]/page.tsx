@@ -1,8 +1,8 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ApiError } from '@/lib/api/client';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ApiError, isFreeAiReportLimitError } from '@/lib/api/client';
 import {
     createBehavioralSession,
     generateNextBehavioralQuestion,
@@ -14,6 +14,14 @@ import {
     submitBehavioralCandidateQuestions,
     submitBehavioralTurnAnswer,
 } from '@/lib/api/behavioral';
+import {
+    clearPracticeDraft,
+    practiceDraftKey,
+    readPracticeDraft,
+    writePracticeDraft,
+} from '@/lib/practice-drafts';
+import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
+import { BehavioralSubmissionView } from '@/components/behavioral/BehavioralSubmissionView';
 import { useAuthStore } from '@/store/authStore';
 import type { Difficulty } from '@/types/dsa';
 import {
@@ -27,6 +35,17 @@ import {
     type BehavioralSessionListItem,
     type BehavioralTurnDetail,
 } from '@/types/behavioral';
+
+type ExpandedPanel = 'submission' | 'report';
+
+interface BehavioralAnswerDraft {
+    turnId: string | null;
+    answerDraft: string;
+    candidateQuestionsDraft: string;
+    updatedAt: number;
+}
+
+const BEHAVIORAL_DRAFT_DEBOUNCE_MS = 400;
 
 const AI_POLL_INTERVAL_MS = 2000;
 const AI_POLL_MAX_ATTEMPTS = 60;
@@ -242,6 +261,17 @@ export default function BehavioralPracticePage() {
     const [aiReview, setAiReview] = useState<BehavioralEvaluationDetail | null>(null);
     const [isAiReviewLoading, setIsAiReviewLoading] = useState(false);
     const [aiReviewError, setAiReviewError] = useState<string | null>(null);
+    const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [expandedPanel, setExpandedPanel] = useState<ExpandedPanel | null>(null);
+    const [expandedDetail, setExpandedDetail] = useState<BehavioralSessionDetail | null>(null);
+    const [expandedReport, setExpandedReport] = useState<BehavioralEvaluationDetail | null>(null);
+    const [isExpandedLoading, setIsExpandedLoading] = useState(false);
+    const [expandedError, setExpandedError] = useState<string | null>(null);
+
+    const resumeReadyRef = useRef(false);
+    const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const introPhase = question?.phases[0];
     const wrapUpPhase = question?.phases.find((p) => p.type === 'WRAP_UP');
@@ -266,6 +296,10 @@ export default function BehavioralPracticePage() {
     }, [session, question, currentPhase, unansweredTurn]);
 
     const isInterviewComplete = session?.status === 'COMPLETED';
+    const inProgressSession = useMemo(
+        () => historySessions.find((s) => s.status === 'IN_PROGRESS') ?? null,
+        [historySessions],
+    );
 
     useEffect(() => setHydrated(true), []);
 
@@ -278,6 +312,7 @@ export default function BehavioralPracticePage() {
         if (!hydrated || !accessToken || !params?.id) return;
 
         let cancelled = false;
+        resumeReadyRef.current = false;
 
         async function load() {
             setIsQuestionLoading(true);
@@ -297,18 +332,39 @@ export default function BehavioralPracticePage() {
                 if (cancelled) return;
                 setHistorySessions(histRes.sessions);
 
+                // Newest first from API — take the latest in-progress session.
                 const inProgress = histRes.sessions.find((s) => s.status === 'IN_PROGRESS');
                 if (inProgress) {
                     const sRes = await getBehavioralSession(accessToken as string, inProgress.id);
 
                     if (cancelled) return;
                     setSession(sRes.session);
+
+                    const draft = readPracticeDraft<BehavioralAnswerDraft>(
+                        practiceDraftKey('behavioral', sRes.session.id),
+                    );
+                    const openTurn = getUnansweredTurn(sRes.session.turns);
+                    if (draft) {
+                        if (
+                            openTurn &&
+                            draft.turnId === openTurn.id &&
+                            draft.answerDraft
+                        ) {
+                            setAnswerDraft(draft.answerDraft);
+                        }
+                        if (draft.candidateQuestionsDraft) {
+                            setCandidateQuestionsDraft(draft.candidateQuestionsDraft);
+                        }
+                    }
                 }
             } catch (err) {
                 if (cancelled) return;
                 setQuestionError(err instanceof ApiError ? err.message : 'Failed to load question');
             } finally {
-                if (!cancelled) setIsQuestionLoading(false);
+                if (!cancelled) {
+                    setIsQuestionLoading(false);
+                    resumeReadyRef.current = true;
+                }
             }
         }
 
@@ -317,10 +373,53 @@ export default function BehavioralPracticePage() {
     }, [hydrated, accessToken, params?.id]);
 
     useEffect(() => {
-        if (unansweredTurn) {
+        if (!session || !resumeReadyRef.current || session.status !== 'IN_PROGRESS') return;
+
+        if (draftTimerRef.current) {
+            clearTimeout(draftTimerRef.current);
+        }
+
+        const persist = () => {
+            const draft: BehavioralAnswerDraft = {
+                turnId: unansweredTurn?.id ?? null,
+                answerDraft,
+                candidateQuestionsDraft,
+                updatedAt: Date.now(),
+            };
+            writePracticeDraft(practiceDraftKey('behavioral', session.id), draft);
+        };
+
+        draftTimerRef.current = setTimeout(persist, BEHAVIORAL_DRAFT_DEBOUNCE_MS);
+
+        const onHide = () => {
+            if (document.visibilityState === 'hidden') {
+                persist();
+            }
+        };
+        document.addEventListener('visibilitychange', onHide);
+        window.addEventListener('pagehide', persist);
+
+        return () => {
+            if (draftTimerRef.current) {
+                clearTimeout(draftTimerRef.current);
+            }
+            document.removeEventListener('visibilitychange', onHide);
+            window.removeEventListener('pagehide', persist);
+        };
+    }, [session, unansweredTurn?.id, answerDraft, candidateQuestionsDraft]);
+
+    useEffect(() => {
+        if (!session || !unansweredTurn) return;
+
+        const draft = readPracticeDraft<BehavioralAnswerDraft>(
+            practiceDraftKey('behavioral', session.id),
+        );
+        if (draft?.turnId === unansweredTurn.id && draft.answerDraft) {
+            setAnswerDraft(draft.answerDraft);
+        } else {
             setAnswerDraft('');
         }
-    }, [unansweredTurn?.id]);
+    }, [session?.id, unansweredTurn?.id]);
 
     async function refreshHistory(questionId: string) {
         if (!accessToken) return;
@@ -329,10 +428,47 @@ export default function BehavioralPracticePage() {
         setHistorySessions(histRes.sessions);
     }
 
+    async function resumeInProgressSession() {
+        if (!accessToken || !inProgressSession) return;
+
+        setIsBusy(true);
+        setActionError(null);
+        resetAiReview();
+
+        try {
+            const sRes = await getBehavioralSession(accessToken, inProgressSession.id);
+            setSession(sRes.session);
+
+            const draft = readPracticeDraft<BehavioralAnswerDraft>(
+                practiceDraftKey('behavioral', sRes.session.id),
+            );
+            const openTurn = getUnansweredTurn(sRes.session.turns);
+            if (draft) {
+                if (openTurn && draft.turnId === openTurn.id && draft.answerDraft) {
+                    setAnswerDraft(draft.answerDraft);
+                }
+                if (draft.candidateQuestionsDraft) {
+                    setCandidateQuestionsDraft(draft.candidateQuestionsDraft);
+                }
+            }
+        } catch (err) {
+            setActionError(err instanceof ApiError ? err.message : 'Failed to resume interview');
+        } finally {
+            setIsBusy(false);
+        }
+    }
+
     async function handleBeginInterview(e: FormEvent) {
         e.preventDefault();
 
-        if (!accessToken || !question || !resumeFile) return;
+        if (!accessToken || !question) return;
+
+        if (inProgressSession) {
+            await resumeInProgressSession();
+            return;
+        }
+
+        if (!resumeFile) return;
 
         setIsBusy(true);
         setActionError(null);
@@ -383,6 +519,7 @@ export default function BehavioralPracticePage() {
 
             setSession(res.session);
             setAnswerDraft('');
+            clearPracticeDraft(practiceDraftKey('behavioral', session.id));
         } catch (err) {
             setActionError(err instanceof ApiError ? err.message : 'Failed to submit answer');
         } finally {
@@ -404,6 +541,8 @@ export default function BehavioralPracticePage() {
             });
 
             setSession(res.session);
+            setCandidateQuestionsDraft('');
+            clearPracticeDraft(practiceDraftKey('behavioral', session.id));
             if (question) await refreshHistory(question.id);
         } catch (err) {
             setActionError(err instanceof ApiError ? err.message : 'Failed to submit questions');
@@ -417,6 +556,15 @@ export default function BehavioralPracticePage() {
         setAiReview(null);
         setAiReviewError(null);
         setIsAiReviewLoading(false);
+    }
+
+    function resetExpandedState() {
+        setExpandedId(null);
+        setExpandedPanel(null);
+        setExpandedDetail(null);
+        setExpandedReport(null);
+        setIsExpandedLoading(false);
+        setExpandedError(null);
     }
 
     async function handleGenerateAiReview() {
@@ -433,6 +581,11 @@ export default function BehavioralPracticePage() {
 
             if (initial.status === 'completed' && initial.evaluation) {
                 setAiReview(initial.evaluation);
+                setHistorySessions((prev) =>
+                    prev.map((s) =>
+                        s.id === session.id ? { ...s, hasEvaluation: true } : s,
+                    ),
+                );
                 return;
             }
 
@@ -444,7 +597,17 @@ export default function BehavioralPracticePage() {
                 () => cancelled,
             );
             setAiReview(evaluation);
+            setHistorySessions((prev) =>
+                prev.map((s) =>
+                    s.id === session.id ? { ...s, hasEvaluation: true } : s,
+                ),
+            );
         } catch (err) {
+            if (isFreeAiReportLimitError(err)) {
+                setAiReviewVisible(false);
+                setPremiumModalOpen(true);
+                return;
+            }
             setAiReviewError(err instanceof ApiError ? err.message : 'AI review failed');
         } finally {
             cancelled = true;
@@ -452,32 +615,111 @@ export default function BehavioralPracticePage() {
         }
     }
 
-    async function handleLoadHistorySession(sessionId: string) {
+    async function handleViewSubmission(item: BehavioralSessionListItem) {
         if (!accessToken) return;
 
-        setIsBusy(true);
-        setActionError(null);
-        resetAiReview();
+        if (expandedId === item.id && expandedPanel === 'submission') {
+            resetExpandedState();
+            return;
+        }
+
+        setExpandedId(item.id);
+        setExpandedPanel('submission');
+        setExpandedReport(null);
+        setExpandedError(null);
+        setIsExpandedLoading(true);
 
         try {
-            const res = await getBehavioralSession(accessToken, sessionId);
-            setSession(res.session);
+            const res = await getBehavioralSession(accessToken, item.id);
+            setExpandedDetail(res.session);
+        } catch (err) {
+            setExpandedDetail(null);
+            setExpandedError(err instanceof ApiError ? err.message : 'Failed to load submission');
+        } finally {
+            setIsExpandedLoading(false);
+        }
+    }
 
-            if (res.session.status === 'COMPLETED') {
-                const evalRes = await getBehavioralEvaluation(accessToken, sessionId);
-                if (evalRes.status === 'completed' && evalRes.evaluation) {
-                    setAiReview(evalRes.evaluation);
-                    setAiReviewVisible(true);
+    async function handleViewOrGenerateReport(item: BehavioralSessionListItem) {
+        if (!accessToken) return;
+
+        if (expandedId === item.id && expandedPanel === 'report' && item.hasEvaluation) {
+            resetExpandedState();
+            return;
+        }
+
+        if (item.status !== 'COMPLETED' && !item.hasEvaluation) {
+            setExpandedId(item.id);
+            setExpandedPanel('report');
+            setExpandedDetail(null);
+            setExpandedReport(null);
+            setExpandedError('Complete the interview before generating a report.');
+            setIsExpandedLoading(false);
+            return;
+        }
+
+        setExpandedId(item.id);
+        setExpandedPanel('report');
+        setExpandedDetail(null);
+        setExpandedError(null);
+        setIsExpandedLoading(true);
+        setExpandedReport(null);
+
+        let cancelled = false;
+
+        try {
+            if (item.hasEvaluation) {
+                const existing = await getBehavioralEvaluation(accessToken, item.id);
+                if (existing.status === 'completed' && existing.evaluation) {
+                    setExpandedReport(existing.evaluation);
+                    return;
                 }
             }
+
+            const initial = await requestBehavioralEvaluation(accessToken, item.id);
+
+            if (initial.status === 'completed' && initial.evaluation) {
+                setExpandedReport(initial.evaluation);
+                setHistorySessions((prev) =>
+                    prev.map((s) => (s.id === item.id ? { ...s, hasEvaluation: true } : s)),
+                );
+                return;
+            }
+
+            if (initial.status === 'failed') {
+                throw new Error('AI evaluation failed. Please try again.');
+            }
+
+            const evaluation = await pollForBehavioralEvaluation(
+                accessToken,
+                item.id,
+                () => cancelled,
+            );
+            if (cancelled) return;
+            setExpandedReport(evaluation);
+            setHistorySessions((prev) =>
+                prev.map((s) => (s.id === item.id ? { ...s, hasEvaluation: true } : s)),
+            );
         } catch (err) {
-            setActionError(err instanceof ApiError ? err.message : 'Failed to load session');
+            if (cancelled) return;
+            if (isFreeAiReportLimitError(err)) {
+                resetExpandedState();
+                setPremiumModalOpen(true);
+                return;
+            }
+            setExpandedError(err instanceof ApiError ? err.message : 'Failed to load report');
         } finally {
-            setIsBusy(false);
+            cancelled = true;
+            setIsExpandedLoading(false);
         }
     }
 
     function handleStartFresh() {
+        if (inProgressSession) {
+            void resumeInProgressSession();
+            return;
+        }
+
         setSession(null);
         setAnswerDraft('');
         setCandidateQuestionsDraft('');
@@ -553,7 +795,7 @@ export default function BehavioralPracticePage() {
                         <section className="card p-5 shadow-elevated sm:p-6">
                             <div className="mb-4 flex items-center justify-between gap-3">
                                 <h2 className="text-base font-semibold text-zinc-900">Interview</h2>
-                                {session && (
+                                {session && session.status === 'COMPLETED' && !inProgressSession && (
                                     <button type="button" onClick={handleStartFresh} className="text-xs text-zinc-500 hover:text-zinc-800">
                                         Start new interview
                                     </button>
@@ -562,6 +804,22 @@ export default function BehavioralPracticePage() {
 
                             {!session ? (
                                 <div className="space-y-4">
+                                    {inProgressSession ? (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-zinc-600">
+                                                You have an interview in progress. Continue where you left off.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                disabled={isBusy}
+                                                onClick={() => void resumeInProgressSession()}
+                                                className="btn-primary"
+                                            >
+                                                {isBusy ? 'Resuming…' : 'Continue interview'}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
                                     {introPhase && (
                                         <p className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-4 py-3.5 text-sm leading-relaxed text-zinc-700">
                                             {typeof introPhase.content.statement === 'string'
@@ -586,6 +844,8 @@ export default function BehavioralPracticePage() {
                                             {isBusy ? 'Uploading…' : 'Upload resume & begin'}
                                         </button>
                                     </form>
+                                        </>
+                                    )}
                                 </div>
                             ) : isInterviewComplete ? (
                                 <div className="space-y-4">
@@ -710,32 +970,130 @@ export default function BehavioralPracticePage() {
                         <section className="card p-5 shadow-elevated sm:p-6">
                             <h2 className="mb-4 text-base font-semibold text-zinc-900">Submissions</h2>
                             {historySessions.length === 0 ? (
-                                <p className="text-sm text-zinc-500">No past attempts yet.</p>
+                                <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
+                                    No past attempts yet. Complete an interview to see history here.
+                                </div>
                             ) : (
-                                <ul className="space-y-2">
-                                    {historySessions.map((item) => (
-                                        <li key={item.id}>
-                                            <button
-                                                type="button"
-                                                onClick={() => void handleLoadHistorySession(item.id)}
-                                                disabled={isBusy}
-                                                className={`w-full rounded-lg border px-4 py-3 text-left text-sm transition ${session?.id === item.id
-                                                    ? 'border-emerald-300 bg-emerald-50'
-                                                    : 'border-zinc-200 bg-white hover:border-zinc-300'
-                                                    }`}
+                                <ul className="space-y-3">
+                                    {historySessions.map((item) => {
+                                        const isOpen = expandedId === item.id;
+                                        const submittedAt = new Date(item.createdAt).toLocaleString(
+                                            undefined,
+                                            {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                            },
+                                        );
+
+                                        return (
+                                            <li
+                                                key={item.id}
+                                                className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm"
                                             >
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="font-medium text-zinc-900">
-                                                        {new Date(item.createdAt).toLocaleString()}
-                                                    </span>
-                                                    <span className="text-xs text-zinc-500">
-                                                        {item.status === 'COMPLETED' ? 'Completed' : 'In progress'}
-                                                        {item.hasEvaluation ? ' · Reviewed' : ''}
-                                                    </span>
+                                                <div className="px-4 py-3.5">
+                                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <span
+                                                                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                                                                        item.status === 'COMPLETED'
+                                                                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                                                                            : 'bg-sky-50 text-sky-700 ring-sky-600/20'
+                                                                    }`}
+                                                                >
+                                                                    {item.status === 'COMPLETED'
+                                                                        ? 'COMPLETED'
+                                                                        : 'IN PROGRESS'}
+                                                                </span>
+                                                                {item.hasEvaluation && (
+                                                                    <span className="text-xs text-zinc-400">
+                                                                        Reviewed
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs text-zinc-500">
+                                                                {submittedAt}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    void handleViewSubmission(item)
+                                                                }
+                                                                className="btn-secondary !py-1.5 !text-xs"
+                                                            >
+                                                                {isOpen &&
+                                                                expandedPanel === 'submission'
+                                                                    ? 'Hide submission'
+                                                                    : 'View submission'}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    void handleViewOrGenerateReport(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                                className="btn-primary !py-1.5 !text-xs"
+                                                            >
+                                                                {isOpen &&
+                                                                expandedPanel === 'report' &&
+                                                                item.hasEvaluation
+                                                                    ? 'Hide report'
+                                                                    : item.hasEvaluation
+                                                                      ? 'View report'
+                                                                      : isOpen &&
+                                                                          expandedPanel ===
+                                                                              'report' &&
+                                                                          isExpandedLoading
+                                                                        ? 'Generating…'
+                                                                        : 'Generate report'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </button>
-                                        </li>
-                                    ))}
+
+                                                {isOpen && (
+                                                    <div className="border-t border-zinc-100 bg-zinc-50/60 px-4 py-4">
+                                                        {isExpandedLoading && (
+                                                            <div className="flex flex-col items-center gap-3 py-8 text-center">
+                                                                <span className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-200 border-t-emerald-600" />
+                                                                <p className="text-sm text-zinc-600">
+                                                                    {expandedPanel === 'report'
+                                                                        ? 'Loading report…'
+                                                                        : 'Loading submission…'}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {expandedError && !isExpandedLoading && (
+                                                            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                                                                {expandedError}
+                                                            </div>
+                                                        )}
+                                                        {!isExpandedLoading &&
+                                                            !expandedError &&
+                                                            expandedPanel === 'submission' &&
+                                                            expandedDetail && (
+                                                                <BehavioralSubmissionView
+                                                                    session={expandedDetail}
+                                                                />
+                                                            )}
+                                                        {!isExpandedLoading &&
+                                                            !expandedError &&
+                                                            expandedPanel === 'report' &&
+                                                            expandedReport && (
+                                                                <BehavioralEvaluationReport
+                                                                    evaluation={expandedReport}
+                                                                />
+                                                            )}
+                                                    </div>
+                                                )}
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             )}
                         </section>
@@ -743,6 +1101,12 @@ export default function BehavioralPracticePage() {
                 )}
             </main>
 
+            <PremiumRequiredModal
+                open={premiumModalOpen}
+                onOpenChange={setPremiumModalOpen}
+                title="Free AI report used"
+                description="Free users get one AI report for Behavioral. Upgrade to Premium for unlimited AI reviews across all practice sections."
+            />
         </div>
     );
 }

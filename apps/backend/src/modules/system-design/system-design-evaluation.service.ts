@@ -9,6 +9,7 @@ import {
     enqueueSystemDesignEvaluation,
     getSystemDesignEvalJobState,
 } from '../../services/QueueService.js';
+import { assertCanGenerateAiReport } from '../../services/freeAiReport.service.js';
 import {
     computeOverallScore,
     parseEvaluationMetrics,
@@ -25,7 +26,8 @@ export class SystemDesignEvaluationError extends Error {
             | 'NOT_FOUND'
             | 'FORBIDDEN'
             | 'INVALID_INPUT'
-            | 'SERVICE_UNAVAILABLE',
+            | 'SERVICE_UNAVAILABLE'
+            | 'FREE_AI_REPORT_LIMIT',
     ) {
         super(message);
         this.name = 'SystemDesignEvaluationError';
@@ -195,6 +197,8 @@ export async function requestSystemDesignEvaluation(
     if (existing) {
         return { status: 'completed', evaluation: existing };
     }
+
+    await assertCanGenerateAiReport(userId, 'system-design', role);
 
     const evaluationMetrics = parseEvaluationMetrics(
         submission.question.evaluationMetrics,

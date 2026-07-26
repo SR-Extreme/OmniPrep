@@ -9,6 +9,7 @@ import {
     enqueueBehavioralEvaluation,
     getBehavioralEvalJobState,
 } from '../../services/QueueService.js';
+import { assertCanGenerateAiReport } from '../../services/freeAiReport.service.js';
 import {
     parseAnswerHighlight,
     parseBehavioralEvaluationMetrics,
@@ -23,7 +24,8 @@ export class BehavioralEvaluationError extends Error {
             | 'NOT_FOUND'
             | 'FORBIDDEN'
             | 'INVALID_INPUT'
-            | 'SERVICE_UNAVAILABLE',
+            | 'SERVICE_UNAVAILABLE'
+            | 'FREE_AI_REPORT_LIMIT',
     ) {
         super(message);
         this.name = 'BehavioralEvaluationError';
@@ -213,6 +215,8 @@ export async function requestBehavioralEvaluation(
     if (existing) {
         return { status: 'completed', evaluation: existing };
     }
+
+    await assertCanGenerateAiReport(userId, 'behavioral', role);
 
     const transcript = buildTranscriptForCache(session.turns);
 

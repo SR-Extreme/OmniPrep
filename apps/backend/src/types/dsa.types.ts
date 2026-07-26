@@ -107,16 +107,53 @@ export function getStarterCodeForLanguage(starterCode: StarterCode, language: Pr
     return starterCode[key];
 }
 
-//input and exp_output are removed from the row and rest put in safe for hiddentestcases
-export function redactHiddenTestResults(
+export type TestCaseIoMeta = {
+    id: string;
+    isHidden: boolean;
+    input: string;
+    expectedOutput: string;
+};
+
+/**
+ * Visible cases keep full I/O. Hidden cases are redacted except the first
+ * failing case, which exposes input / expected / actual for debugging.
+ */
+export function prepareTestResultsForClient(
     results: SubmissionTestResult[],
-    hiddenTestCaseIds: ReadonlySet<string>,
+    testCases: ReadonlyArray<TestCaseIoMeta>,
 ): SubmissionTestResult[] {
-    return results.map((row) => {
-        if (!hiddenTestCaseIds.has(row.testCaseId)) {
-            return row;
+    const byId = new Map(testCases.map((tc) => [tc.id, tc]));
+    const firstFailIndex = results.findIndex((row) => row.status === 'FAILED');
+
+    return results.map((row, index) => {
+        const tc = byId.get(row.testCaseId);
+        const isHidden = tc?.isHidden ?? false;
+
+        if (!isHidden) {
+            return {
+                ...row,
+                input: row.input ?? tc?.input,
+                expectedOutput: row.expectedOutput ?? tc?.expectedOutput,
+            };
         }
-        const { input: _in, expectedOutput: _exp, ...safe } = row;
-        return safe;
+
+        if (index === firstFailIndex) {
+            return {
+                testCaseId: row.testCaseId,
+                status: row.status,
+                input: row.input ?? tc?.input,
+                expectedOutput: row.expectedOutput ?? tc?.expectedOutput,
+                actualOutput: row.actualOutput,
+                executionTimeMs: row.executionTimeMs,
+                memoryKb: row.memoryKb,
+            };
+        }
+
+        return {
+            testCaseId: row.testCaseId,
+            status: row.status,
+            executionTimeMs: row.executionTimeMs,
+            memoryKb: row.memoryKb,
+        };
     });
 }

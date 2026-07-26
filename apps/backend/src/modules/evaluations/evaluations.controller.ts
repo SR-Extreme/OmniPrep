@@ -1,6 +1,9 @@
 import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/auth.middleware.js';
 import {
+    FreeAiReportLimitError,
+} from '../../services/freeAiReport.service.js';
+import {
     EvaluationError,
     getDSAEvaluation,
     requestDSAEvaluation,
@@ -12,15 +15,24 @@ function sendValidationError(res: Response, details: unknown): void {
 }
 
 function handleEvaluationError(res: Response, err: unknown): void {
+    if (err instanceof FreeAiReportLimitError) {
+        res.status(403).json({ error: err.message, code: err.code });
+        return;
+    }
+
     if (err instanceof EvaluationError) {
         const statusByCode: Record<EvaluationError['code'], number> = {
             NOT_FOUND: 404,
             FORBIDDEN: 403,
             SAMPLE_RUN_NOT_ALLOWED: 400,
             SERVICE_UNAVAILABLE: 503,
+            FREE_AI_REPORT_LIMIT: 403,
         };
 
-        res.status(statusByCode[err.code]).json({ error: err.message });
+        res.status(statusByCode[err.code]).json({
+            error: err.message,
+            code: err.code,
+        });
         return;
     }
 

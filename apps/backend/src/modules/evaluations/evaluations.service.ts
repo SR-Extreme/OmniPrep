@@ -10,6 +10,7 @@ import {
     enqueueAIEvaluation,
     getAIEvalJobState,
 } from '../../services/QueueService.js';
+import { assertCanGenerateAiReport } from '../../services/freeAiReport.service.js';
 
 export class EvaluationError extends Error {
     constructor(
@@ -18,7 +19,8 @@ export class EvaluationError extends Error {
             | 'NOT_FOUND'
             | 'FORBIDDEN'
             | 'SAMPLE_RUN_NOT_ALLOWED'
-            | 'SERVICE_UNAVAILABLE',
+            | 'SERVICE_UNAVAILABLE'
+            | 'FREE_AI_REPORT_LIMIT',
     ) {
         super(message);
         this.name = 'EvaluationError';
@@ -227,6 +229,8 @@ export async function requestDSAEvaluation(
     if (existing) {
         return { status: 'completed', evaluation: existing };
     }
+
+    await assertCanGenerateAiReport(userId, 'dsa', role);
 
     const cacheKey = buildEvaluationCacheKey(
         submission.problemId,

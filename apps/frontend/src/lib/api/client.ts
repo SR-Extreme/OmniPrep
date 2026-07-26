@@ -4,10 +4,21 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 //to get extra details in error (error.message,error.status,error.details)
 export class ApiError extends Error {
-    constructor(message: string, public readonly status: number, public readonly details?: unknown) {
+    constructor(
+        message: string,
+        public readonly status: number,
+        public readonly details?: unknown,
+        public readonly code?: string,
+    ) {
         super(message);
         this.name = 'ApiError';
     }
+}
+
+export const FREE_AI_REPORT_LIMIT_CODE = 'FREE_AI_REPORT_LIMIT';
+
+export function isFreeAiReportLimitError(err: unknown): boolean {
+    return err instanceof ApiError && err.code === FREE_AI_REPORT_LIMIT_CODE;
 }
 
 export type ApiRequestOptions = {
@@ -39,7 +50,15 @@ function parseErrorPayload(data: unknown, status: number): ApiError {
             ? (data as { details: unknown }).details
             : undefined;
 
-    return new ApiError(message, status, details);
+    const code =
+        typeof data === 'object' &&
+            data != null &&
+            'code' in data &&
+            typeof (data as { code: unknown }).code === 'string'
+            ? (data as { code: string }).code
+            : undefined;
+
+    return new ApiError(message, status, details, code);
 }
 
 async function readResponseBody(response: Response): Promise<unknown> {

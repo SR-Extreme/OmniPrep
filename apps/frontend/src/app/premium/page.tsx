@@ -1,7 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { CheckCircle2, Sparkles } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PracticeAuthLoading } from '@/components/practice/PracticeListShell';
@@ -121,28 +122,40 @@ export default function PremiumPage() {
                         className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-emerald-400 via-emerald-600 to-emerald-700"
                         aria-hidden="true"
                     />
-                    <div className="relative p-5 sm:p-6 lg:p-8">
-                        <h1 className="mt-3 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl xl:text-4xl">
-                            Unlock full mock interviews
-                        </h1>
-                        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500 sm:text-base">
-                            Choose one plan at a time. Mock interviews, AI reports, study
-                            plans, and hiring recommendations are included.
-                        </p>
-                        <ul className="mt-6 grid gap-2.5 sm:grid-cols-1 lg:max-w-2xl">
-                            {HIGHLIGHTS.map((point) => (
-                                <li
-                                    key={point}
-                                    className="flex items-start gap-2.5 text-sm leading-relaxed text-zinc-700"
-                                >
-                                    <CheckCircle2
-                                        className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-                                        aria-hidden="true"
-                                    />
-                                    {point}
-                                </li>
-                            ))}
-                        </ul>
+                    <div className="relative grid lg:grid-cols-[1.65fr_0.9fr]">
+                        <div className="min-w-0 p-5 sm:p-6 lg:p-8">
+                            <h1 className="mt-3 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl xl:text-4xl">
+                                Unlock full mock interviews
+                            </h1>
+                            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500 sm:text-base">
+                                Choose one plan at a time. Mock interviews, AI reports, study
+                                plans, and hiring recommendations are included.
+                            </p>
+                            <ul className="mt-6 grid gap-2.5 sm:grid-cols-1 lg:max-w-2xl">
+                                {HIGHLIGHTS.map((point) => (
+                                    <li
+                                        key={point}
+                                        className="flex items-start gap-2.5 text-sm leading-relaxed text-zinc-700"
+                                    >
+                                        <CheckCircle2
+                                            className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
+                                            aria-hidden="true"
+                                        />
+                                        {point}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div className="relative hidden min-h-[280px] overflow-hidden border-l border-zinc-100 lg:block">
+                            <Image
+                                src="/illustrations/premium-hero.png"
+                                alt="OmniPrep premium upgrade on a laptop"
+                                fill
+                                priority
+                                sizes="(max-width: 1024px) 0vw, 35vw"
+                                className="object-cover object-center"
+                            />
+                        </div>
                     </div>
                 </motion.section>
 

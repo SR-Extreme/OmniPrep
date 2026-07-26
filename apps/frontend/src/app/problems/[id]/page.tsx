@@ -2,12 +2,20 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import { ApiError } from '@/lib/api/client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ApiError, isFreeAiReportLimitError } from '@/lib/api/client';
 import { getDSAEvaluation, requestDSAEvaluation, type ComplexityAnalysis, type DSAEvaluationDetail } from '@/lib/api/evaluations';
 import { getProblem } from '@/lib/api/problems';
-import { createSubmission } from '@/lib/api/submissions';
+import { createSubmission, getSubmission, listMySubmissions } from '@/lib/api/submissions';
+import {
+    practiceDraftKey,
+    readPracticeDraft,
+    writePracticeDraft,
+} from '@/lib/practice-drafts';
 import { MonacoEditor } from '@/components/MonacoEditor';
+import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
+import { RevealSection } from '@/components/RevealSection';
+import { SubmissionResultView } from '@/components/dsa/SubmissionResultView';
 import { useAuthStore } from '@/store/authStore';
 import {
     PROGRAMMING_LANGUAGES,
@@ -15,7 +23,20 @@ import {
     type ProgrammingLanguage,
     type ProblemDetail,
     type SubmissionDetail,
+    type SubmissionListItem,
 } from '@/types/dsa';
+
+type LeftTab = 'problem' | 'results' | 'submissions';
+
+interface DsaPracticeDraft {
+    language: ProgrammingLanguage;
+    codeByLang: Record<ProgrammingLanguage, string>;
+    activeTab: LeftTab;
+    lastSubmissionId: string | null;
+    updatedAt: number;
+}
+
+const DSA_DRAFT_DEBOUNCE_MS = 400;
 
 function difficultyPill(difficulty: ProblemDetail['difficulty']): string {
     switch (difficulty) {
@@ -332,6 +353,18 @@ async function pollForEvaluation(
     throw new Error('AI evaluation timed out. Please try again.');
 }
 
+function statusPill(status: SubmissionListItem['status']): string {
+    if (status === 'ACCEPTED') {
+        return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20';
+    }
+    if (status === 'PENDING' || status === 'RUNNING') {
+        return 'bg-sky-50 text-sky-700 ring-sky-600/20';
+    }
+    return 'bg-rose-50 text-rose-700 ring-rose-600/20';
+}
+
+type ExpandedPanel = 'submission' | 'report';
+
 export default function ProblemSolverPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
@@ -351,7 +384,7 @@ export default function ProblemSolverPage() {
         PYTHON: '',
     });
 
-    const [activeTab, setActiveTab] = useState<'problem' | 'results'>('problem');
+    const [activeTab, setActiveTab] = useState<LeftTab>('problem');
 
     const [isRunning, setIsRunning] = useState(false);
     const [runError, setRunError] = useState<string | null>(null);
@@ -361,6 +394,22 @@ export default function ProblemSolverPage() {
     const [aiReview, setAiReview] = useState<DSAEvaluationDetail | null>(null);
     const [isAiReviewLoading, setIsAiReviewLoading] = useState(false);
     const [aiReviewError, setAiReviewError] = useState<string | null>(null);
+
+    const [mySubmissions, setMySubmissions] = useState<SubmissionListItem[]>([]);
+    const [isSubmissionsLoading, setIsSubmissionsLoading] = useState(false);
+    const [submissionsError, setSubmissionsError] = useState<string | null>(null);
+    const [submissionsLoadedFor, setSubmissionsLoadedFor] = useState<string | null>(null);
+
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [expandedPanel, setExpandedPanel] = useState<ExpandedPanel | null>(null);
+    const [expandedDetail, setExpandedDetail] = useState<SubmissionDetail | null>(null);
+    const [expandedReport, setExpandedReport] = useState<DSAEvaluationDetail | null>(null);
+    const [isExpandedLoading, setIsExpandedLoading] = useState(false);
+    const [expandedError, setExpandedError] = useState<string | null>(null);
+    const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+
+    const resumeReadyRef = useRef(false);
+    const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         setHydrated(true);
@@ -378,10 +427,13 @@ export default function ProblemSolverPage() {
         if (!hydrated || !accessToken) return;
 
         let cancelled = false;
+        resumeReadyRef.current = false;
 
         async function load() {
             setIsProblemLoading(true);
             setProblemError(null);
+            setLastSubmission(null);
+            resetAiReviewState();
 
             try {
                 const id = params?.id;
@@ -394,19 +446,119 @@ export default function ProblemSolverPage() {
 
                 setProblem(res.problem);
 
-                const starter = res.problem.starterCode;
+                const starter = {
+                    CPP: res.problem.starterCode?.cpp ?? '',
+                    JAVA: res.problem.starterCode?.java ?? '',
+                    PYTHON: res.problem.starterCode?.python ?? '',
+                };
 
-                setCodeByLang({
-                    CPP: starter?.cpp ?? '',
-                    JAVA: starter?.java ?? '',
-                    PYTHON: starter?.python ?? '',
-                });
+                const draftKey = practiceDraftKey('dsa', res.problem.id);
+                const draft = readPracticeDraft<DsaPracticeDraft>(draftKey);
+
+                let nextCode = starter;
+                let nextLanguage: ProgrammingLanguage = 'PYTHON';
+                let nextTab: LeftTab = 'problem';
+                let resumeSubmissionId: string | null = draft?.lastSubmissionId ?? null;
+
+                if (draft?.codeByLang) {
+                    nextCode = {
+                        CPP: draft.codeByLang.CPP ?? starter.CPP,
+                        JAVA: draft.codeByLang.JAVA ?? starter.JAVA,
+                        PYTHON: draft.codeByLang.PYTHON ?? starter.PYTHON,
+                    };
+                    if (PROGRAMMING_LANGUAGES.includes(draft.language)) {
+                        nextLanguage = draft.language;
+                    }
+                    if (
+                        draft.activeTab === 'problem' ||
+                        draft.activeTab === 'results' ||
+                        draft.activeTab === 'submissions'
+                    ) {
+                        nextTab = draft.activeTab;
+                    }
+                }
+
+                try {
+                    const history = await listMySubmissions(accessToken as string, {
+                        problemId: res.problem.id,
+                        limit: 20,
+                    });
+                    if (cancelled) return;
+
+                    const fullSubs = history.submissions.filter((s) => !s.isSampleRun);
+                    setMySubmissions(fullSubs);
+                    setSubmissionsLoadedFor(res.problem.id);
+
+                    const latest = history.submissions[0] ?? null;
+                    if (!resumeSubmissionId && latest) {
+                        resumeSubmissionId = latest.id;
+                    }
+
+                    if (!draft?.codeByLang && latest) {
+                        const latestDetail = await getSubmission(
+                            accessToken as string,
+                            latest.id,
+                        );
+                        if (cancelled) return;
+                        nextLanguage = latestDetail.submission.language;
+                        nextCode = {
+                            ...starter,
+                            [latestDetail.submission.language]:
+                                latestDetail.submission.sourceCode,
+                        };
+                        setLastSubmission(latestDetail.submission);
+                        if (nextTab === 'problem' && !latestDetail.submission.isSampleRun) {
+                            nextTab = 'results';
+                        }
+                        resumeSubmissionId = latestDetail.submission.id;
+                    } else if (resumeSubmissionId) {
+                        const detail = await getSubmission(
+                            accessToken as string,
+                            resumeSubmissionId,
+                        );
+                        if (cancelled) return;
+                        setLastSubmission(detail.submission);
+
+                        if (
+                            detail.submission.status === 'ACCEPTED' ||
+                            !detail.submission.isSampleRun
+                        ) {
+                            try {
+                                const evalRes = await getDSAEvaluation(
+                                    accessToken as string,
+                                    detail.submission.id,
+                                );
+                                if (
+                                    !cancelled &&
+                                    evalRes.status === 'completed' &&
+                                    evalRes.evaluation
+                                ) {
+                                    setAiReview(evalRes.evaluation);
+                                    setAiReviewVisible(true);
+                                }
+                            } catch {
+                                // No report yet — fine.
+                            }
+                        }
+                    }
+                } catch {
+                    // History restore is best-effort; problem + draft still load.
+                }
+
+                if (cancelled) return;
+
+                setCodeByLang(nextCode);
+                setLanguage(nextLanguage);
+                setActiveTab(nextTab);
             } catch (err) {
                 if (cancelled) return;
                 const message = err instanceof ApiError ? err.message : 'Failed to load problem';
                 setProblemError(message);
             } finally {
-                if (!cancelled) setIsProblemLoading(false);
+                if (!cancelled) {
+                    setIsProblemLoading(false);
+                    resumeReadyRef.current = true;
+                }
             }
         }
 
@@ -415,23 +567,90 @@ export default function ProblemSolverPage() {
         return () => {
             cancelled = true;
         };
+        // resetAiReviewState is stable enough via inline; intentionally omit
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hydrated, accessToken, params?.id]);
 
-    const editorValue = codeByLang[language];
+    useEffect(() => {
+        if (!problem || !resumeReadyRef.current) return;
 
-    const stats = useMemo(() => {
-        if (!lastSubmission) return null;
-        const passed = lastSubmission.passedTests;
-        const total = lastSubmission.totalTests;
-        const pct = total > 0 ? ((passed / total) * 100).toFixed(2) : 0;
-        return { passed, total, pct };
-    }, [lastSubmission]);
+        if (draftTimerRef.current) {
+            clearTimeout(draftTimerRef.current);
+        }
+
+        const persist = () => {
+            const draft: DsaPracticeDraft = {
+                language,
+                codeByLang,
+                activeTab,
+                lastSubmissionId: lastSubmission?.id ?? null,
+                updatedAt: Date.now(),
+            };
+            writePracticeDraft(practiceDraftKey('dsa', problem.id), draft);
+        };
+
+        draftTimerRef.current = setTimeout(persist, DSA_DRAFT_DEBOUNCE_MS);
+
+        const onHide = () => {
+            if (document.visibilityState === 'hidden') {
+                persist();
+            }
+        };
+        document.addEventListener('visibilitychange', onHide);
+        window.addEventListener('pagehide', persist);
+
+        return () => {
+            if (draftTimerRef.current) {
+                clearTimeout(draftTimerRef.current);
+            }
+            document.removeEventListener('visibilitychange', onHide);
+            window.removeEventListener('pagehide', persist);
+        };
+    }, [problem, language, codeByLang, activeTab, lastSubmission]);
+
+    const loadSubmissions = useCallback(async (problemId: string, force = false) => {
+        if (!accessToken) return;
+        if (!force && submissionsLoadedFor === problemId) return;
+
+        setIsSubmissionsLoading(true);
+        setSubmissionsError(null);
+
+        try {
+            const res = await listMySubmissions(accessToken, {
+                problemId,
+                limit: 50,
+            });
+            setMySubmissions(res.submissions.filter((s) => !s.isSampleRun));
+            setSubmissionsLoadedFor(problemId);
+        } catch (err) {
+            const message = err instanceof ApiError ? err.message : 'Failed to load submissions';
+            setSubmissionsError(message);
+        } finally {
+            setIsSubmissionsLoading(false);
+        }
+    }, [accessToken, submissionsLoadedFor]);
+
+    useEffect(() => {
+        if (activeTab !== 'submissions' || !problem) return;
+        void loadSubmissions(problem.id);
+    }, [activeTab, problem, loadSubmissions]);
+
+    const editorValue = codeByLang[language];
 
     function resetAiReviewState() {
         setAiReviewVisible(false);
         setAiReview(null);
         setAiReviewError(null);
         setIsAiReviewLoading(false);
+    }
+
+    function resetExpandedState() {
+        setExpandedId(null);
+        setExpandedPanel(null);
+        setExpandedDetail(null);
+        setExpandedReport(null);
+        setIsExpandedLoading(false);
+        setExpandedError(null);
     }
 
     function setEditorValue(next: string) {
@@ -456,6 +675,19 @@ export default function ProblemSolverPage() {
 
             setLastSubmission(res.submission);
             setActiveTab('results');
+
+            writePracticeDraft(practiceDraftKey('dsa', problem.id), {
+                language,
+                codeByLang,
+                activeTab: 'results',
+                lastSubmissionId: res.submission.id,
+                updatedAt: Date.now(),
+            } satisfies DsaPracticeDraft);
+
+            if (!isSampleRun) {
+                setSubmissionsLoadedFor(null);
+                resetExpandedState();
+            }
         } catch (err) {
             const message = err instanceof ApiError ? err.message : 'Submission failed';
             setRunError(message);
@@ -480,6 +712,11 @@ export default function ProblemSolverPage() {
 
             if (initial.status === 'completed' && initial.evaluation) {
                 setAiReview(initial.evaluation);
+                setMySubmissions((prev) =>
+                    prev.map((s) =>
+                        s.id === lastSubmission.id ? { ...s, hasEvaluation: true } : s,
+                    ),
+                );
                 return;
             }
 
@@ -487,19 +724,117 @@ export default function ProblemSolverPage() {
                 throw new Error('AI evaluation failed. Please try again.');
             }
 
-            //if pending
             const evaluation = await pollForEvaluation(
                 accessToken,
                 lastSubmission.id,
                 isCancelled,
             );
             setAiReview(evaluation);
+            setMySubmissions((prev) =>
+                prev.map((s) =>
+                    s.id === lastSubmission.id ? { ...s, hasEvaluation: true } : s,
+                ),
+            );
         } catch (err) {
+            if (isFreeAiReportLimitError(err)) {
+                setAiReviewVisible(false);
+                setPremiumModalOpen(true);
+                return;
+            }
             const message = err instanceof ApiError ? err.message : 'AI review failed';
             setAiReviewError(message);
         } finally {
             cancelled = true;
             setIsAiReviewLoading(false);
+        }
+    }
+
+    async function handleViewSubmission(item: SubmissionListItem) {
+        if (!accessToken) return;
+
+        if (expandedId === item.id && expandedPanel === 'submission') {
+            resetExpandedState();
+            return;
+        }
+
+        setExpandedId(item.id);
+        setExpandedPanel('submission');
+        setExpandedReport(null);
+        setExpandedError(null);
+        setIsExpandedLoading(true);
+
+        try {
+            const res = await getSubmission(accessToken, item.id);
+            setExpandedDetail(res.submission);
+        } catch (err) {
+            setExpandedDetail(null);
+            setExpandedError(err instanceof ApiError ? err.message : 'Failed to load submission');
+        } finally {
+            setIsExpandedLoading(false);
+        }
+    }
+
+    async function handleViewOrGenerateReport(item: SubmissionListItem) {
+        if (!accessToken) return;
+
+        if (expandedId === item.id && expandedPanel === 'report' && item.hasEvaluation) {
+            resetExpandedState();
+            return;
+        }
+
+        setExpandedId(item.id);
+        setExpandedPanel('report');
+        setExpandedDetail(null);
+        setExpandedError(null);
+        setIsExpandedLoading(true);
+        setExpandedReport(null);
+
+        let cancelled = false;
+
+        try {
+            if (item.hasEvaluation) {
+                const existing = await getDSAEvaluation(accessToken, item.id);
+                if (existing.status === 'completed' && existing.evaluation) {
+                    setExpandedReport(existing.evaluation);
+                    return;
+                }
+            }
+
+            const initial = await requestDSAEvaluation(accessToken, item.id);
+
+            if (initial.status === 'completed' && initial.evaluation) {
+                setExpandedReport(initial.evaluation);
+                setMySubmissions((prev) =>
+                    prev.map((s) => (s.id === item.id ? { ...s, hasEvaluation: true } : s)),
+                );
+                return;
+            }
+
+            if (initial.status === 'failed') {
+                throw new Error('AI evaluation failed. Please try again.');
+            }
+
+            const evaluation = await pollForEvaluation(
+                accessToken,
+                item.id,
+                () => cancelled,
+            );
+            if (cancelled) return;
+            setExpandedReport(evaluation);
+            setMySubmissions((prev) =>
+                prev.map((s) => (s.id === item.id ? { ...s, hasEvaluation: true } : s)),
+            );
+        } catch (err) {
+            if (cancelled) return;
+            if (isFreeAiReportLimitError(err)) {
+                resetExpandedState();
+                setPremiumModalOpen(true);
+                return;
+            }
+            setExpandedError(err instanceof ApiError ? err.message : 'Failed to load report');
+        } finally {
+            cancelled = true;
+            setIsExpandedLoading(false);
         }
     }
 
@@ -510,6 +845,14 @@ export default function ProblemSolverPage() {
             </div>
         );
     }
+
+    const tabButtonClass = (tab: LeftTab) =>
+        [
+            'flex-1 border-b-2 px-3 py-2.5 text-sm font-medium transition duration-150',
+            activeTab === tab
+                ? 'border-emerald-600 bg-white text-emerald-700'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800',
+        ].join(' ');
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-zinc-50">
@@ -539,47 +882,32 @@ export default function ProblemSolverPage() {
                                         {problem.difficulty.charAt(0) + problem.difficulty.slice(1).toLowerCase()}
                                     </span>
                                 </div>
-                                {problem.topics.length > 0 && (
-                                    <div className="mt-3 flex flex-wrap gap-1.5">
-                                        {problem.topics.map((t) => (
-                                            <span
-                                                key={t}
-                                                className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-600"
-                                            >
-                                                {t}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                             <div className="flex border-b border-zinc-200 bg-zinc-50/50">
                                 <button
                                     type="button"
                                     onClick={() => setActiveTab('problem')}
-                                    className={[
-                                        'flex-1 border-b-2 px-4 py-2.5 text-sm font-medium transition duration-150',
-                                        activeTab === 'problem'
-                                            ? 'border-emerald-600 bg-white text-emerald-700'
-                                            : 'border-transparent text-zinc-500 hover:text-zinc-800',
-                                    ].join(' ')}
+                                    className={tabButtonClass('problem')}
                                 >
                                     Problem
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setActiveTab('results')}
-                                    className={[
-                                        'flex-1 border-b-2 px-4 py-2.5 text-sm font-medium transition duration-150',
-                                        activeTab === 'results'
-                                            ? 'border-emerald-600 bg-white text-emerald-700'
-                                            : 'border-transparent text-zinc-500 hover:text-zinc-800',
-                                    ].join(' ')}
+                                    className={tabButtonClass('results')}
                                 >
                                     Results
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('submissions')}
+                                    className={tabButtonClass('submissions')}
+                                >
+                                    Submissions
+                                </button>
                             </div>
                             <div className="max-h-[calc(100vh-220px)] space-y-6 overflow-y-auto px-5 py-5">
-                                {activeTab === 'problem' ? (
+                                {activeTab === 'problem' && (
                                     <>
                                         <div>
                                             <SectionTitle>Description</SectionTitle>
@@ -605,15 +933,28 @@ export default function ProblemSolverPage() {
                                                 </div>
                                             </div>
                                         )}
+                                        {problem.topics.length > 0 && (
+                                            <RevealSection title="Topics" count={problem.topics.length}>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {problem.topics.map((t) => (
+                                                        <span
+                                                            key={t}
+                                                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-600"
+                                                        >
+                                                            {t}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </RevealSection>
+                                        )}
                                         {problem.hints && problem.hints.length > 0 && (
-                                            <div>
-                                                <SectionTitle>Hints</SectionTitle>
-                                                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-600">
+                                            <RevealSection title="Hints" count={problem.hints.length}>
+                                                <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-600">
                                                     {problem.hints.map((h, idx) => (
                                                         <li key={idx}>{h}</li>
                                                     ))}
                                                 </ul>
-                                            </div>
+                                            </RevealSection>
                                         )}
                                         <div className="grid grid-cols-2 gap-3 text-xs">
                                             <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
@@ -626,7 +967,9 @@ export default function ProblemSolverPage() {
                                             </div>
                                         </div>
                                     </>
-                                ) : (
+                                )}
+
+                                {activeTab === 'results' && (
                                     <>
                                         {runError && (
                                             <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -639,91 +982,7 @@ export default function ProblemSolverPage() {
                                             </div>
                                         ) : (
                                             <div className="space-y-4">
-                                                <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-                                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                                        <div>
-                                                            <p className="section-label">Status</p>
-                                                            <p className="mt-1 text-base font-semibold text-zinc-900">
-                                                                {lastSubmission.status}
-                                                            </p>
-                                                        </div>
-                                                        {stats && (
-                                                            <div className="text-right">
-                                                                <p className="section-label">Tests</p>
-                                                                <p className="mt-1 text-base font-semibold text-zinc-900">
-                                                                    {stats.passed}/{stats.total} ({stats.pct}%)
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="mt-3 text-xs text-zinc-500">
-                                                        {lastSubmission.isSampleRun ? 'Sample run (visible tests only)' : 'Full submission'}
-                                                    </div>
-                                                </div>
-                                                {lastSubmission.compileOutput && (
-                                                    <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-                                                        <p className="section-label mb-2">Compile output</p>
-                                                        <pre className="overflow-x-auto font-mono text-xs text-zinc-800">
-                                                            {lastSubmission.compileOutput}
-                                                        </pre>
-                                                    </div>
-                                                )}
-                                                {lastSubmission.stderr && (
-                                                    <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-                                                        <p className="section-label mb-2">Stderr</p>
-                                                        <pre className="overflow-x-auto font-mono text-xs text-zinc-800">
-                                                            {lastSubmission.stderr}
-                                                        </pre>
-                                                    </div>
-                                                )}
-                                                {lastSubmission.stdout && (
-                                                    <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-                                                        <p className="section-label mb-2">Stdout</p>
-                                                        <pre className="overflow-x-auto font-mono text-xs text-zinc-800">
-                                                            {lastSubmission.stdout}
-                                                        </pre>
-                                                    </div>
-                                                )}
-                                                {lastSubmission.testResults && lastSubmission.testResults.length > 0 && (
-                                                    <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-                                                        <p className="section-label mb-3">Test results</p>
-                                                        <ul className="space-y-2">
-                                                            {lastSubmission.testResults.map((row, idx) => (
-                                                                <li
-                                                                    key={`${row.testCaseId}-${idx}`}
-                                                                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
-                                                                >
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span
-                                                                            className={[
-                                                                                'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                                                                                row.status === 'PASSED'
-                                                                                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'
-                                                                                    : 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20',
-                                                                            ].join(' ')}
-                                                                        >
-                                                                            {row.status}
-                                                                        </span>
-                                                                        <span className="text-xs text-zinc-400">
-                                                                            {row.testCaseId}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-3 text-xs text-zinc-500">
-                                                                        {row.executionTimeMs != null && (
-                                                                            <span>{Math.round(row.executionTimeMs)} ms</span>
-                                                                        )}
-                                                                        {row.memoryKb != null && (
-                                                                            <span>{row.memoryKb} KB</span>
-                                                                        )}
-                                                                    </div>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                        <p className="mt-3 text-xs text-zinc-400">
-                                                            Hidden test case I/O is redacted by design.
-                                                        </p>
-                                                    </div>
-                                                )}
+                                                <SubmissionResultView submission={lastSubmission} />
 
                                                 {!lastSubmission.isSampleRun && (
                                                     <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
@@ -770,6 +1029,135 @@ export default function ProblemSolverPage() {
                                             </div>
                                         )}
                                     </>
+                                )}
+
+                                {activeTab === 'submissions' && (
+                                    <div className="space-y-4">
+                                        {submissionsError && (
+                                            <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                                                {submissionsError}
+                                            </div>
+                                        )}
+
+                                        {isSubmissionsLoading && mySubmissions.length === 0 ? (
+                                            <div className="flex items-center justify-center gap-2 py-12 text-sm text-zinc-500">
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
+                                                Loading submissions…
+                                            </div>
+                                        ) : mySubmissions.length === 0 ? (
+                                            <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
+                                                No submissions yet. Submit a solution to see history here.
+                                            </div>
+                                        ) : (
+                                            <ul className="space-y-3">
+                                                {mySubmissions.map((item) => {
+                                                    const isOpen = expandedId === item.id;
+                                                    const submittedAt = new Date(item.createdAt).toLocaleString(
+                                                        undefined,
+                                                        {
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                        },
+                                                    );
+
+                                                    return (
+                                                        <li
+                                                            key={item.id}
+                                                            className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm"
+                                                        >
+                                                            <div className="px-4 py-3.5">
+                                                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                                                    <div className="space-y-1.5">
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <span
+                                                                                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${statusPill(item.status)}`}
+                                                                            >
+                                                                                {item.status}
+                                                                            </span>
+                                                                            <span className="text-xs text-zinc-500">
+                                                                                {item.language}
+                                                                            </span>
+                                                                            <span className="text-xs text-zinc-400">
+                                                                                {item.passedTests}/{item.totalTests} tests
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-xs text-zinc-500">{submittedAt}</p>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => void handleViewSubmission(item)}
+                                                                            className="btn-secondary !py-1.5 !text-xs"
+                                                                        >
+                                                                            {isOpen && expandedPanel === 'submission'
+                                                                                ? 'Hide submission'
+                                                                                : 'View submission'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => void handleViewOrGenerateReport(item)}
+                                                                            className="btn-primary !py-1.5 !text-xs"
+                                                                        >
+                                                                            {isOpen &&
+                                                                            expandedPanel === 'report' &&
+                                                                            item.hasEvaluation
+                                                                                ? 'Hide report'
+                                                                                : item.hasEvaluation
+                                                                                    ? 'View report'
+                                                                                    : isOpen &&
+                                                                                        expandedPanel === 'report' &&
+                                                                                        isExpandedLoading
+                                                                                        ? 'Generating…'
+                                                                                        : 'Generate report'}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {isOpen && (
+                                                                <div className="border-t border-zinc-100 bg-zinc-50/60 px-4 py-4">
+                                                                    {isExpandedLoading && (
+                                                                        <div className="flex flex-col items-center gap-3 py-8 text-center">
+                                                                            <span className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-200 border-t-emerald-600" />
+                                                                            <p className="text-sm text-zinc-600">
+                                                                                {expandedPanel === 'report'
+                                                                                    ? 'Loading report…'
+                                                                                    : 'Loading submission…'}
+                                                                            </p>
+                                                                        </div>
+                                                                    )}
+                                                                    {expandedError && !isExpandedLoading && (
+                                                                        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                                                                            {expandedError}
+                                                                        </div>
+                                                                    )}
+                                                                    {!isExpandedLoading &&
+                                                                        !expandedError &&
+                                                                        expandedPanel === 'submission' &&
+                                                                        expandedDetail && (
+                                                                            <SubmissionResultView
+                                                                                submission={expandedDetail}
+                                                                                showSourceCode
+                                                                            />
+                                                                        )}
+                                                                    {!isExpandedLoading &&
+                                                                        !expandedError &&
+                                                                        expandedPanel === 'report' &&
+                                                                        expandedReport && (
+                                                                            <AIEvaluationReport
+                                                                                evaluation={expandedReport}
+                                                                            />
+                                                                        )}
+                                                                </div>
+                                                            )}
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </section>
@@ -825,6 +1213,12 @@ export default function ProblemSolverPage() {
                     </div>
                 ) : null}
             </main>
+            <PremiumRequiredModal
+                open={premiumModalOpen}
+                onOpenChange={setPremiumModalOpen}
+                title="Free AI report used"
+                description="Free users get one AI report for DSA. Upgrade to Premium for unlimited AI reviews across all practice sections."
+            />
         </div>
     );
 }

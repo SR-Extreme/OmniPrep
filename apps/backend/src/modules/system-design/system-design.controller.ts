@@ -1,5 +1,6 @@
 import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/auth.middleware.js';
+import { FreeAiReportLimitError } from '../../services/freeAiReport.service.js';
 import {
     SystemDesignEvaluationError,
     getSystemDesignEvaluation,
@@ -54,15 +55,24 @@ function handleSystemDesignError(err: unknown, res: Response): void {
 }
 
 function handleSystemDesignEvaluationError(err: unknown, res: Response): void {
+    if (err instanceof FreeAiReportLimitError) {
+        res.status(403).json({ error: err.message, code: err.code });
+        return;
+    }
+
     if (err instanceof SystemDesignEvaluationError) {
         const statusByCode: Record<SystemDesignEvaluationError['code'], number> = {
             NOT_FOUND: 404,
             FORBIDDEN: 403,
             INVALID_INPUT: 400,
             SERVICE_UNAVAILABLE: 503,
+            FREE_AI_REPORT_LIMIT: 403,
         };
 
-        res.status(statusByCode[err.code]).json({ error: err.message });
+        res.status(statusByCode[err.code]).json({
+            error: err.message,
+            code: err.code,
+        });
         return;
     }
 

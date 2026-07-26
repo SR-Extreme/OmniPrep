@@ -3,7 +3,7 @@ import { prisma } from "../../config/db.js";
 import { executeCode, Judge0Error, type Judge0ExecuteResult } from "../../services/Judge0Service.js";
 import { buildProblemSignature } from "../../services/problem-runner/parseSignature.js";
 import { wrapSubmissionCode } from "../../services/problem-runner/codeWrapper.js";
-import { redactHiddenTestResults, type SubmissionTestResult } from "../../types/dsa.types.js";
+import { prepareTestResultsForClient, type SubmissionTestResult } from "../../types/dsa.types.js";
 import type { CreateSubmissionInput, ListMySubmissionsQuery } from "./submissions.validation.js";
 
 export class SubmissionError extends Error {
@@ -26,6 +26,7 @@ export interface SubmissionListItem {
     passedTests: number;
     totalTests: number;
     isSampleRun: boolean;
+    hasEvaluation: boolean;
     createdAt: Date;
 }
 export interface SubmissionDetail {
@@ -83,11 +84,11 @@ function buildStoredTestResult(
         memoryKb: result.memoryKb ?? undefined,
     };
 
-    if (!testCase.isHidden) {
+    // Visible cases always keep I/O. Failed cases (incl. hidden) store I/O so
+    // the API can reveal the first failure for debugging.
+    if (!testCase.isHidden || !passed) {
         row.input = testCase.input;
         row.expectedOutput = testCase.expectedOutput;
-        row.actualOutput = result.stdout ?? undefined;
-    } else if (!passed) {
         row.actualOutput = result.stdout ?? undefined;
     }
     return row;
@@ -137,6 +138,7 @@ function toSubmissionListItem(submission: {
     isSampleRun: boolean;
     createdAt: Date;
     problem: { title: string; slug: string };
+    dsaEvaluation: { id: string } | null;
 }): SubmissionListItem {
     return {
         id: submission.id,
@@ -148,6 +150,7 @@ function toSubmissionListItem(submission: {
         passedTests: submission.passedTests,
         totalTests: submission.totalTests,
         isSampleRun: submission.isSampleRun,
+        hasEvaluation: submission.dsaEvaluation != null,
         createdAt: submission.createdAt,
     };
 }
@@ -170,17 +173,22 @@ function toSubmissionDetail(
         isSampleRun: boolean;
         createdAt: Date;
         updatedAt: Date;
-        problem: { testCases: { id: string; isHidden: boolean }[] };
+        problem: {
+            testCases: {
+                id: string;
+                isHidden: boolean;
+                input: string;
+                expectedOutput: string;
+            }[];
+        };
     },
 ): SubmissionDetail {
     const parsed = parseTestResultsJson(submission.testResults);
-    const hiddenIds = new Set(
-        submission.problem.testCases
-            .filter((tc) => tc.isHidden)
-            .map((tc) => tc.id),
-    );
     const testResults =
-        parsed != null ? redactHiddenTestResults(parsed, hiddenIds) : null;
+        parsed != null
+            ? prepareTestResultsForClient(parsed, submission.problem.testCases)
+            : null;
+    const isAccepted = submission.status === "ACCEPTED";
     return {
         id: submission.id,
         problemId: submission.problemId,
@@ -190,7 +198,8 @@ function toSubmissionDetail(
         passedTests: submission.passedTests,
         totalTests: submission.totalTests,
         testResults,
-        stdout: submission.stdout,
+        // Accepted runs don't need program stdout in the client.
+        stdout: isAccepted ? null : submission.stdout,
         stderr: submission.stderr,
         compileOutput: submission.compileOutput,
         executionTimeMs: submission.executionTimeMs,
@@ -247,7 +256,14 @@ export async function createSubmission(
         include: {
             problem: {
                 include: {
-                    testCases: { select: { id: true, isHidden: true } },
+                    testCases: {
+                        select: {
+                            id: true,
+                            isHidden: true,
+                            input: true,
+                            expectedOutput: true,
+                        },
+                    },
                 },
             },
         },
@@ -384,7 +400,14 @@ async function runSubmissionTests(
         include: {
             problem: {
                 include: {
-                    testCases: { select: { id: true, isHidden: true } },
+                    testCases: {
+                        select: {
+                            id: true,
+                            isHidden: true,
+                            input: true,
+                            expectedOutput: true,
+                        },
+                    },
                 },
             },
         },
@@ -409,7 +432,14 @@ export async function getSubmissionById(
         include: {
             problem: {
                 include: {
-                    testCases: { select: { id: true, isHidden: true } },
+                    testCases: {
+                        select: {
+                            id: true,
+                            isHidden: true,
+                            input: true,
+                            expectedOutput: true,
+                        },
+                    },
                 },
             },
         },
@@ -442,6 +472,9 @@ export async function listMySubmissions(
             include: {
                 problem: {
                     select: { title: true, slug: true },
+                },
+                dsaEvaluation: {
+                    select: { id: true },
                 },
             },
         }),
