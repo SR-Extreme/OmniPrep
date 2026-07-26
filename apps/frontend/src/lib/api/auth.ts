@@ -3,6 +3,7 @@ import type {
     AuthResult,
     ForgotPasswordBody,
     LoginBody,
+    LoginResponse,
     MeResponse,
     MessageResponse,
     OtpChallengeResponse,
@@ -18,8 +19,10 @@ export type {
     AuthResult,
     AuthTokens,
     AuthUser,
+    DirectLoginResponse,
     ForgotPasswordBody,
     LoginBody,
+    LoginResponse,
     MeResponse,
     MessageResponse,
     OtpChallengeResponse,
@@ -36,9 +39,8 @@ export function signup(body: SignupBody): Promise<MessageResponse> {
     return apiRequest<MessageResponse>('/api/auth/signup', { method: 'POST', body });
 }
 
-/** Validates credentials and sends OTP — does not return JWTs */
-export function login(body: LoginBody): Promise<OtpChallengeResponse> {
-    return apiRequest<OtpChallengeResponse>('/api/auth/login', {
+export function login(body: LoginBody): Promise<LoginResponse> {
+    return apiRequest<LoginResponse>('/api/auth/login', {
         method: 'POST',
         body,
     });

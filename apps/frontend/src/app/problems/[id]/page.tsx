@@ -34,7 +34,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function CodeBlock({ value }: { value: string }) {
     return (
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs text-zinc-800">
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs text-zinc-800">
             <code>{value}</code>
         </pre>
     );
@@ -42,7 +42,7 @@ function CodeBlock({ value }: { value: string }) {
 
 function ExampleCard({ example, index }: { example: Example; index: number }) {
     return (
-        <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-4">
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
             <p className="mb-3 text-sm font-medium text-zinc-900">Example {index + 1}</p>
             <div className="space-y-3">
                 <div>
@@ -201,7 +201,7 @@ function AIEvaluationReport({ evaluation }: { evaluation: DSAEvaluationDetail })
     });
 
     return (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-card">
+        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-card">
             <div className="border-b border-zinc-100 bg-gradient-to-r from-zinc-50 via-white to-emerald-50/40 px-5 py-5 sm:px-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -505,39 +505,36 @@ export default function ProblemSolverPage() {
 
     if (!hydrated || !accessToken) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                <div className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                    Loading…
-                </div>
+            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-7xl px-6 py-6">
+        <div className="min-h-screen overflow-x-hidden bg-zinc-50">
+            <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
                 {isProblemLoading ? (
-                    <div className="card flex items-center justify-center gap-2 px-6 py-20 text-zinc-500">
+                    <div className="card flex items-center justify-center gap-2 px-6 py-20 text-sm text-zinc-500">
                         <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
                         Loading problem…
                     </div>
                 ) : problemError ? (
-                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-6 py-5 text-rose-700">
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-5 text-rose-700">
                         <p className="font-medium">Couldn&apos;t load this problem</p>
                         <p className="mt-1 text-sm">{problemError}</p>
                         <div className="mt-4">
-                            <Link href="/problems" className="btn-secondary">
+                            <Link href="/problems" className="btn-secondary !rounded-xl">
                                 Back to problems
                             </Link>
                         </div>
                     </div>
                 ) : problem ? (
                     <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
-                        <section className="card overflow-hidden">
+                        <section className="card overflow-hidden shadow-elevated">
                             <div className="border-b border-zinc-200 px-5 py-4">
                                 <div className="flex flex-wrap items-center gap-2.5">
-                                    <h1 className="text-lg font-semibold text-zinc-900">{problem.title}</h1>
+                                    <h1 className="text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl">{problem.title}</h1>
                                     <span className={difficultyPill(problem.difficulty)}>
                                         {problem.difficulty.charAt(0) + problem.difficulty.slice(1).toLowerCase()}
                                     </span>
@@ -777,9 +774,9 @@ export default function ProblemSolverPage() {
                             </div>
                         </section>
 
-                        <section className="card overflow-hidden">
+                        <section className="card overflow-hidden shadow-elevated">
                             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-5 py-3.5">
-                                <p className="text-sm font-medium text-zinc-900">OmniPrep's Editor</p>
+                                <p className="text-sm font-semibold text-zinc-900">Code editor</p>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <select
                                         value={language}

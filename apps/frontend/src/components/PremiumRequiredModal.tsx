@@ -1,7 +1,7 @@
 'use client';
 
+import { Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -26,26 +26,35 @@ export function PremiumRequiredModal({
 }: PremiumRequiredModalProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md overflow-hidden">
+                <div
+                    className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-emerald-400 via-emerald-600 to-emerald-700"
+                    aria-hidden="true"
+                />
                 <DialogHeader>
-                    <p className="section-label">OmniPrep Premium</p>
-                    <DialogTitle>{title}</DialogTitle>
+                    <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                        <Sparkles className="h-3 w-3" aria-hidden="true" />
+                        OmniPrep Premium
+                    </span>
+                    <DialogTitle className="mt-2">{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
                 <DialogFooter className="mt-2">
-                    <Button
+                    <button
                         type="button"
-                        variant="secondary"
+                        className="btn-secondary !rounded-xl"
                         onClick={() => onOpenChange(false)}
                     >
                         Not now
-                    </Button>
-                    <Button asChild>
-                        <Link href="/premium" onClick={() => onOpenChange(false)}>
-                            Upgrade Now
-                        </Link>
-                    </Button>
+                    </button>
+                    <Link
+                        href="/premium"
+                        onClick={() => onOpenChange(false)}
+                        className="btn-primary !rounded-xl"
+                    >
+                        Upgrade Now
+                    </Link>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

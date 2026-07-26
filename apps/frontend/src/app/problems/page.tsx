@@ -1,14 +1,33 @@
-"use client";
+'use client';
 
-import Link from 'next/link';
+import { Code2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
+import { PracticePageHero } from '@/components/practice/PracticePageHero';
+import {
+    PracticeAuthLoading,
+    PracticeEmptyState,
+    PracticeErrorAlert,
+    PracticeFilterCard,
+    PracticeListHeader,
+    PracticeListItem,
+    PracticeLoadingState,
+    PracticePageShell,
+    PracticePagination,
+    TopicTag,
+} from '@/components/practice/PracticeListShell';
 import { listProblems } from '@/lib/api/problems';
 import { ApiError } from '@/lib/api/client';
 import { useAuthStore } from '@/store/authStore';
 import { DIFFICULTIES, type Difficulty, type ListProblemsQuery, type ProblemListItem } from '@/types/dsa';
 
 const PAGE_SIZE = 20;
+
+const HIGHLIGHTS = [
+    'Curated interview-style problems across arrays, trees, graphs, and DP',
+    'Run sample tests and submit full solutions with instant judge feedback',
+    'Filter by difficulty, topic, and search to build a focused practice loop',
+] as const;
 
 type AppliedFilters = Pick<ListProblemsQuery, 'difficulty' | 'topic' | 'search'>;
 
@@ -127,215 +146,161 @@ export default function ProblemsPage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                <div className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                    Loading…
-                </div>
-            </div>
-        );
+        return <PracticeAuthLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-6xl px-6 py-10">
-                <div className="mb-8">
-                    <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
-                        Problem set
-                    </h1>
-                    <p className="mt-2 text-sm text-zinc-500 sm:text-base">
-                        Practice DSA problems with sample runs and full submissions.
-                    </p>
-                </div>
+        <PracticePageShell>
+            <PracticePageHero
+                eyebrow="DSA practice"
+                title="Problem set"
+                description="Practice interview-style data structures and algorithms with sample runs, full submissions, and instant judge feedback—so you know exactly where you stand."
+                highlights={HIGHLIGHTS}
+                imageSrc="/illustrations/dsa.png"
+                imageAlt="DSA practice illustration"
+                icon={Code2}
+            />
 
-                <section className="card mb-8 p-5 sm:p-6">
-                    <form
-                        onSubmit={handleFilterSubmit}
-                        className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
-                    >
-                        <div>
-                            <label
-                                htmlFor="difficulty"
-                                className="block text-sm font-medium text-zinc-700"
-                            >
-                                Difficulty
-                            </label>
-                            <select
-                                id="difficulty"
-                                value={difficulty}
-                                onChange={(e) =>
-                                    setDifficulty(e.target.value as Difficulty | '')
-                                }
-                                className="select-base mt-1.5"
-                            >
-                                <option value="">All levels</option>
-                                {DIFFICULTIES.map((level) => (
-                                    <option key={level} value={level}>
-                                        {level.charAt(0) + level.slice(1).toLowerCase()}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label
-                                htmlFor="topic"
-                                className="block text-sm font-medium text-zinc-700"
-                            >
-                                Topic
-                            </label>
-                            <input
-                                id="topic"
-                                type="text"
-                                value={topic}
-                                onChange={(e) => setTopic(e.target.value)}
-                                placeholder="e.g. Array"
-                                className="input-base mt-1.5"
-                            />
-                        </div>
-
-                        <div className="md:col-span-2">
-                            <label
-                                htmlFor="search"
-                                className="block text-sm font-medium text-zinc-700"
-                            >
-                                Search
-                            </label>
-                            <input
-                                id="search"
-                                type="text"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search by title or slug"
-                                className="input-base mt-1.5"
-                            />
-                        </div>
-
-                        <div className="flex items-end gap-2 md:col-span-2 lg:col-span-4">
-                            <button type="submit" className="btn-primary">
-                                Apply filters
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleClearFilters}
-                                className="btn-secondary"
-                            >
-                                Clear
-                            </button>
-                        </div>
-                    </form>
-                </section>
-
-                <section>
-                    <div className="mb-4 flex items-center justify-between">
-                        <p className="text-sm text-zinc-500">
-                            {total} problem{total === 1 ? '' : 's'}
-                        </p>
-                        {isLoading && (
-                            <p className="flex items-center gap-2 text-sm text-zinc-400">
-                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                                Loading…
-                            </p>
-                        )}
+            <PracticeFilterCard>
+                <form
+                    onSubmit={handleFilterSubmit}
+                    className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+                >
+                    <div>
+                        <label
+                            htmlFor="difficulty"
+                            className="block text-sm font-medium text-zinc-700"
+                        >
+                            Difficulty
+                        </label>
+                        <select
+                            id="difficulty"
+                            value={difficulty}
+                            onChange={(e) =>
+                                setDifficulty(e.target.value as Difficulty | '')
+                            }
+                            className="select-base mt-1.5"
+                        >
+                            <option value="">All levels</option>
+                            {DIFFICULTIES.map((level) => (
+                                <option key={level} value={level}>
+                                    {level.charAt(0) + level.slice(1).toLowerCase()}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
-                    {error && (
-                        <div
-                            className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-                            role="alert"
+                    <div>
+                        <label
+                            htmlFor="topic"
+                            className="block text-sm font-medium text-zinc-700"
                         >
-                            {error}
-                        </div>
-                    )}
+                            Topic
+                        </label>
+                        <input
+                            id="topic"
+                            type="text"
+                            value={topic}
+                            onChange={(e) => setTopic(e.target.value)}
+                            placeholder="e.g. Array"
+                            className="input-base mt-1.5"
+                        />
+                    </div>
 
-                    {!isLoading && problems.length === 0 && !error && (
-                        <div className="card px-6 py-14 text-center">
-                            <p className="text-base font-medium text-zinc-900">No problems found</p>
-                            <p className="mt-2 text-sm text-zinc-500">
-                                Try adjusting your filters or search query.
-                            </p>
-                        </div>
-                    )}
+                    <div className="md:col-span-2">
+                        <label
+                            htmlFor="search"
+                            className="block text-sm font-medium text-zinc-700"
+                        >
+                            Search
+                        </label>
+                        <input
+                            id="search"
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search by title or slug"
+                            className="input-base mt-1.5"
+                        />
+                    </div>
 
-                    <ul className="space-y-2">
-                        {problems.map((problem) => (
-                            <li key={problem.id}>
-                                <Link
-                                    href={`/problems/${problem.slug}`}
-                                    className="group block rounded-lg border border-zinc-200 bg-white px-5 py-4 shadow-soft transition duration-150 hover:border-emerald-300 hover:shadow-card"
-                                >
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2.5">
-                                                <h2 className="truncate text-base font-medium text-zinc-900 group-hover:text-emerald-700">
-                                                    {problem.title}
-                                                </h2>
-                                                <span className={difficultyBadgeClass(problem.difficulty)}>
-                                                    {problem.difficulty.charAt(0) +
-                                                        problem.difficulty.slice(1).toLowerCase()}
-                                                </span>
-                                            </div>
-                                            <p className="mt-0.5 truncate text-sm text-zinc-400">
-                                                {problem.slug}
-                                            </p>
-                                        </div>
-                                        <div className="flex shrink-0 flex-wrap items-center gap-4 text-sm">
-                                            <span className="text-zinc-500">
-                                                Acceptance{' '}
-                                                <span className="font-medium text-zinc-800">
-                                                    {formatAcceptance(problem.acceptanceRate)}
-                                                </span>
+                    <div className="flex items-end gap-2 md:col-span-2 lg:col-span-4">
+                        <button type="submit" className="btn-primary !rounded-xl">
+                            Apply filters
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearFilters}
+                            className="btn-secondary"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </form>
+            </PracticeFilterCard>
+
+            <section className="space-y-4 border-t border-zinc-200/80 pt-8 sm:pt-10">
+                <PracticeListHeader
+                    title="Problems"
+                    subtitle={`${total} problem${total === 1 ? '' : 's'} · Open any problem to code and submit`}
+                    isLoading={isLoading}
+                />
+
+                {error ? <PracticeErrorAlert message={error} /> : null}
+
+                {isLoading && problems.length === 0 ? (
+                    <PracticeLoadingState label="Loading problems…" />
+                ) : !isLoading && problems.length === 0 && !error ? (
+                    <PracticeEmptyState
+                        title="No problems found"
+                        description="Try adjusting your filters or search query."
+                    />
+                ) : (
+                    <ul className="grid grid-cols-1 gap-3 sm:gap-4">
+                        {problems.map((problem, index) => (
+                            <PracticeListItem
+                                key={problem.id}
+                                href={`/problems/${problem.slug}`}
+                                title={problem.title}
+                                subtitle={problem.slug}
+                                icon={Code2}
+                                index={index}
+                                badge={
+                                    <span className={difficultyBadgeClass(problem.difficulty)}>
+                                        {problem.difficulty.charAt(0) +
+                                            problem.difficulty.slice(1).toLowerCase()}
+                                    </span>
+                                }
+                                meta={
+                                    <>
+                                        <span className="text-xs text-zinc-500">
+                                            Acceptance{' '}
+                                            <span className="font-medium text-zinc-800">
+                                                {formatAcceptance(problem.acceptanceRate)}
                                             </span>
-                                            {problem.topics.length > 0 && (
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {problem.topics.slice(0, 3).map((tag) => (
-                                                        <span
-                                                            key={tag}
-                                                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-600"
-                                                        >
-                                                            {tag}
-                                                        </span>
-                                                    ))}
-                                                    {problem.topics.length > 3 && (
-                                                        <span className="text-xs text-zinc-400">
-                                                            +{problem.topics.length - 3}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </Link>
-                            </li>
+                                        </span>
+                                        {problem.topics.slice(0, 3).map((tag) => (
+                                            <TopicTag key={tag}>{tag}</TopicTag>
+                                        ))}
+                                        {problem.topics.length > 3 ? (
+                                            <span className="text-xs text-zinc-400">
+                                                +{problem.topics.length - 3}
+                                            </span>
+                                        ) : null}
+                                    </>
+                                }
+                            />
                         ))}
                     </ul>
+                )}
 
-                    {totalPages > 1 && (
-                        <div className="mt-8 flex items-center justify-center gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                disabled={page <= 1 || isLoading}
-                                className="btn-secondary"
-                            >
-                                Previous
-                            </button>
-                            <span className="text-sm text-zinc-500">
-                                Page {page} of {totalPages}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                disabled={page >= totalPages || isLoading}
-                                className="btn-secondary"
-                            >
-                                Next
-                            </button>
-                        </div>
-                    )}
-                </section>
-            </main>
-        </div>
+                <PracticePagination
+                    page={page}
+                    totalPages={totalPages}
+                    isLoading={isLoading}
+                    onPageChange={setPage}
+                />
+            </section>
+        </PracticePageShell>
     );
 }

@@ -1,8 +1,20 @@
-"use client";
+'use client';
 
-import Link from 'next/link';
+import { MessagesSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
+import { PracticePageHero } from '@/components/practice/PracticePageHero';
+import {
+    PracticeAuthLoading,
+    PracticeEmptyState,
+    PracticeErrorAlert,
+    PracticeFilterCard,
+    PracticeListHeader,
+    PracticeListItem,
+    PracticeLoadingState,
+    PracticePageShell,
+    PracticePagination,
+} from '@/components/practice/PracticeListShell';
 import { ApiError } from '@/lib/api/client';
 import { listBehavioralQuestions } from '@/lib/api/behavioral';
 import { useAuthStore } from '@/store/authStore';
@@ -13,6 +25,12 @@ import type {
 } from '@/types/behavioral';
 
 const PAGE_SIZE = 20;
+
+const HIGHLIGHTS = [
+    'Company- and role-specific mocks with resume-aware AI questions',
+    'Full interview flow with on-demand STAR-based review',
+    'Filter by company, role, and difficulty to practice what matters',
+] as const;
 
 type AppliedFilters = Pick<
     ListBehavioralQuestionsQuery,
@@ -133,215 +151,166 @@ export default function BehavioralPage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                <div className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                    Loading…
-                </div>
-            </div>
-        );
+        return <PracticeAuthLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-6xl px-6 py-10">
-                {/*introduction*/}
-                <div className="mb-8">
-                    <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
-                        Behavioral interviews
-                    </h1>
-                    <p className="mt-2 text-sm text-zinc-500 sm:text-base">
-                        Practice company- and role-specific behavioral mock interviews with resume-aware AI questions and on-demand review.
-                    </p>
-                </div>
+        <PracticePageShell>
+            <PracticePageHero
+                eyebrow="Behavioral"
+                title="Behavioral interviews"
+                description="Practice company- and role-specific behavioral mocks with resume-aware AI questions, a full interview flow, and on-demand STAR-based review—so your stories land clearly."
+                highlights={HIGHLIGHTS}
+                imageSrc="/illustrations/behavioral.png"
+                imageAlt="Behavioral interview illustration"
+                icon={MessagesSquare}
+            />
 
-                {/*Filter Section*/}
-                <section className="card mb-8 p-5 sm:p-6">
-                    <form
-                        onSubmit={handleFilterSubmit}
-                        className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
-                    >
-                        <div>
-                            <label
-                                htmlFor="company"
-                                className="block text-sm font-medium text-zinc-700"
-                            >
-                                Company
-                            </label>
-                            <select
-                                id="company"
-                                value={company}
-                                onChange={(e) => setCompany(e.target.value)}
-                                className="select-base mt-1.5"
-                            >
-                                <option value="">All companies</option>
-                                {companies.map((name) => (
-                                    <option key={name} value={name}>
-                                        {name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label
-                                htmlFor="role"
-                                className="block text-sm font-medium text-zinc-700"
-                            >
-                                Role
-                            </label>
-                            <select
-                                id="role"
-                                value={role}
-                                onChange={(e) => setRole(e.target.value)}
-                                className="select-base mt-1.5"
-                            >
-                                <option value="">All roles</option>
-                                {roles.map((name) => (
-                                    <option key={name} value={name}>
-                                        {name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label
-                                htmlFor="difficulty"
-                                className="block text-sm font-medium text-zinc-700"
-                            >
-                                Difficulty
-                            </label>
-                            <select
-                                id="difficulty"
-                                value={difficulty}
-                                onChange={(e) =>
-                                    setDifficulty(e.target.value as Difficulty | '')
-                                }
-                                className="select-base mt-1.5"
-                            >
-                                <option value="">All levels</option>
-                                {DIFFICULTIES.map((level) => (
-                                    <option key={level} value={level}>
-                                        {level.charAt(0) + level.slice(1).toLowerCase()}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="md:col-span-2 lg:col-span-4">
-                            <label
-                                htmlFor="search"
-                                className="block text-sm font-medium text-zinc-700"
-                            >
-                                Search
-                            </label>
-                            <input
-                                id="search"
-                                type="text"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search by title, company, or role"
-                                className="input-base mt-1.5"
-                            />
-                        </div>
-                        <div className="flex items-end gap-2 md:col-span-2 lg:col-span-4">
-                            <button type="submit" className="btn-primary">
-                                Apply filters
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleClearFilters}
-                                className="btn-secondary"
-                            >
-                                Clear
-                            </button>
-                        </div>
-                    </form>
-                </section>
-
-                {/*display of questionList & pageSlider*/}
-                <section>
-                    <div className="mb-4 flex items-center justify-between">
-                        <p className="text-sm text-zinc-500">
-                            {total} question{total === 1 ? '' : 's'}
-                        </p>
-                        {isLoading && (
-                            <p className="flex items-center gap-2 text-sm text-zinc-400">
-                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                                Loading…
-                            </p>
-                        )}
-                    </div>
-                    {error && (
-                        <div
-                            className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-                            role="alert"
+            <PracticeFilterCard>
+                <form
+                    onSubmit={handleFilterSubmit}
+                    className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+                >
+                    <div>
+                        <label
+                            htmlFor="company"
+                            className="block text-sm font-medium text-zinc-700"
                         >
-                            {error}
-                        </div>
-                    )}
-                    {!isLoading && questions.length === 0 && !error && (
-                        <div className="card px-6 py-14 text-center">
-                            <p className="text-base font-medium text-zinc-900">No questions found</p>
-                            <p className="mt-2 text-sm text-zinc-500">
-                                Try adjusting your filters or search query.
-                            </p>
-                        </div>
-                    )}
-                    <ul className="space-y-2">
-                        {questions.map((question) => (
-                            <li key={question.id}>
-                                <Link
-                                    href={`/behavioral/${question.slug}`}
-                                    className="group block rounded-lg border border-zinc-200 bg-white px-5 py-4 shadow-soft transition duration-150 hover:border-emerald-300 hover:shadow-card"
-                                >
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2.5">
-                                                <h2 className="truncate text-base font-medium text-zinc-900 group-hover:text-emerald-700">
-                                                    {question.title}
-                                                </h2>
-                                                <span className={difficultyBadgeClass(question.difficulty)}>
-                                                    {question.difficulty.charAt(0) +
-                                                        question.difficulty.slice(1).toLowerCase()}
-                                                </span>
-                                            </div>
-                                            <p className="mt-0.5 truncate text-sm text-zinc-500">
-                                                {question.companyName} · {question.roleName}
-                                            </p>
-                                            <p className="mt-0.5 truncate text-sm text-zinc-400">
-                                                {question.slug}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </Link>
-                            </li>
+                            Company
+                        </label>
+                        <select
+                            id="company"
+                            value={company}
+                            onChange={(e) => setCompany(e.target.value)}
+                            className="select-base mt-1.5"
+                        >
+                            <option value="">All companies</option>
+                            {companies.map((name) => (
+                                <option key={name} value={name}>
+                                    {name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            htmlFor="role"
+                            className="block text-sm font-medium text-zinc-700"
+                        >
+                            Role
+                        </label>
+                        <select
+                            id="role"
+                            value={role}
+                            onChange={(e) => setRole(e.target.value)}
+                            className="select-base mt-1.5"
+                        >
+                            <option value="">All roles</option>
+                            {roles.map((name) => (
+                                <option key={name} value={name}>
+                                    {name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            htmlFor="difficulty"
+                            className="block text-sm font-medium text-zinc-700"
+                        >
+                            Difficulty
+                        </label>
+                        <select
+                            id="difficulty"
+                            value={difficulty}
+                            onChange={(e) =>
+                                setDifficulty(e.target.value as Difficulty | '')
+                            }
+                            className="select-base mt-1.5"
+                        >
+                            <option value="">All levels</option>
+                            {DIFFICULTIES.map((level) => (
+                                <option key={level} value={level}>
+                                    {level.charAt(0) + level.slice(1).toLowerCase()}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-4">
+                        <label
+                            htmlFor="search"
+                            className="block text-sm font-medium text-zinc-700"
+                        >
+                            Search
+                        </label>
+                        <input
+                            id="search"
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search by title, company, or role"
+                            className="input-base mt-1.5"
+                        />
+                    </div>
+                    <div className="flex items-end gap-2 md:col-span-2 lg:col-span-4">
+                        <button type="submit" className="btn-primary !rounded-xl">
+                            Apply filters
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearFilters}
+                            className="btn-secondary"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </form>
+            </PracticeFilterCard>
+
+            <section className="space-y-4 border-t border-zinc-200/80 pt-8 sm:pt-10">
+                <PracticeListHeader
+                    title="Interview prompts"
+                    subtitle={`${total} question${total === 1 ? '' : 's'} · Start a session to practice and get reviewed`}
+                    isLoading={isLoading}
+                />
+
+                {error ? <PracticeErrorAlert message={error} /> : null}
+
+                {isLoading && questions.length === 0 ? (
+                    <PracticeLoadingState label="Loading questions…" />
+                ) : !isLoading && questions.length === 0 && !error ? (
+                    <PracticeEmptyState
+                        title="No questions found"
+                        description="Try adjusting your filters or search query."
+                    />
+                ) : (
+                    <ul className="grid grid-cols-1 gap-3 sm:gap-4">
+                        {questions.map((question, index) => (
+                            <PracticeListItem
+                                key={question.id}
+                                href={`/behavioral/${question.slug}`}
+                                title={question.title}
+                                subtitle={`${question.companyName} · ${question.roleName}`}
+                                icon={MessagesSquare}
+                                index={index}
+                                badge={
+                                    <span className={difficultyBadgeClass(question.difficulty)}>
+                                        {question.difficulty.charAt(0) +
+                                            question.difficulty.slice(1).toLowerCase()}
+                                    </span>
+                                }
+                            />
                         ))}
                     </ul>
-                    {totalPages > 1 && (
-                        <div className="mt-8 flex items-center justify-center gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                disabled={page <= 1 || isLoading}
-                                className="btn-secondary"
-                            >
-                                Previous
-                            </button>
-                            <span className="text-sm text-zinc-500">
-                                Page {page} of {totalPages}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                disabled={page >= totalPages || isLoading}
-                                className="btn-secondary"
-                            >
-                                Next
-                            </button>
-                        </div>
-                    )}
-                </section>
-            </main>
-        </div>
+                )}
+
+                <PracticePagination
+                    page={page}
+                    totalPages={totalPages}
+                    isLoading={isLoading}
+                    onPageChange={setPage}
+                />
+            </section>
+        </PracticePageShell>
     );
 }

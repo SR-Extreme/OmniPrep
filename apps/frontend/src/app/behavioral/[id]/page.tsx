@@ -487,20 +487,23 @@ export default function BehavioralPracticePage() {
 
     if (!hydrated || !accessToken) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
+            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-3xl space-y-8 px-6 py-8">
+        <div className="min-h-screen overflow-x-hidden bg-zinc-50">
+            <main className="mx-[10%] space-y-6 py-6 sm:space-y-8 sm:py-8">
                 {isQuestionLoading && (
-                    <p className="py-16 text-center text-sm text-zinc-500">Loading interview…</p>
+                    <div className="card flex items-center justify-center gap-2 px-6 py-16 text-sm text-zinc-500">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
+                        Loading interview…
+                    </div>
                 )}
                 {questionError && (
-                    <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
                         {questionError}
                     </div>
                 )}
@@ -508,9 +511,9 @@ export default function BehavioralPracticePage() {
                 {question && !isQuestionLoading && (
                     <>
                         {/* Question */}
-                        <section className="card p-5 sm:p-6">
+                        <section className="card p-5 shadow-elevated sm:p-6">
                             <div className="mb-4 flex flex-wrap items-center gap-2">
-                                <h1 className="text-xl font-semibold text-zinc-900 sm:text-2xl">{question.title}</h1>
+                                <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">{question.title}</h1>
                                 <span className={difficultyPill(question.difficulty)}>
                                     {question.difficulty.charAt(0) + question.difficulty.slice(1).toLowerCase()}
                                 </span>
@@ -547,7 +550,7 @@ export default function BehavioralPracticePage() {
                         )}
 
                         {/* Live interview flow */}
-                        <section className="card p-5 sm:p-6">
+                        <section className="card p-5 shadow-elevated sm:p-6">
                             <div className="mb-4 flex items-center justify-between gap-3">
                                 <h2 className="text-base font-semibold text-zinc-900">Interview</h2>
                                 {session && (
@@ -676,7 +679,7 @@ export default function BehavioralPracticePage() {
                         </section>
 
                         {/* Result */}
-                        <section className="card p-5 sm:p-6">
+                        <section className="card p-5 shadow-elevated sm:p-6">
                             <h2 className="mb-4 text-base font-semibold text-zinc-900">Result</h2>
                             {!isInterviewComplete ? (
                                 <p className="text-sm text-zinc-500">Complete the full interview to unlock AI review.</p>
@@ -704,7 +707,7 @@ export default function BehavioralPracticePage() {
                         </section>
 
                         {/* Submissions */}
-                        <section className="card p-5 sm:p-6">
+                        <section className="card p-5 shadow-elevated sm:p-6">
                             <h2 className="mb-4 text-base font-semibold text-zinc-900">Submissions</h2>
                             {historySessions.length === 0 ? (
                                 <p className="text-sm text-zinc-500">No past attempts yet.</p>

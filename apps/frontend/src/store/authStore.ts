@@ -9,7 +9,7 @@ import {
     verifyLoginOtp as verifyLoginOtpApi,
     type AuthUser,
     type LoginBody,
-    type OtpChallengeResponse,
+    type LoginResponse,
     type SignupBody,
     type VerifyOtpBody,
 } from '@/lib/api/auth';
@@ -23,7 +23,7 @@ interface AuthState {
     error: string | null;
 
     signup: (body: SignupBody) => Promise<void>;
-    login: (body: LoginBody) => Promise<OtpChallengeResponse>;
+    login: (body: LoginBody) => Promise<LoginResponse>;
     verifyLoginOtp: (body: VerifyOtpBody) => Promise<void>;
     logout: () => Promise<void>;
 
@@ -85,9 +85,18 @@ export const useAuthStore = create<AuthState>()(
             login: async (body) => {
                 set({ isLoading: true, error: null });
                 try {
-                    const challenge = await loginApi(body);
-                    set({ isLoading: false });
-                    return challenge;
+                    const result = await loginApi(body);
+                    if (!result.requiresOtp) {
+                        set({
+                            user: result.user,
+                            accessToken: result.tokens.accessToken,
+                            refreshToken: result.tokens.refreshToken,
+                            isLoading: false,
+                        });
+                    } else {
+                        set({ isLoading: false });
+                    }
+                    return result;
                 } catch (err) {
                     const message =
                         err instanceof ApiError ? err.message : 'Login failed';

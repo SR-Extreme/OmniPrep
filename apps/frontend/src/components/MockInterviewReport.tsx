@@ -74,7 +74,7 @@ function Collapsible({
     const [open, setOpen] = useState(defaultOpen);
 
     return (
-        <div className="rounded-lg border border-zinc-200 bg-white">
+        <div className="rounded-2xl border border-zinc-200 bg-white">
             <button
                 type="button"
                 onClick={() => setOpen((value) => !value)}
@@ -119,7 +119,7 @@ export function MockInterviewReport({
 }: MockInterviewReportProps) {
     return (
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
-            <div className="card p-5 sm:p-6">
+            <div className="card p-5 shadow-elevated sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <p className="section-label">Mock interview report</p>

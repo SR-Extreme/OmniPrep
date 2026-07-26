@@ -510,29 +510,26 @@ export default function SystemDesignPracticePage() {
 
     if (!hydrated || !accessToken) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                <div className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                    Loading…
-                </div>
+            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-7xl px-6 py-8">
+        <div className="min-h-screen overflow-x-hidden bg-zinc-50">
+            <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
 
                 {isQuestionLoading && (
-                    <div className="flex items-center justify-center py-24 text-sm text-zinc-500">
-                        <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
+                    <div className="card flex items-center justify-center gap-2 px-6 py-20 text-sm text-zinc-500">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
                         Loading question…
                     </div>
                 )}
 
                 {questionError && (
                     <div
-                        className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                        className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
                         role="alert"
                     >
                         {questionError}
@@ -544,7 +541,7 @@ export default function SystemDesignPracticePage() {
 
                         {/*question details*/
                         /*Left Panel*/}
-                        <section className="card p-5 sm:p-6">
+                        <section className="card p-5 shadow-elevated sm:p-6">
                             <div className="mb-5 flex flex-wrap items-center gap-2.5">
                                 <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">
                                     {question.title}
@@ -632,7 +629,7 @@ export default function SystemDesignPracticePage() {
 
                             {/*based on submission how right panel looks*/}
                             {!submission ? (
-                                <form onSubmit={handleInitialSubmit} className="card space-y-4 p-5 sm:p-6">
+                                <form onSubmit={handleInitialSubmit} className="card space-y-4 p-5 shadow-elevated sm:p-6">
                                     <div>
                                         <h2 className="text-base font-semibold text-zinc-900">
                                             Your answer
@@ -688,7 +685,7 @@ export default function SystemDesignPracticePage() {
                                     </button>
                                 </form>
                             ) : (
-                                <div className="card space-y-4 p-5 sm:p-6">
+                                <div className="card space-y-4 p-5 shadow-elevated sm:p-6">
                                     <div>
                                         <h2 className="text-base font-semibold text-zinc-900">
                                             Submitted answer
@@ -732,7 +729,7 @@ export default function SystemDesignPracticePage() {
 
                             {/*UI for followUp question , answers area , whether answered or not , and generate aiReview button*/}
                             {followUpQuestions && (
-                                <div className="card space-y-4 p-5 sm:p-6">
+                                <div className="card space-y-4 p-5 shadow-elevated sm:p-6">
                                     <div>
                                         <h2 className="text-base font-semibold text-zinc-900">
                                             Follow-up round

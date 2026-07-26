@@ -35,6 +35,7 @@ function handleAuthError(err: unknown, res: Response): void {
             EMAIL_NOT_FOUND: 404,
             INVALID_CREDENTIALS: 401,
             INVALID_REFRESH_TOKEN: 401,
+            FORBIDDEN: 403,
         };
 
         res.status(statusByCode[err.code]).json({

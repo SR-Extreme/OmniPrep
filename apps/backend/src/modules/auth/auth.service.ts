@@ -31,7 +31,8 @@ export class AuthError extends Error {
             | 'EMAIL_EXISTS'
             | 'EMAIL_NOT_FOUND'
             | 'INVALID_CREDENTIALS'
-            | 'INVALID_REFRESH_TOKEN',
+            | 'INVALID_REFRESH_TOKEN'
+            | 'FORBIDDEN',
     ) {
         super(message);
         this.name = 'AuthError';
@@ -67,6 +68,12 @@ export interface OtpChallengeResponse {
     maskedEmail: string;
     message: string;
 }
+
+export interface DirectLoginResponse extends AuthResult {
+    requiresOtp: false;
+}
+
+export type LoginResponse = OtpChallengeResponse | DirectLoginResponse;
 
 export interface AccessTokenPayload {
     sub: string;
@@ -182,6 +189,10 @@ async function issueTokens(user: {
 }
 
 export async function signup(input: SignupInput): Promise<{ message: string }> {
+    if (input.role !== 'CANDIDATE') {
+        throw new AuthError('Admin accounts cannot be created via signup', 'FORBIDDEN');
+    }
+
     const existing = await prisma.user.findUnique({
         where: { email: input.email },
     });
@@ -197,6 +208,7 @@ export async function signup(input: SignupInput): Promise<{ message: string }> {
             email: input.email,
             passwordHash,
             name: input.name,
+            phoneNo: input.phoneNo,
             role: 'CANDIDATE',
         },
     });
@@ -206,8 +218,8 @@ export async function signup(input: SignupInput): Promise<{ message: string }> {
     };
 }
 
-/** Step 1: validate password, send OTP — does NOT issue JWTs */
-export async function login(input: LoginInput): Promise<OtpChallengeResponse> {
+/** Step 1: validate password — OTP for candidates, direct session for admins */
+export async function login(input: LoginInput): Promise<LoginResponse> {
     const user = await prisma.user.findUnique({
         where: { email: input.email },
     });
@@ -220,6 +232,30 @@ export async function login(input: LoginInput): Promise<OtpChallengeResponse> {
 
     if (!valid) {
         throw new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
+    }
+
+    if (input.expectedRole && user.role !== input.expectedRole) {
+        throw new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
+    }
+
+    if (user.role === 'ADMIN') {
+        const updated = await prisma.user.update({
+            where: { id: user.id },
+            data: { recentLogin: new Date() },
+            select: {
+                id: true,
+                email: true,
+                role: true,
+                name: true,
+                image: true,
+            },
+        });
+
+        const session = await issueTokens(updated);
+        return {
+            requiresOtp: false,
+            ...session,
+        };
     }
 
     const challenge = await createOtpChallenge({

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { PracticeAuthLoading } from '@/components/practice/PracticeListShell';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileStats } from '@/components/profile/ProfileStats';
 import { StudyPlanDetail } from '@/components/profile/StudyPlanDetail';
@@ -12,6 +13,7 @@ import {
     getStudyPlanDetail,
     getStudyPlanHistory,
     submitStudyPlanProgress,
+    updateProfile,
     uploadAvatar,
 } from '@/lib/api/profile';
 import { useAuthStore } from '@/store/authStore';
@@ -20,6 +22,7 @@ import type {
     StudyPlanDetailResponse,
     StudyPlanHistoryItem,
     StudyPlanTaskKey,
+    UpdateProfileBody,
 } from '@/types/profile';
 
 export default function ProfilePage() {
@@ -35,6 +38,7 @@ export default function ProfilePage() {
     );
     const [isLoading, setIsLoading] = useState(true);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
     const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -125,6 +129,19 @@ export default function ProfilePage() {
         }
     }
 
+    function syncAuthUser(updated: ProfileResponse) {
+        setUser({
+            id: updated.id,
+            email: updated.email,
+            role: updated.role,
+            name: updated.name,
+            image: updated.image,
+            isPremium: updated.isPremium,
+            premiumFrom: updated.premiumFrom,
+            premiumTill: updated.premiumTill,
+        });
+    }
+
     async function handleAvatarSelected(file: File) {
         if (!accessToken) {
             return;
@@ -136,16 +153,7 @@ export default function ProfilePage() {
         try {
             const updated = await uploadAvatar(accessToken, file);
             setProfile(updated);
-            setUser({
-                id: updated.id,
-                email: updated.email,
-                role: updated.role,
-                name: updated.name,
-                image: updated.image,
-                isPremium: updated.isPremium,
-                premiumFrom: updated.premiumFrom,
-                premiumTill: updated.premiumTill,
-            });
+            syncAuthUser(updated);
         } catch (err) {
             setError(
                 err instanceof ApiError
@@ -154,6 +162,30 @@ export default function ProfilePage() {
             );
         } finally {
             setIsUploadingAvatar(false);
+        }
+    }
+
+    async function handleUpdateProfile(body: UpdateProfileBody) {
+        if (!accessToken) {
+            return;
+        }
+
+        setIsUpdatingProfile(true);
+        setError(null);
+
+        try {
+            const updated = await updateProfile(accessToken, body);
+            setProfile(updated);
+            syncAuthUser(updated);
+        } catch (err) {
+            const message =
+                err instanceof ApiError
+                    ? err.message
+                    : 'Failed to update profile';
+            setError(message);
+            throw err;
+        } finally {
+            setIsUpdatingProfile(false);
         }
     }
 
@@ -176,11 +208,11 @@ export default function ProfilePage() {
                 current.map((plan) =>
                     plan.id === updated.id
                         ? {
-                            ...plan,
-                            completedTasks: updated.completedTaskKeys.length,
-                            completionPercent: updated.completionPercent,
-                            completedAt: updated.completedAt,
-                        }
+                              ...plan,
+                              completedTasks: updated.completedTaskKeys.length,
+                              completionPercent: updated.completionPercent,
+                              completedAt: updated.completedAt,
+                          }
                         : plan,
                 ),
             );
@@ -201,38 +233,38 @@ export default function ProfilePage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                <div className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                    Loading…
-                </div>
-            </div>
-        );
+        return <PracticeAuthLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-6xl space-y-6 px-6 py-10">
+        <div className="overflow-x-hidden bg-zinc-50">
+            <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:space-y-10 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
                 {error ? (
-                    <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                         {error}
                     </p>
                 ) : null}
 
                 {isLoading || !profile ? (
-                    <p className="text-sm text-zinc-500">Loading profile…</p>
+                    <div className="flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-6 py-16 text-sm text-zinc-500 shadow-soft">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
+                        Loading profile…
+                    </div>
                 ) : (
                     <>
                         <ProfileHeader
                             profile={profile}
                             onLogout={handleLogout}
                             onAvatarSelected={handleAvatarSelected}
+                            onUpdateProfile={handleUpdateProfile}
                             isUploadingAvatar={isUploadingAvatar}
+                            isUpdatingProfile={isUpdatingProfile}
                             isLoggingOut={authLoading}
                         />
-                        <ProfileStats stats={profile.stats} />
-                        <div className="grid gap-6 lg:grid-cols-2">
+                        <div className="border-t border-zinc-200/80 pt-8 sm:pt-10">
+                            <ProfileStats stats={profile.stats} />
+                        </div>
+                        <div className="grid gap-6 border-t border-zinc-200/80 pt-8 sm:pt-10 lg:grid-cols-2">
                             <StudyPlanHistory
                                 plans={plans}
                                 selectedPlanId={selectedPlan?.id ?? null}
@@ -245,8 +277,13 @@ export default function ProfilePage() {
                                     isSubmitting={isSubmittingProgress}
                                 />
                             ) : (
-                                <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-10 text-center text-sm text-zinc-500">
-                                    Select a study plan to track day-by-day progress.
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white px-5 py-16 text-center shadow-soft">
+                                    <p className="text-sm font-medium text-zinc-700">
+                                        No plan selected
+                                    </p>
+                                    <p className="mt-1 max-w-xs text-sm text-zinc-500">
+                                        Select a study plan to track day-by-day progress.
+                                    </p>
                                 </div>
                             )}
                         </div>

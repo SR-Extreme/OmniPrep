@@ -282,34 +282,34 @@ export default function MockInterviewSessionPage() {
 
     if (!hydrated || !accessToken) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
+            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
             </div>
         );
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-zinc-50">
+        <div className="flex min-h-screen flex-col overflow-x-hidden bg-zinc-50">
             {isLoading ? (
                 <div className="flex flex-1 items-center justify-center gap-2 text-sm text-zinc-500">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
                     Loading interview…
                 </div>
             ) : pageError && !interview ? (
-                <div className="mx-auto max-w-lg px-6 py-16">
-                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700">
+                <div className="mx-auto max-w-lg px-4 py-16 sm:px-6">
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700">
                         <p className="font-medium">Couldn&apos;t load this interview</p>
                         <p className="mt-1 text-sm">{pageError}</p>
-                        <Link href="/mock-interview" className="btn-secondary mt-4 inline-flex">
+                        <Link href="/mock-interview" className="btn-secondary mt-4 inline-flex !rounded-xl">
                             Back to mock interviews
                         </Link>
                     </div>
                 </div>
             ) : interview?.status === 'COMPLETED' && report ? (
-                <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-8 sm:px-6">
+                <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-8 sm:px-6 lg:px-8">
                     {pageError ? (
                         <div
-                            className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
                             role="alert"
                         >
                             {pageError}

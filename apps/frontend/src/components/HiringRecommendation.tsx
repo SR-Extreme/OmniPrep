@@ -38,7 +38,7 @@ export function HiringRecommendation({
     const scoreText = overallScore == null ? '—' : String(overallScore);
 
     return (
-        <section className="card overflow-hidden p-5 sm:p-6">
+        <section className="card overflow-hidden p-5 shadow-elevated sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <p className="section-label">Hiring recommendation</p>
@@ -46,7 +46,7 @@ export function HiringRecommendation({
                 {onGenerateStudyPlan ? (
                     <button
                         type="button"
-                        className="btn-primary shrink-0 !py-2"
+                        className="btn-primary shrink-0 !rounded-xl !py-2"
                         disabled={isGeneratingStudyPlan}
                         onClick={onGenerateStudyPlan}
                     >
@@ -57,7 +57,7 @@ export function HiringRecommendation({
                 ) : null}
             </div>
 
-            <div className="mt-5 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-6 text-zinc-100 sm:px-6">
+            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-6 text-zinc-100 sm:px-6">
                 <p className="text-center font-mono text-2xl font-semibold tabular-nums tracking-tight">
                     {scoreText}
                     <span className="text-base font-medium text-zinc-500">/100</span>

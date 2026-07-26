@@ -11,11 +11,19 @@ export const signupSchema = z.object({
         .trim()
         .min(1, 'Name is required')
         .max(100, 'Name must be at most 100 characters'),
+    phoneNo: z
+        .string()
+        .trim()
+        .length(10, 'Phone number must be exactly 10 digits')
+        .regex(/^\d+$/, 'Phone number must contain only digits'),
+    // Public signup is candidates only; admins are provisioned out of band.
+    role: z.literal('CANDIDATE').default('CANDIDATE'),
 });
 
 export const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
     password: z.string().min(1, 'Password is required'),
+    expectedRole: z.enum(['CANDIDATE', 'ADMIN']).optional(),
 });
 
 export const refreshTokenSchema = z.object({

@@ -37,11 +37,11 @@
     }
 
     .input-base {
-        @apply w-full rounded-md border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition duration-150 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:opacity-60;
+        @apply w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition duration-150 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:opacity-60;
     }
 
     .select-base {
-        @apply w-full rounded-md border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 outline-none transition duration-150 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20;
+        @apply w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 outline-none transition duration-150 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20;
     }
 
     .btn-primary {
@@ -85,6 +85,6 @@
     }
 
     .auth-code-panel {
-        @apply relative hidden overflow-hidden bg-zinc-950 lg:flex lg:w-[48%] lg:flex-col lg:justify-center;
+        @apply relative hidden overflow-hidden bg-zinc-950 lg:flex lg:w-[55%] lg:flex-col lg:justify-center;
     }
 }

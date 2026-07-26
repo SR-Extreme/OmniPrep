@@ -30,15 +30,24 @@ export interface OtpChallengeResponse {
     message: string;
 }
 
+export interface DirectLoginResponse extends AuthResult {
+    requiresOtp: false;
+}
+
+export type LoginResponse = OtpChallengeResponse | DirectLoginResponse;
+
 export interface SignupBody {
     email: string;
     password: string;
     name: string;
+    phoneNo: string;
+    role: 'CANDIDATE';
 }
 
 export interface LoginBody {
     email: string;
     password: string;
+    expectedRole?: Role;
 }
 
 export interface VerifyOtpBody {
