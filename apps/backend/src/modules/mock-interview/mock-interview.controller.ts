@@ -1,6 +1,10 @@
 import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/auth.middleware.js';
 import {
+    AIError,
+    httpStatusForAIError,
+} from '../../services/AIService.js';
+import {
     createMockBehavioralSession,
     finalizeMockBehavioralSection,
     listMockBehavioralRoles,
@@ -45,6 +49,14 @@ function sendValidationError(res: Response, details: unknown): void {
 }
 
 function handleMockInterviewError(err: unknown, res: Response): void {
+    if (err instanceof AIError) {
+        res.status(httpStatusForAIError(err)).json({
+            error: err.message,
+            code: err.code,
+        });
+        return;
+    }
+
     if (err instanceof MockInterviewError) {
         const statusByCode: Record<MockInterviewError['code'], number> = {
             NOT_FOUND: 404,
@@ -52,9 +64,13 @@ function handleMockInterviewError(err: unknown, res: Response): void {
             INVALID_STATE: 409,
             CONFIG_ERROR: 503,
             PREMIUM_REQUIRED: 403,
+            QUOTA_EXCEEDED: 429,
         };
 
-        res.status(statusByCode[err.code]).json({ error: err.message });
+        res.status(statusByCode[err.code]).json({
+            error: err.message,
+            code: err.code,
+        });
         return;
     }
 

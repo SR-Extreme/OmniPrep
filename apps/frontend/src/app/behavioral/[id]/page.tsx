@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, isFreeAiReportLimitError } from '@/lib/api/client';
+import { ApiError, isFreeAiReportLimitError, resolveActionErrorMessage } from '@/lib/api/client';
 import {
     createBehavioralSession,
     generateNextBehavioralQuestion,
@@ -22,6 +22,16 @@ import {
 } from '@/lib/practice-drafts';
 import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
 import { BehavioralSubmissionView } from '@/components/behavioral/BehavioralSubmissionView';
+import { BehavioralEvaluationReport } from '@/components/behavioral/BehavioralEvaluationReport';
+import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
+import { ActionErrorAlert } from '@/components/ui/ActionErrorAlert';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import {
+    validateAnswer,
+    validateCandidateQuestions,
+    validatePdfFile,
+} from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import type { Difficulty } from '@/types/dsa';
 import {
@@ -37,6 +47,7 @@ import {
 } from '@/types/behavioral';
 
 type ExpandedPanel = 'submission' | 'report';
+type BehavioralField = 'resume' | 'answerDraft' | 'candidateQuestionsDraft';
 
 interface BehavioralAnswerDraft {
     turnId: string | null;
@@ -59,146 +70,6 @@ function difficultyPill(difficulty: Difficulty): string {
         case 'HARD':
             return 'badge-hard';
     }
-}
-
-function getScoreTier(score: number) {
-    if (score >= 85) {
-        return { label: 'Excellent', color: 'text-emerald-700', bg: 'bg-emerald-50', bar: 'bg-emerald-500' };
-    }
-    if (score >= 70) {
-        return { label: 'Good', color: 'text-sky-700', bg: 'bg-sky-50', bar: 'bg-sky-500' };
-    }
-    if (score >= 50) {
-        return { label: 'Fair', color: 'text-amber-700', bg: 'bg-amber-50', bar: 'bg-amber-500' };
-    }
-
-    return { label: 'Needs Work', color: 'text-rose-700', bg: 'bg-rose-50', bar: 'bg-rose-500' };
-}
-
-function ScoreBar({ label, score, max = 100 }: { label: string; score: number; max?: number }) {
-    const tier = getScoreTier(max === 100 ? score : Math.round((score / max) * 100));
-    const pct = max === 100 ? score : Math.round((score / max) * 100);
-
-    return (
-        <div className="rounded-lg border border-zinc-100 bg-white px-3.5 py-3 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-zinc-700">{label}</span>
-                <span className="text-sm font-semibold tabular-nums text-zinc-900">
-                    {score}
-                    <span className="font-normal text-zinc-400">/{max}</span>
-                </span>
-            </div>
-            <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-zinc-100">
-                <div
-                    className={`h-full rounded-full transition-all duration-500 ${tier.bar}`}
-                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                />
-            </div>
-        </div>
-    );
-}
-
-function BehavioralEvaluationReport({ evaluation }: { evaluation: BehavioralEvaluationDetail }) {
-    const m = evaluation.evaluationMetrics;
-    const tier = getScoreTier(m.overallScore);
-    const reviewedAt = new Date(evaluation.createdAt).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-    });
-
-    return (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-card">
-            <div className={`border-b border-zinc-200 px-5 py-5 sm:px-6 ${tier.bg}`}>
-                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">AI Review</p>
-                <div className="mt-2 flex items-baseline gap-2">
-                    <span className={`text-4xl font-bold tabular-nums ${tier.color}`}>{m.overallScore}</span>
-                    <span className="text-sm font-medium text-zinc-500">/ 100</span>
-                </div>
-                <p className={`mt-1 text-sm font-semibold ${tier.color}`}>{tier.label}</p>
-                <p className="mt-2 text-xs text-zinc-500">Reviewed {reviewedAt}</p>
-            </div>
-            <div className="space-y-6 p-5 sm:p-6">
-                <div>
-                    <h3 className="mb-3 text-sm font-semibold text-zinc-900">Summary</h3>
-                    <p className="rounded-lg border border-zinc-100 bg-zinc-50/60 px-4 py-3.5 text-sm leading-relaxed text-zinc-700">
-                        {evaluation.summary}
-                    </p>
-                </div>
-                <div>
-                    <h3 className="mb-3 text-sm font-semibold text-zinc-900">Scores</h3>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <ScoreBar label="Communication" score={m.communication} />
-                        <ScoreBar label="Ownership" score={m.ownership} />
-                        <ScoreBar label="Leadership" score={m.leadership} />
-                        <ScoreBar label="Problem solving" score={m.problemSolving} />
-                        <ScoreBar label="Technical depth" score={m.technicalDepth} />
-                        <ScoreBar label="Impact" score={m.impact} />
-                        <ScoreBar label="Authenticity" score={m.authenticity} />
-                        <ScoreBar label="Confidence" score={m.confidence} />
-                    </div>
-                </div>
-                <div>
-                    <h3 className="mb-3 text-sm font-semibold text-zinc-900">STAR structure</h3>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <ScoreBar label="Overall" score={m.starStructure.overall} />
-                        <ScoreBar label="Situation" score={m.starStructure.situation} max={25} />
-                        <ScoreBar label="Task" score={m.starStructure.task} max={25} />
-                        <ScoreBar label="Action" score={m.starStructure.action} max={25} />
-                        <ScoreBar label="Result" score={m.starStructure.result} max={25} />
-                    </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
-                        <p className="text-xs font-semibold uppercase text-emerald-700">Strongest answer</p>
-                        <p className="mt-2 text-sm font-medium text-zinc-900">{evaluation.strongestAnswer.question}</p>
-                        <p className="mt-2 text-sm text-zinc-600">{evaluation.strongestAnswer.explanation}</p>
-                    </div>
-                    <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-4">
-                        <p className="text-xs font-semibold uppercase text-amber-700">Weakest answer</p>
-                        <p className="mt-2 text-sm font-medium text-zinc-900">{evaluation.weakestAnswer.question}</p>
-                        <p className="mt-2 text-sm text-zinc-600">{evaluation.weakestAnswer.explanation}</p>
-                    </div>
-                </div>
-                {evaluation.strengths.length > 0 && (
-                    <div>
-                        <h3 className="mb-2 text-sm font-semibold text-zinc-900">Strengths</h3>
-                        <ul className="space-y-2">
-                            {evaluation.strengths.map((item, i) => (
-                                <li key={i} className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-3.5 py-2.5 text-sm text-emerald-900">
-                                    {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-                {evaluation.weaknesses.length > 0 && (
-                    <div>
-                        <h3 className="mb-2 text-sm font-semibold text-zinc-900">Areas to improve</h3>
-                        <ul className="space-y-2">
-                            {evaluation.weaknesses.map((item, i) => (
-                                <li key={i} className="rounded-lg border border-amber-100 bg-amber-50/50 px-3.5 py-2.5 text-sm text-amber-900">
-                                    {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-                {evaluation.suggestions.length > 0 && (
-                    <div>
-                        <h3 className="mb-2 text-sm font-semibold text-zinc-900">Suggestions</h3>
-                        <ul className="space-y-2">
-                            {evaluation.suggestions.map((item, i) => (
-                                <li key={i} className="rounded-lg border border-zinc-100 bg-white px-3.5 py-2.5 text-sm text-zinc-800">
-                                    {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
 }
 
 async function pollForBehavioralEvaluation(
@@ -241,6 +112,7 @@ export default function BehavioralPracticePage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
     const { accessToken } = useAuthStore();
+    const { errors, touch, clear, setMany } = useFieldErrors<BehavioralField>();
 
     const [hydrated, setHydrated] = useState(false);
     const [question, setQuestion] = useState<BehavioralQuestionDetail | null>(null);
@@ -452,7 +324,7 @@ export default function BehavioralPracticePage() {
                 }
             }
         } catch (err) {
-            setActionError(err instanceof ApiError ? err.message : 'Failed to resume interview');
+            setActionError(resolveActionErrorMessage(err, 'Failed to resume interview'));
         } finally {
             setIsBusy(false);
         }
@@ -468,7 +340,9 @@ export default function BehavioralPracticePage() {
             return;
         }
 
-        if (!resumeFile) return;
+        const resumeErr = validatePdfFile(resumeFile);
+        setMany(resumeErr ? { resume: resumeErr } : {});
+        if (resumeErr || !resumeFile) return;
 
         setIsBusy(true);
         setActionError(null);
@@ -481,9 +355,10 @@ export default function BehavioralPracticePage() {
             });
             setSession(res.session);
             setResumeFile(null);
+            clear('resume');
             await refreshHistory(question.id);
         } catch (err) {
-            setActionError(err instanceof ApiError ? err.message : 'Failed to start interview');
+            setActionError(resolveActionErrorMessage(err, 'Failed to start interview'));
         } finally {
             setIsBusy(false);
         }
@@ -499,7 +374,7 @@ export default function BehavioralPracticePage() {
             const res = await generateNextBehavioralQuestion(accessToken, session.id);
             setSession(res.session);
         } catch (err) {
-            setActionError(err instanceof ApiError ? err.message : 'Failed to generate question');
+            setActionError(resolveActionErrorMessage(err, 'Failed to generate question'));
         } finally {
             setIsBusy(false);
         }
@@ -508,7 +383,12 @@ export default function BehavioralPracticePage() {
     async function handleSubmitAnswer(e: FormEvent) {
         e.preventDefault();
 
-        if (!accessToken || !session || !unansweredTurn || !answerDraft.trim()) return;
+        if (!accessToken || !session || !unansweredTurn) return;
+
+        const answerErr = validateAnswer(answerDraft);
+        setMany(answerErr ? { answerDraft: answerErr } : {});
+        if (answerErr) return;
+
         setIsBusy(true);
         setActionError(null);
 
@@ -519,9 +399,10 @@ export default function BehavioralPracticePage() {
 
             setSession(res.session);
             setAnswerDraft('');
+            clear('answerDraft');
             clearPracticeDraft(practiceDraftKey('behavioral', session.id));
         } catch (err) {
-            setActionError(err instanceof ApiError ? err.message : 'Failed to submit answer');
+            setActionError(resolveActionErrorMessage(err, 'Failed to submit answer'));
         } finally {
             setIsBusy(false);
         }
@@ -530,7 +411,11 @@ export default function BehavioralPracticePage() {
     async function handleSubmitCandidateQuestions(e: FormEvent) {
         e.preventDefault();
 
-        if (!accessToken || !session || !candidateQuestionsDraft.trim()) return;
+        if (!accessToken || !session) return;
+
+        const questionsErr = validateCandidateQuestions(candidateQuestionsDraft);
+        setMany(questionsErr ? { candidateQuestionsDraft: questionsErr } : {});
+        if (questionsErr) return;
 
         setIsBusy(true);
         setActionError(null);
@@ -542,10 +427,11 @@ export default function BehavioralPracticePage() {
 
             setSession(res.session);
             setCandidateQuestionsDraft('');
+            clear('candidateQuestionsDraft');
             clearPracticeDraft(practiceDraftKey('behavioral', session.id));
             if (question) await refreshHistory(question.id);
         } catch (err) {
-            setActionError(err instanceof ApiError ? err.message : 'Failed to submit questions');
+            setActionError(resolveActionErrorMessage(err, 'Failed to submit questions'));
         } finally {
             setIsBusy(false);
         }
@@ -728,11 +614,7 @@ export default function BehavioralPracticePage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-            </div>
-        );
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -785,11 +667,7 @@ export default function BehavioralPracticePage() {
                             )}
                         </section>
 
-                        {actionError && (
-                            <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
-                                {actionError}
-                            </div>
-                        )}
+                        {actionError && <ActionErrorAlert message={actionError} />}
 
                         {/* Live interview flow */}
                         <section className="card p-5 shadow-elevated sm:p-6">
@@ -827,7 +705,7 @@ export default function BehavioralPracticePage() {
                                                 : introPhase.description}
                                         </p>
                                     )}
-                                    <form onSubmit={handleBeginInterview} className="space-y-4">
+                                    <form onSubmit={handleBeginInterview} noValidate className="space-y-4">
                                         <div>
                                             <label htmlFor="resume" className="block text-sm font-medium text-zinc-700">
                                                 Resume (PDF, max 5 MB)
@@ -836,9 +714,17 @@ export default function BehavioralPracticePage() {
                                                 id="resume"
                                                 type="file"
                                                 accept="application/pdf,.pdf"
-                                                onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)}
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0] ?? null;
+                                                    setResumeFile(file);
+                                                    touch('resume', validatePdfFile(file));
+                                                }}
+                                                onBlur={() => touch('resume', validatePdfFile(resumeFile))}
+                                                aria-invalid={Boolean(errors.resume)}
+                                                aria-describedby={errors.resume ? 'resume-error' : undefined}
                                                 className="mt-1.5 block w-full text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium"
                                             />
+                                            <FieldError id="resume-error" message={errors.resume} />
                                         </div>
                                         <button type="submit" disabled={isBusy || !resumeFile} className="btn-primary">
                                             {isBusy ? 'Uploading…' : 'Upload resume & begin'}
@@ -859,25 +745,46 @@ export default function BehavioralPracticePage() {
                                     <p className="text-sm text-zinc-500">Interview complete. Review your transcript below or generate an AI report.</p>
                                 </div>
                             ) : currentPhase?.type === 'CANDIDATE_QUESTIONS' ? (
-                                <form onSubmit={handleSubmitCandidateQuestions} className="space-y-4">
+                                <form onSubmit={handleSubmitCandidateQuestions} noValidate className="space-y-4">
                                     <p className="text-sm text-zinc-600">
                                         {typeof currentPhase.content.prompt === 'string'
                                             ? currentPhase.content.prompt
                                             : currentPhase.description}
                                     </p>
-                                    <textarea
-                                        value={candidateQuestionsDraft}
-                                        onChange={(e) => setCandidateQuestionsDraft(e.target.value)}
-                                        rows={6}
-                                        placeholder="Ask your questions to the interviewer (all at once)…"
-                                        className="input-base min-h-[140px] resize-y text-sm"
-                                    />
+                                    <div>
+                                        <textarea
+                                            value={candidateQuestionsDraft}
+                                            onChange={(e) => {
+                                                setCandidateQuestionsDraft(e.target.value);
+                                                clear('candidateQuestionsDraft');
+                                            }}
+                                            onBlur={() =>
+                                                touch(
+                                                    'candidateQuestionsDraft',
+                                                    validateCandidateQuestions(candidateQuestionsDraft),
+                                                )
+                                            }
+                                            rows={6}
+                                            placeholder="Ask your questions to the interviewer (all at once)…"
+                                            aria-invalid={Boolean(errors.candidateQuestionsDraft)}
+                                            aria-describedby={
+                                                errors.candidateQuestionsDraft
+                                                    ? 'candidate-questions-error'
+                                                    : undefined
+                                            }
+                                            className="input-base min-h-[140px] resize-y text-sm"
+                                        />
+                                        <FieldError
+                                            id="candidate-questions-error"
+                                            message={errors.candidateQuestionsDraft}
+                                        />
+                                    </div>
                                     <button type="submit" disabled={isBusy || !candidateQuestionsDraft.trim()} className="btn-primary">
                                         {isBusy ? 'Submitting…' : 'Submit questions'}
                                     </button>
                                 </form>
                             ) : unansweredTurn ? (
-                                <form onSubmit={handleSubmitAnswer} className="space-y-4">
+                                <form onSubmit={handleSubmitAnswer} noValidate className="space-y-4">
                                     <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                                         {phaseLabel(unansweredTurn.phaseType)}
                                         {unansweredTurn.isFollowUp ? ' · Follow-up' : ''}
@@ -885,13 +792,24 @@ export default function BehavioralPracticePage() {
                                     <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-800">
                                         {unansweredTurn.questionText}
                                     </p>
-                                    <textarea
-                                        value={answerDraft}
-                                        onChange={(e) => setAnswerDraft(e.target.value)}
-                                        rows={8}
-                                        placeholder="Your answer…"
-                                        className="input-base min-h-[160px] resize-y text-sm"
-                                    />
+                                    <div>
+                                        <textarea
+                                            value={answerDraft}
+                                            onChange={(e) => {
+                                                setAnswerDraft(e.target.value);
+                                                clear('answerDraft');
+                                            }}
+                                            onBlur={() => touch('answerDraft', validateAnswer(answerDraft))}
+                                            rows={8}
+                                            placeholder="Your answer…"
+                                            aria-invalid={Boolean(errors.answerDraft)}
+                                            aria-describedby={
+                                                errors.answerDraft ? 'answer-draft-error' : undefined
+                                            }
+                                            className="input-base min-h-[160px] resize-y text-sm"
+                                        />
+                                        <FieldError id="answer-draft-error" message={errors.answerDraft} />
+                                    </div>
                                     <button type="submit" disabled={isBusy || !answerDraft.trim()} className="btn-primary">
                                         {isBusy ? 'Submitting…' : 'Submit answer'}
                                     </button>
@@ -912,7 +830,7 @@ export default function BehavioralPracticePage() {
                                 </div>
                             )}
 
-                            {session?.turns.length && session?.turns.length > 0 && (
+                            {session && session.turns.length > 0 && (
                                 <div className="mt-8 border-t border-zinc-100 pt-6">
                                     <h3 className="mb-3 text-sm font-semibold text-zinc-900">Transcript</h3>
                                     <ol className="space-y-4">

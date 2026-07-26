@@ -32,6 +32,9 @@ function mapAIError(err: AIError): BehavioralError {
     if (err.code === 'CONFIG_ERROR') {
         return new BehavioralError(err.message, 'CONFIG_ERROR');
     }
+    if (err.code === 'QUOTA_EXCEEDED') {
+        return new BehavioralError(err.message, 'QUOTA_EXCEEDED');
+    }
     return new BehavioralError(err.message, 'INVALID_INPUT');
 }
 
@@ -351,7 +354,10 @@ export async function generateNextBehavioralQuestion(
         if (err instanceof AIError) {
             throw mapAIError(err);
         }
-        throw err;
+        throw new BehavioralError(
+            err instanceof Error ? err.message : 'AI request failed',
+            'INVALID_INPUT',
+        );
     }
 
     await prisma.behavioralTurn.create({
@@ -524,7 +530,10 @@ export async function submitCandidateQuestions(
         if (err instanceof AIError) {
             throw mapAIError(err);
         }
-        throw err;
+        throw new BehavioralError(
+            err instanceof Error ? err.message : 'AI request failed',
+            'INVALID_INPUT',
+        );
     }
 
     const wrapUpIndex = phases.findIndex((phase) => phase.type === 'WRAP_UP');

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { LogOut, User } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
@@ -20,7 +21,8 @@ function initials(name: string): string {
 }
 
 export function AdminUserMenu() {
-    const { user, logout, isLoading } = useAuthStore();
+    const router = useRouter();
+    const { user, logout } = useAuthStore();
     const [open, setOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -108,15 +110,15 @@ export function AdminUserMenu() {
                         <button
                             type="button"
                             role="menuitem"
-                            disabled={isLoading}
                             onClick={() => {
                                 setOpen(false);
                                 void logout();
+                                router.replace('/login');
                             }}
-                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-zinc-700 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60"
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-zinc-700 transition hover:bg-rose-50 hover:text-rose-700"
                         >
                             <LogOut className="h-4 w-4" aria-hidden="true" />
-                            {isLoading ? 'Signing out…' : 'Logout'}
+                            Logout
                         </button>
                     </motion.div>
                 ) : null}

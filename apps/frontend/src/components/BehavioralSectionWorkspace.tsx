@@ -1,7 +1,10 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ApiError } from '@/lib/api/client';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FieldError } from '@/components/ui/FieldError';
+import { ActionErrorAlert } from '@/components/ui/ActionErrorAlert';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { resolveActionErrorMessage } from '@/lib/api/client';
 import {
     generateNextBehavioralQuestion,
     getBehavioralQuestion,
@@ -14,6 +17,17 @@ import {
     listMockBehavioralRoles,
     startMockBehavioralSection,
 } from '@/lib/api/mock-interview';
+import {
+    clearPracticeDraft,
+    practiceDraftKey,
+    readPracticeDraft,
+    writePracticeDraft,
+} from '@/lib/practice-drafts';
+import {
+    validateAnswer,
+    validateBehavioralRole,
+    validatePdfFile,
+} from '@/lib/validation/fields';
 import {
     getPhaseAtIndex,
     isAiQuestionPhase,
@@ -36,6 +50,16 @@ export interface BehavioralSectionWorkspaceProps {
     readOnly?: boolean;
     onInterviewChange: (interview: MockInterviewSessionDetail) => void;
 }
+
+type BehavioralWorkspaceField = 'selectedRole' | 'resume' | 'answerDraft';
+
+interface BehavioralMockDraft {
+    turnId: string | null;
+    answerDraft: string;
+    updatedAt: number;
+}
+
+const BEHAVIORAL_DRAFT_DEBOUNCE_MS = 400;
 
 function getUnansweredTurn(turns: BehavioralTurnDetail[]): BehavioralTurnDetail | undefined {
     return turns.find((turn) => !turn.candidateAnswerText?.trim());
@@ -60,6 +84,8 @@ export function BehavioralSectionWorkspace({
     readOnly = false,
     onInterviewChange,
 }: BehavioralSectionWorkspaceProps) {
+    const { errors, touch, clear, setMany } = useFieldErrors<BehavioralWorkspaceField>();
+
     const [roles, setRoles] = useState<string[]>([]);
     const [selectedRole, setSelectedRole] = useState(assignment.roleName ?? '');
     const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -71,6 +97,9 @@ export function BehavioralSectionWorkspace({
     const [actionError, setActionError] = useState<string | null>(null);
     const [isBusy, setIsBusy] = useState(false);
     const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+    const resumeReadyRef = useRef(false);
+    const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const visiblePhases = useMemo(
         () =>
@@ -113,6 +142,7 @@ export function BehavioralSectionWorkspace({
 
     useEffect(() => {
         let cancelled = false;
+        resumeReadyRef.current = false;
 
         async function bootstrap() {
             setIsBootstrapping(true);
@@ -151,21 +181,36 @@ export function BehavioralSectionWorkspace({
                         return;
                     }
                     setSession(sessionRes.session);
+
+                    const draft = readPracticeDraft<BehavioralMockDraft>(
+                        practiceDraftKey('behavioral', sessionRes.session.id),
+                    );
+                    const openTurn = getUnansweredTurn(sessionRes.session.turns);
+                    if (
+                        draft &&
+                        openTurn &&
+                        draft.turnId === openTurn.id &&
+                        draft.answerDraft
+                    ) {
+                        setAnswerDraft(draft.answerDraft);
+                    } else {
+                        setAnswerDraft('');
+                    }
                 } else {
                     setSession(null);
+                    setAnswerDraft('');
                 }
             } catch (err) {
                 if (cancelled) {
                     return;
                 }
                 setActionError(
-                    err instanceof ApiError
-                        ? err.message
-                        : 'Failed to load behavioral section',
+                    resolveActionErrorMessage(err, 'Failed to load behavioral section'),
                 );
             } finally {
                 if (!cancelled) {
                     setIsBootstrapping(false);
+                    resumeReadyRef.current = true;
                 }
             }
         }
@@ -183,14 +228,66 @@ export function BehavioralSectionWorkspace({
     ]);
 
     useEffect(() => {
-        if (unansweredTurn) {
+        if (!session || !resumeReadyRef.current || session.status !== 'IN_PROGRESS' || readOnly) {
+            return;
+        }
+
+        if (draftTimerRef.current) {
+            clearTimeout(draftTimerRef.current);
+        }
+
+        const persist = () => {
+            const draft: BehavioralMockDraft = {
+                turnId: unansweredTurn?.id ?? null,
+                answerDraft,
+                updatedAt: Date.now(),
+            };
+            writePracticeDraft(practiceDraftKey('behavioral', session.id), draft);
+        };
+
+        draftTimerRef.current = setTimeout(persist, BEHAVIORAL_DRAFT_DEBOUNCE_MS);
+
+        const onHide = () => {
+            if (document.visibilityState === 'hidden') {
+                persist();
+            }
+        };
+        document.addEventListener('visibilitychange', onHide);
+        window.addEventListener('pagehide', persist);
+
+        return () => {
+            if (draftTimerRef.current) {
+                clearTimeout(draftTimerRef.current);
+            }
+            document.removeEventListener('visibilitychange', onHide);
+            window.removeEventListener('pagehide', persist);
+        };
+    }, [session, unansweredTurn?.id, answerDraft, readOnly]);
+
+    useEffect(() => {
+        if (!session || !unansweredTurn) {
+            return;
+        }
+
+        const draft = readPracticeDraft<BehavioralMockDraft>(
+            practiceDraftKey('behavioral', session.id),
+        );
+        if (draft?.turnId === unansweredTurn.id && draft.answerDraft) {
+            setAnswerDraft(draft.answerDraft);
+        } else {
             setAnswerDraft('');
         }
-    }, [unansweredTurn?.id]);
+    }, [session?.id, unansweredTurn?.id]);
 
     async function handleStartRole(event: FormEvent) {
         event.preventDefault();
-        if (readOnly || !selectedRole.trim()) {
+        if (readOnly) {
+            return;
+        }
+
+        const roleErr = validateBehavioralRole(selectedRole);
+        setMany(roleErr ? { selectedRole: roleErr } : {});
+        if (roleErr) {
             return;
         }
 
@@ -202,9 +299,10 @@ export function BehavioralSectionWorkspace({
                 roleName: selectedRole.trim(),
             });
             onInterviewChange(res.interview);
+            clear('selectedRole');
         } catch (err) {
             setActionError(
-                err instanceof ApiError ? err.message : 'Failed to start behavioral section',
+                resolveActionErrorMessage(err, 'Failed to start behavioral section'),
             );
         } finally {
             setIsBusy(false);
@@ -213,7 +311,13 @@ export function BehavioralSectionWorkspace({
 
     async function handleCreateSession(event: FormEvent) {
         event.preventDefault();
-        if (readOnly || !resumeFile) {
+        if (readOnly) {
+            return;
+        }
+
+        const resumeErr = validatePdfFile(resumeFile);
+        setMany(resumeErr ? { resume: resumeErr } : {});
+        if (resumeErr || !resumeFile) {
             return;
         }
 
@@ -228,10 +332,11 @@ export function BehavioralSectionWorkspace({
             );
             setSession(res.session);
             setResumeFile(null);
+            clear('resume');
             onInterviewChange(res.interview);
         } catch (err) {
             setActionError(
-                err instanceof ApiError ? err.message : 'Failed to upload resume and begin',
+                resolveActionErrorMessage(err, 'Failed to upload resume and begin'),
             );
         } finally {
             setIsBusy(false);
@@ -251,7 +356,7 @@ export function BehavioralSectionWorkspace({
             setSession(res.session);
         } catch (err) {
             setActionError(
-                err instanceof ApiError ? err.message : 'Failed to generate question',
+                resolveActionErrorMessage(err, 'Failed to generate question'),
             );
         } finally {
             setIsBusy(false);
@@ -260,7 +365,13 @@ export function BehavioralSectionWorkspace({
 
     async function handleSubmitAnswer(event: FormEvent) {
         event.preventDefault();
-        if (!session || !unansweredTurn || !answerDraft.trim() || readOnly) {
+        if (!session || !unansweredTurn || readOnly) {
+            return;
+        }
+
+        const answerErr = validateAnswer(answerDraft);
+        setMany(answerErr ? { answerDraft: answerErr } : {});
+        if (answerErr) {
             return;
         }
 
@@ -276,9 +387,11 @@ export function BehavioralSectionWorkspace({
             );
             setSession(res.session);
             setAnswerDraft('');
+            clear('answerDraft');
+            clearPracticeDraft(practiceDraftKey('behavioral', session.id));
         } catch (err) {
             setActionError(
-                err instanceof ApiError ? err.message : 'Failed to submit answer',
+                resolveActionErrorMessage(err, 'Failed to submit answer'),
             );
         } finally {
             setIsBusy(false);
@@ -298,9 +411,7 @@ export function BehavioralSectionWorkspace({
             onInterviewChange(res.interview);
         } catch (err) {
             setActionError(
-                err instanceof ApiError
-                    ? err.message
-                    : 'Failed to submit behavioral section',
+                resolveActionErrorMessage(err, 'Failed to submit behavioral section'),
             );
         } finally {
             setIsBusy(false);
@@ -317,7 +428,7 @@ export function BehavioralSectionWorkspace({
     }
 
     return (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+        <div className="mx-auto flex w-[90%] flex-col gap-4">
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 {BEHAVIORAL_SECTION_EVAL_NOTE} Candidate questions are skipped in mock
                 interviews.
@@ -350,14 +461,7 @@ export function BehavioralSectionWorkspace({
                 </button>
             </div>
 
-            {actionError ? (
-                <div
-                    className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-                    role="alert"
-                >
-                    {actionError}
-                </div>
-            ) : null}
+            {actionError ? <ActionErrorAlert message={actionError} /> : null}
 
             {question && session ? (
                 <div className="flex flex-wrap gap-1.5">
@@ -387,7 +491,7 @@ export function BehavioralSectionWorkspace({
 
             <section className="card p-5 sm:p-6">
                 {needsRole ? (
-                    <form onSubmit={handleStartRole} className="space-y-4">
+                    <form onSubmit={handleStartRole} noValidate className="space-y-4">
                         <div>
                             <h2 className="text-base font-semibold text-zinc-900">
                                 Select interview role
@@ -408,7 +512,17 @@ export function BehavioralSectionWorkspace({
                                 className="select-base mt-1.5"
                                 value={selectedRole}
                                 disabled={readOnly || isBusy}
-                                onChange={(event) => setSelectedRole(event.target.value)}
+                                onChange={(event) => {
+                                    setSelectedRole(event.target.value);
+                                    clear('selectedRole');
+                                }}
+                                onBlur={() =>
+                                    touch('selectedRole', validateBehavioralRole(selectedRole))
+                                }
+                                aria-invalid={Boolean(errors.selectedRole)}
+                                aria-describedby={
+                                    errors.selectedRole ? 'mock-behavioral-role-error' : undefined
+                                }
                             >
                                 <option value="">Select a role…</option>
                                 {roles.map((role) => (
@@ -417,6 +531,10 @@ export function BehavioralSectionWorkspace({
                                     </option>
                                 ))}
                             </select>
+                            <FieldError
+                                id="mock-behavioral-role-error"
+                                message={errors.selectedRole}
+                            />
                         </div>
                         <button
                             type="submit"
@@ -427,7 +545,7 @@ export function BehavioralSectionWorkspace({
                         </button>
                     </form>
                 ) : needsResume ? (
-                    <form onSubmit={handleCreateSession} className="space-y-4">
+                    <form onSubmit={handleCreateSession} noValidate className="space-y-4">
                         <div>
                             <h2 className="text-base font-semibold text-zinc-900">
                                 Upload resume
@@ -455,10 +573,21 @@ export function BehavioralSectionWorkspace({
                                 type="file"
                                 accept="application/pdf,.pdf"
                                 disabled={readOnly || isBusy}
-                                onChange={(event) =>
-                                    setResumeFile(event.target.files?.[0] ?? null)
+                                onChange={(event) => {
+                                    const file = event.target.files?.[0] ?? null;
+                                    setResumeFile(file);
+                                    touch('resume', validatePdfFile(file));
+                                }}
+                                onBlur={() => touch('resume', validatePdfFile(resumeFile))}
+                                aria-invalid={Boolean(errors.resume)}
+                                aria-describedby={
+                                    errors.resume ? 'mock-behavioral-resume-error' : undefined
                                 }
                                 className="mt-1.5 block w-full text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium"
+                            />
+                            <FieldError
+                                id="mock-behavioral-resume-error"
+                                message={errors.resume}
                             />
                         </div>
                         <button
@@ -480,7 +609,7 @@ export function BehavioralSectionWorkspace({
                         </p>
                     </div>
                 ) : session && unansweredTurn ? (
-                    <form onSubmit={handleSubmitAnswer} className="space-y-4">
+                    <form onSubmit={handleSubmitAnswer} noValidate className="space-y-4">
                         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                             {phaseLabel(unansweredTurn.phaseType)}
                             {unansweredTurn.isFollowUp ? ' · Follow-up' : ''}
@@ -488,14 +617,28 @@ export function BehavioralSectionWorkspace({
                         <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-800">
                             {unansweredTurn.questionText}
                         </p>
-                        <textarea
-                            value={answerDraft}
-                            onChange={(event) => setAnswerDraft(event.target.value)}
-                            rows={8}
-                            disabled={readOnly || isBusy}
-                            placeholder="Your answer…"
-                            className="input-base min-h-[160px] resize-y text-sm"
-                        />
+                        <div>
+                            <textarea
+                                value={answerDraft}
+                                onChange={(event) => {
+                                    setAnswerDraft(event.target.value);
+                                    clear('answerDraft');
+                                }}
+                                onBlur={() => touch('answerDraft', validateAnswer(answerDraft))}
+                                rows={8}
+                                disabled={readOnly || isBusy}
+                                placeholder="Your answer…"
+                                aria-invalid={Boolean(errors.answerDraft)}
+                                aria-describedby={
+                                    errors.answerDraft ? 'mock-behavioral-answer-error' : undefined
+                                }
+                                className="input-base min-h-[160px] resize-y text-sm"
+                            />
+                            <FieldError
+                                id="mock-behavioral-answer-error"
+                                message={errors.answerDraft}
+                            />
+                        </div>
                         <button
                             type="submit"
                             disabled={readOnly || isBusy || !answerDraft.trim()}
@@ -538,27 +681,29 @@ export function BehavioralSectionWorkspace({
                 {session && session.turns.length > 0 ? (
                     <div className="mt-8 border-t border-zinc-100 pt-6">
                         <h3 className="mb-3 text-sm font-semibold text-zinc-900">Transcript</h3>
-                        <ol className="space-y-4">
-                            {session.turns.map((turn) => (
-                                <li
-                                    key={turn.id}
-                                    className="rounded-lg border border-zinc-100 bg-zinc-50/50 px-4 py-3"
-                                >
-                                    <p className="text-xs font-medium text-zinc-500">
-                                        {phaseLabel(turn.phaseType)}
-                                        {turn.isFollowUp ? ' · Follow-up' : ''}
-                                    </p>
-                                    <p className="mt-1 text-sm font-medium text-zinc-800">
-                                        Q: {turn.questionText}
-                                    </p>
-                                    {turn.candidateAnswerText ? (
-                                        <p className="mt-2 text-sm text-zinc-600">
-                                            A: {turn.candidateAnswerText}
+                        <div className="max-h-80 overflow-y-auto rounded-xl border border-zinc-200 bg-white pr-1">
+                            <ol className="space-y-3 p-3 sm:p-4">
+                                {session.turns.map((turn) => (
+                                    <li
+                                        key={turn.id}
+                                        className="rounded-lg border border-zinc-100 bg-zinc-50/50 px-4 py-3"
+                                    >
+                                        <p className="text-xs font-medium text-zinc-500">
+                                            {phaseLabel(turn.phaseType)}
+                                            {turn.isFollowUp ? ' · Follow-up' : ''}
                                         </p>
-                                    ) : null}
-                                </li>
-                            ))}
-                        </ol>
+                                        <p className="mt-1 text-sm font-medium text-zinc-800">
+                                            Q: {turn.questionText}
+                                        </p>
+                                        {turn.candidateAnswerText ? (
+                                            <p className="mt-2 text-sm text-zinc-600">
+                                                A: {turn.candidateAnswerText}
+                                            </p>
+                                        ) : null}
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
                     </div>
                 ) : null}
             </section>

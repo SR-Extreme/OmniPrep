@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Code2, MessageSquare, Network } from 'lucide-react';
 import { AdminFeatureCard } from '@/components/admin/AdminFeatureCard';
 import {
-    AdminLoading,
+    AdminAuthGate,
     AdminPageHeader,
     AdminPageShell,
 } from '@/components/admin/AdminPageShell';
@@ -37,7 +37,7 @@ export default function AdminQuestionsHubPage() {
     }, [hydrated, accessToken, user, router]);
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return <AdminLoading />;
+        return <AdminAuthGate hydrated={hydrated} />;
     }
 
     return (

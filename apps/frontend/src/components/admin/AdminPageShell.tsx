@@ -12,6 +12,14 @@ export function AdminLoading({ label = 'Loading…' }: { label?: string }) {
     );
 }
 
+/** Hydrating → spinner. Logged out / redirecting → blank (no loading flash). */
+export function AdminAuthGate({ hydrated }: { hydrated: boolean }) {
+    if (!hydrated) {
+        return <AdminLoading />;
+    }
+    return null;
+}
+
 export function AdminInlineLoading({ label }: { label: string }) {
     return (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-6 py-16 text-sm text-zinc-500 shadow-soft">

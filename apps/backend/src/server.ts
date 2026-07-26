@@ -21,6 +21,24 @@ const server = app.listen(env.PORT, () => {
     console.log(`Evaluations API: http://localhost:${env.PORT}/api/evaluations`);
 });
 
+server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${env.PORT} is already in use. Stop the other process and retry.`);
+        process.exit(1);
+        return;
+    }
+    console.error('HTTP server error:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled promise rejection (server kept running):', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught exception (server kept running):', err);
+});
+
 async function shutdown(signal: string): Promise<void> {
     console.log(`Received ${signal}, shutting down...`);
     await stopAIEvaluationWorker();

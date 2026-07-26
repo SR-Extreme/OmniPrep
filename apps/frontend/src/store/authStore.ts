@@ -128,21 +128,23 @@ export const useAuthStore = create<AuthState>()(
             logout: async () => {
                 const { refreshToken } = get();
 
-                set({ isLoading: true, error: null });
+                // Clear local session immediately so UI never sits on a loading gate.
+                set({
+                    user: null,
+                    accessToken: null,
+                    refreshToken: null,
+                    error: null,
+                    isLoading: false,
+                });
+
+                if (!refreshToken) {
+                    return;
+                }
 
                 try {
-                    if (refreshToken) {
-                        await logoutApi({ refreshToken });
-                    }
+                    await logoutApi({ refreshToken });
                 } catch {
-                    // clear local session even if API logout fails
-                } finally {
-                    set({
-                        user: null,
-                        accessToken: null,
-                        refreshToken: null,
-                        isLoading: false,
-                    });
+                    // Local session is already cleared.
                 }
             },
         }),

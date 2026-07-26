@@ -3,6 +3,9 @@
 import type { FormEvent } from 'react';
 import { TopicMultiSelect } from '@/components/TopicMultiSelect';
 import { Button } from '@/components/ui/button';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { validateSearchQuery } from '@/lib/validation/fields';
 import { DIFFICULTIES, type Difficulty } from '@/types/dsa';
 
 export type AdminTopicFilters = {
@@ -51,6 +54,25 @@ type BehavioralFilterProps = {
 type AdminQuestionFiltersProps = TopicFilterProps | BehavioralFilterProps;
 
 export function AdminQuestionFilters(props: AdminQuestionFiltersProps) {
+    const { errors, touch, clear } = useFieldErrors<'search'>();
+
+    function handleSubmit(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+
+        const searchErr = validateSearchQuery(props.search);
+        touch('search', searchErr);
+        if (searchErr) {
+            return;
+        }
+
+        props.onSubmit(e);
+    }
+
+    function handleClear() {
+        clear('search');
+        props.onClear();
+    }
+
     return (
         <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-soft sm:p-5">
             <div className="mb-3">
@@ -62,7 +84,7 @@ export function AdminQuestionFilters(props: AdminQuestionFiltersProps) {
 
             {props.variant === 'topic' ? (
                 <form
-                    onSubmit={props.onSubmit}
+                    onSubmit={handleSubmit}
                     className="grid gap-3 md:grid-cols-2 lg:grid-cols-4"
                 >
                     <div>
@@ -105,12 +127,20 @@ export function AdminQuestionFilters(props: AdminQuestionFiltersProps) {
                         <input
                             id="admin-search"
                             value={props.search}
-                            onChange={(e) => props.onSearchChange(e.target.value)}
+                            onChange={(e) => {
+                                props.onSearchChange(e.target.value);
+                                clear('search');
+                            }}
+                            onBlur={() =>
+                                touch('search', validateSearchQuery(props.search))
+                            }
                             placeholder={
                                 props.searchPlaceholder ?? 'Title or slug'
                             }
+                            aria-invalid={Boolean(errors.search)}
                             className="input-base mt-1.5"
                         />
+                        <FieldError message={errors.search} />
                     </div>
                     <div className="flex flex-wrap gap-2 md:col-span-2 lg:col-span-4">
                         <Button type="submit" size="sm">
@@ -120,7 +150,7 @@ export function AdminQuestionFilters(props: AdminQuestionFiltersProps) {
                             type="button"
                             variant="secondary"
                             size="sm"
-                            onClick={props.onClear}
+                            onClick={handleClear}
                         >
                             Clear
                         </Button>
@@ -128,7 +158,7 @@ export function AdminQuestionFilters(props: AdminQuestionFiltersProps) {
                 </form>
             ) : (
                 <form
-                    onSubmit={props.onSubmit}
+                    onSubmit={handleSubmit}
                     className="grid gap-3 md:grid-cols-2 lg:grid-cols-4"
                 >
                     <div>
@@ -208,10 +238,18 @@ export function AdminQuestionFilters(props: AdminQuestionFiltersProps) {
                         <input
                             id="admin-behavioral-search"
                             value={props.search}
-                            onChange={(e) => props.onSearchChange(e.target.value)}
+                            onChange={(e) => {
+                                props.onSearchChange(e.target.value);
+                                clear('search');
+                            }}
+                            onBlur={() =>
+                                touch('search', validateSearchQuery(props.search))
+                            }
                             placeholder="Title, company, or role"
+                            aria-invalid={Boolean(errors.search)}
                             className="input-base mt-1.5"
                         />
+                        <FieldError message={errors.search} />
                     </div>
                     <div className="flex flex-wrap gap-2 md:col-span-2 lg:col-span-4">
                         <Button type="submit" size="sm">
@@ -221,7 +259,7 @@ export function AdminQuestionFilters(props: AdminQuestionFiltersProps) {
                             type="button"
                             variant="secondary"
                             size="sm"
-                            onClick={props.onClear}
+                            onClick={handleClear}
                         >
                             Clear
                         </Button>

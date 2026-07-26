@@ -10,6 +10,7 @@ import {
 interface OtpInputProps {
     value: string;
     onChange: (value: string) => void;
+    onBlur?: () => void;
     disabled?: boolean;
     length?: number;
     autoFocus?: boolean;
@@ -18,6 +19,7 @@ interface OtpInputProps {
 export function OtpInput({
     value,
     onChange,
+    onBlur,
     disabled = false,
     length = 6,
     autoFocus = true,
@@ -97,6 +99,15 @@ export function OtpInput({
                     }
                     onKeyDown={(event) => handleKeyDown(index, event)}
                     onPaste={handlePaste}
+                    onBlur={(event) => {
+                        const next = event.relatedTarget as Node | null;
+                        const leavingGroup =
+                            !next ||
+                            !inputsRef.current.some((input) => input === next);
+                        if (leavingGroup) {
+                            onBlur?.();
+                        }
+                    }}
                     className="input-base h-12 w-11 px-0 text-center text-lg font-semibold tracking-widest sm:h-12 sm:w-12"
                 />
             ))}

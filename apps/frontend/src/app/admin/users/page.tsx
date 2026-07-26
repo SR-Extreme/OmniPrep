@@ -8,14 +8,17 @@ import {
     AdminEmptyState,
     AdminErrorAlert,
     AdminInlineLoading,
-    AdminLoading,
+    AdminAuthGate,
     AdminPageHeader,
     AdminPageShell,
 } from '@/components/admin/AdminPageShell';
 import { Button } from '@/components/ui/button';
+import { FieldError } from '@/components/ui/FieldError';
 import { Input } from '@/components/ui/input';
 import { deleteAdminUser, listAdminUsers } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { validateSearchQuery } from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import type { AdminUserListItem } from '@/types/admin';
 
@@ -35,6 +38,7 @@ export default function AdminUsersPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const { errors, touch, clear } = useFieldErrors<'search'>();
 
     useEffect(() => {
         setHydrated(true);
@@ -102,6 +106,13 @@ export default function AdminUsersPage() {
 
     function handleSearchSubmit(event: FormEvent) {
         event.preventDefault();
+
+        const searchErr = validateSearchQuery(searchInput);
+        touch('search', searchErr);
+        if (searchErr) {
+            return;
+        }
+
         const next = searchInput.trim() || undefined;
         setAppliedSearch(next);
         setPage(1);
@@ -129,7 +140,7 @@ export default function AdminUsersPage() {
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return <AdminLoading />;
+        return <AdminAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -153,14 +164,23 @@ export default function AdminUsersPage() {
 
                 <form
                     onSubmit={handleSearchSubmit}
-                    className="flex flex-col gap-3 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-soft sm:flex-row sm:items-center sm:p-5"
+                    className="flex flex-col gap-3 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-soft sm:flex-row sm:items-start sm:p-5"
                 >
-                    <Input
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search name or email"
-                        className="sm:max-w-md"
-                    />
+                    <div className="w-full sm:max-w-md">
+                        <Input
+                            value={searchInput}
+                            onChange={(e) => {
+                                setSearchInput(e.target.value);
+                                clear('search');
+                            }}
+                            onBlur={() =>
+                                touch('search', validateSearchQuery(searchInput))
+                            }
+                            placeholder="Search name or email"
+                            aria-invalid={Boolean(errors.search)}
+                        />
+                        <FieldError message={errors.search} />
+                    </div>
                     <div className="flex gap-2">
                         <Button type="submit" variant="secondary">
                             Search
@@ -170,6 +190,7 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             onClick={() => {
                                 setSearchInput('');
+                                clear('search');
                                 setAppliedSearch(undefined);
                                 setPage(1);
                             }}

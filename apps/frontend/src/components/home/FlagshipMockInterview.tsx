@@ -30,7 +30,7 @@ export function FlagshipMockInterview() {
                 <motion.article
                     initial={{ opacity: 0, y: 28 }}
                     whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: '-80px' }}
+                    viewport={{ once: true, amount: 0.2 }}
                     transition={{ duration: 0.5, ease: 'easeOut' }}
                     className="relative overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-elevated"
                 >

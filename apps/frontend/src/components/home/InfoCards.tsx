@@ -77,7 +77,7 @@ export function InfoCards() {
                         key={card.title}
                         initial={{ opacity: 0, y: 28 }}
                         whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, margin: '-80px' }}
+                        viewport={{ once: true, amount: 0.2 }}
                         transition={{ duration: 0.45, ease: 'easeOut' }}
                         whileHover={{ y: -4 }}
                         className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft transition duration-300 hover:shadow-elevated"

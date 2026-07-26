@@ -45,7 +45,7 @@ export function SupportSection() {
                             id={item.id}
                             initial={{ opacity: 0, y: 16 }}
                             whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true, margin: '-40px' }}
+                            viewport={{ once: true, amount: 0.2 }}
                             transition={{ duration: 0.35, delay: index * 0.05 }}
                             className="scroll-mt-28 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-6 shadow-soft"
                         >

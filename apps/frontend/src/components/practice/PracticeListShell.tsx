@@ -25,6 +25,14 @@ export function PracticeAuthLoading() {
     );
 }
 
+/** Hydrating → spinner. Logged out / redirecting → blank (no loading flash). */
+export function PracticeAuthGate({ hydrated }: { hydrated: boolean }) {
+    if (!hydrated) {
+        return <PracticeAuthLoading />;
+    }
+    return null;
+}
+
 export function PracticeFilterCard({ children }: { children: ReactNode }) {
     return (
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">

@@ -1,7 +1,10 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ApiError } from '@/lib/api/client';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ActionErrorAlert } from '@/components/ui/ActionErrorAlert';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { resolveActionErrorMessage } from '@/lib/api/client';
 import {
     linkMockSystemDesignSubmission,
     submitMockSection,
@@ -13,6 +16,18 @@ import {
     getSystemDesignSubmission,
     submitSystemDesignFollowUpAnswers,
 } from '@/lib/api/system-design';
+import {
+    clearPracticeDraft,
+    practiceDraftKey,
+    readPracticeDraft,
+    writePracticeDraft,
+} from '@/lib/practice-drafts';
+import {
+    validateDiagramFile,
+    validateFollowUpAnswer,
+    validateSystemDesignInitialContent,
+    validateTextAnswer,
+} from '@/lib/validation/fields';
 import type {
     SystemDesignQuestionDetail,
     SystemDesignSubmissionDetail,
@@ -29,6 +44,25 @@ export interface SystemDesignSectionWorkspaceProps {
     assignment: MockInterviewSystemDesignDetail;
     readOnly?: boolean;
     onInterviewChange: (interview: MockInterviewSessionDetail) => void;
+}
+
+type SystemDesignWorkspaceField =
+    | 'textAnswer'
+    | 'diagram'
+    | 'followUpAnswer1'
+    | 'followUpAnswer2';
+
+interface SystemDesignMockDraft {
+    textAnswer: string;
+    followUpAnswer1: string;
+    followUpAnswer2: string;
+    updatedAt: number;
+}
+
+const SD_DRAFT_DEBOUNCE_MS = 400;
+
+function mockSdDraftKey(interviewId: string) {
+    return practiceDraftKey('system-design', interviewId);
 }
 
 function difficultyPill(difficulty: SystemDesignQuestionDetail['difficulty']): string {
@@ -53,6 +87,8 @@ export function SystemDesignSectionWorkspace({
     readOnly = false,
     onInterviewChange,
 }: SystemDesignSectionWorkspaceProps) {
+    const { errors, touch, clear, setMany } = useFieldErrors<SystemDesignWorkspaceField>();
+
     const [question, setQuestion] = useState<SystemDesignQuestionDetail | null>(null);
     const [isQuestionLoading, setIsQuestionLoading] = useState(true);
     const [questionError, setQuestionError] = useState<string | null>(null);
@@ -68,6 +104,9 @@ export function SystemDesignSectionWorkspace({
     const [isGeneratingFollowUps, setIsGeneratingFollowUps] = useState(false);
     const [isSubmittingFollowUps, setIsSubmittingFollowUps] = useState(false);
     const [isSubmittingSection, setIsSubmittingSection] = useState(false);
+
+    const resumeReadyRef = useRef(false);
+    const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const hasInitialAnswer = textAnswer.trim().length > 0 || diagramFile != null;
     const followUpQuestions = submission?.followUpQuestions ?? null;
@@ -88,6 +127,7 @@ export function SystemDesignSectionWorkspace({
 
     useEffect(() => {
         let cancelled = false;
+        resumeReadyRef.current = false;
 
         async function load() {
             setIsQuestionLoading(true);
@@ -105,6 +145,9 @@ export function SystemDesignSectionWorkspace({
 
                 setQuestion(questionRes.question);
 
+                const draftKey = mockSdDraftKey(interviewId);
+                const draft = readPracticeDraft<SystemDesignMockDraft>(draftKey);
+
                 if (assignment.submissionId) {
                     const submissionRes = await getSystemDesignSubmission(
                         accessToken,
@@ -119,25 +162,30 @@ export function SystemDesignSectionWorkspace({
                     if (submissionRes.submission.followUpAnswers) {
                         setFollowUpAnswer1(submissionRes.submission.followUpAnswers[0] ?? '');
                         setFollowUpAnswer2(submissionRes.submission.followUpAnswers[1] ?? '');
+                    } else if (draft) {
+                        setFollowUpAnswer1(draft.followUpAnswer1 ?? '');
+                        setFollowUpAnswer2(draft.followUpAnswer2 ?? '');
+                    } else {
+                        setFollowUpAnswer1('');
+                        setFollowUpAnswer2('');
                     }
                 } else {
                     setSubmission(null);
-                    setTextAnswer('');
-                    setFollowUpAnswer1('');
-                    setFollowUpAnswer2('');
+                    setTextAnswer(draft?.textAnswer ?? '');
+                    setFollowUpAnswer1(draft?.followUpAnswer1 ?? '');
+                    setFollowUpAnswer2(draft?.followUpAnswer2 ?? '');
                 }
             } catch (err) {
                 if (cancelled) {
                     return;
                 }
                 setQuestionError(
-                    err instanceof ApiError
-                        ? err.message
-                        : 'Failed to load system design question',
+                    resolveActionErrorMessage(err, 'Failed to load system design question'),
                 );
             } finally {
                 if (!cancelled) {
                     setIsQuestionLoading(false);
+                    resumeReadyRef.current = true;
                 }
             }
         }
@@ -146,13 +194,79 @@ export function SystemDesignSectionWorkspace({
         return () => {
             cancelled = true;
         };
-    }, [accessToken, assignment.questionId, assignment.submissionId]);
+    }, [accessToken, interviewId, assignment.questionId, assignment.submissionId]);
+
+    useEffect(() => {
+        if (!question || !resumeReadyRef.current || readOnly) {
+            return;
+        }
+        if (submission?.followUpAnswers) {
+            return;
+        }
+
+        if (draftTimerRef.current) {
+            clearTimeout(draftTimerRef.current);
+        }
+
+        const persist = () => {
+            const draft: SystemDesignMockDraft = {
+                textAnswer: submission ? (submission.textAnswer ?? '') : textAnswer,
+                followUpAnswer1,
+                followUpAnswer2,
+                updatedAt: Date.now(),
+            };
+            writePracticeDraft(mockSdDraftKey(interviewId), draft);
+        };
+
+        draftTimerRef.current = setTimeout(persist, SD_DRAFT_DEBOUNCE_MS);
+
+        const onHide = () => {
+            if (document.visibilityState === 'hidden') {
+                persist();
+            }
+        };
+        document.addEventListener('visibilitychange', onHide);
+        window.addEventListener('pagehide', persist);
+
+        return () => {
+            if (draftTimerRef.current) {
+                clearTimeout(draftTimerRef.current);
+            }
+            document.removeEventListener('visibilitychange', onHide);
+            window.removeEventListener('pagehide', persist);
+        };
+    }, [
+        question,
+        submission,
+        textAnswer,
+        followUpAnswer1,
+        followUpAnswer2,
+        interviewId,
+        readOnly,
+    ]);
 
     const topics = useMemo(() => question?.topics ?? [], [question]);
 
     async function handleInitialSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!question || readOnly || !hasInitialAnswer) {
+        if (!question || readOnly) {
+            return;
+        }
+
+        const contentErr = validateSystemDesignInitialContent(textAnswer, diagramFile);
+        const textErr = validateTextAnswer(textAnswer);
+        const diagramErr = validateDiagramFile(diagramFile);
+        const next: Partial<Record<SystemDesignWorkspaceField, string>> = {};
+        if (textErr) {
+            next.textAnswer = textErr;
+        } else if (contentErr && !diagramErr) {
+            next.textAnswer = contentErr;
+        }
+        if (diagramErr) {
+            next.diagram = diagramErr;
+        }
+        setMany(next);
+        if (Object.keys(next).length > 0 || contentErr) {
             return;
         }
 
@@ -175,12 +289,17 @@ export function SystemDesignSectionWorkspace({
             setSubmission(created.submission);
             setTextAnswer(created.submission.textAnswer ?? '');
             setDiagramFile(null);
+            clear();
+            writePracticeDraft(mockSdDraftKey(interviewId), {
+                textAnswer: created.submission.textAnswer ?? '',
+                followUpAnswer1: '',
+                followUpAnswer2: '',
+                updatedAt: Date.now(),
+            } satisfies SystemDesignMockDraft);
             onInterviewChange(linked.interview);
         } catch (err) {
             setActionError(
-                err instanceof ApiError
-                    ? err.message
-                    : 'Failed to submit system design answer',
+                resolveActionErrorMessage(err, 'Failed to submit system design answer'),
             );
         } finally {
             setIsSubmitting(false);
@@ -200,9 +319,7 @@ export function SystemDesignSectionWorkspace({
             setSubmission(res.submission);
         } catch (err) {
             setActionError(
-                err instanceof ApiError
-                    ? err.message
-                    : 'Failed to generate follow-up questions',
+                resolveActionErrorMessage(err, 'Failed to generate follow-up questions'),
             );
         } finally {
             setIsGeneratingFollowUps(false);
@@ -211,7 +328,17 @@ export function SystemDesignSectionWorkspace({
 
     async function handleSubmitFollowUps(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!submission || !canSubmitFollowUps) {
+        if (!submission || readOnly) {
+            return;
+        }
+
+        const next: Partial<Record<SystemDesignWorkspaceField, string>> = {};
+        const fu1Err = validateFollowUpAnswer(followUpAnswer1, 1);
+        const fu2Err = validateFollowUpAnswer(followUpAnswer2, 2);
+        if (fu1Err) next.followUpAnswer1 = fu1Err;
+        if (fu2Err) next.followUpAnswer2 = fu2Err;
+        setMany(next);
+        if (Object.keys(next).length > 0) {
             return;
         }
 
@@ -225,11 +352,12 @@ export function SystemDesignSectionWorkspace({
                 { answers: [followUpAnswer1.trim(), followUpAnswer2.trim()] },
             );
             setSubmission(res.submission);
+            clear('followUpAnswer1');
+            clear('followUpAnswer2');
+            clearPracticeDraft(mockSdDraftKey(interviewId));
         } catch (err) {
             setActionError(
-                err instanceof ApiError
-                    ? err.message
-                    : 'Failed to submit follow-up answers',
+                resolveActionErrorMessage(err, 'Failed to submit follow-up answers'),
             );
         } finally {
             setIsSubmittingFollowUps(false);
@@ -253,9 +381,7 @@ export function SystemDesignSectionWorkspace({
             onInterviewChange(res.interview);
         } catch (err) {
             setActionError(
-                err instanceof ApiError
-                    ? err.message
-                    : 'Failed to submit system design section',
+                resolveActionErrorMessage(err, 'Failed to submit system design section'),
             );
         } finally {
             setIsSubmittingSection(false);
@@ -302,14 +428,7 @@ export function SystemDesignSectionWorkspace({
                 </button>
             </div>
 
-            {actionError ? (
-                <div
-                    className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-                    role="alert"
-                >
-                    {actionError}
-                </div>
-            ) : null}
+            {actionError ? <ActionErrorAlert message={actionError} /> : null}
 
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
                 <section className="card min-h-0 overflow-y-auto p-5 sm:p-6">
@@ -374,6 +493,7 @@ export function SystemDesignSectionWorkspace({
                     {!submission ? (
                         <form
                             onSubmit={handleInitialSubmit}
+                            noValidate
                             className="card space-y-4 p-5 sm:p-6"
                         >
                             <div>
@@ -394,11 +514,25 @@ export function SystemDesignSectionWorkspace({
                                 <textarea
                                     id="mock-sd-text"
                                     value={textAnswer}
-                                    onChange={(event) => setTextAnswer(event.target.value)}
+                                    onChange={(event) => {
+                                        setTextAnswer(event.target.value);
+                                        clear('textAnswer');
+                                    }}
+                                    onBlur={() =>
+                                        touch('textAnswer', validateTextAnswer(textAnswer))
+                                    }
                                     rows={12}
                                     disabled={readOnly}
                                     placeholder="Describe your high-level design, APIs, data model, scaling approach…"
+                                    aria-invalid={Boolean(errors.textAnswer)}
+                                    aria-describedby={
+                                        errors.textAnswer ? 'mock-sd-text-error' : undefined
+                                    }
                                     className="input-base mt-1.5 min-h-[220px] resize-y font-mono text-sm"
+                                />
+                                <FieldError
+                                    id="mock-sd-text-error"
+                                    message={errors.textAnswer}
                                 />
                             </div>
                             <div>
@@ -411,10 +545,20 @@ export function SystemDesignSectionWorkspace({
                                 <input
                                     id="mock-sd-diagram"
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/jpeg,image/png,image/webp,image/gif"
                                     disabled={readOnly}
-                                    onChange={(event) =>
-                                        setDiagramFile(event.target.files?.[0] ?? null)
+                                    onChange={(event) => {
+                                        const file = event.target.files?.[0] ?? null;
+                                        setDiagramFile(file);
+                                        touch('diagram', validateDiagramFile(file));
+                                        clear('textAnswer');
+                                    }}
+                                    onBlur={() =>
+                                        touch('diagram', validateDiagramFile(diagramFile))
+                                    }
+                                    aria-invalid={Boolean(errors.diagram)}
+                                    aria-describedby={
+                                        errors.diagram ? 'mock-sd-diagram-error' : undefined
                                     }
                                     className="mt-1.5 block w-full text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
                                 />
@@ -423,6 +567,10 @@ export function SystemDesignSectionWorkspace({
                                         Selected: {diagramFile.name}
                                     </p>
                                 ) : null}
+                                <FieldError
+                                    id="mock-sd-diagram-error"
+                                    message={errors.diagram}
+                                />
                             </div>
                             <button
                                 type="submit"
@@ -432,7 +580,7 @@ export function SystemDesignSectionWorkspace({
                                 {isSubmitting ? 'Submitting…' : 'Submit answer'}
                             </button>
                         </form>
-                    ) : (
+                    ) : !followUpQuestions ? (
                         <div className="card space-y-4 p-5 sm:p-6">
                             <div>
                                 <h2 className="text-base font-semibold text-zinc-900">
@@ -473,7 +621,7 @@ export function SystemDesignSectionWorkspace({
                                 </button>
                             ) : null}
                         </div>
-                    )}
+                    ) : null}
 
                     {followUpQuestions ? (
                         <div className="card space-y-4 p-5 sm:p-6">
@@ -502,6 +650,7 @@ export function SystemDesignSectionWorkspace({
                             {!followUpAnswers ? (
                                 <form
                                     onSubmit={handleSubmitFollowUps}
+                                    noValidate
                                     className="space-y-4"
                                 >
                                     <div>
@@ -514,12 +663,29 @@ export function SystemDesignSectionWorkspace({
                                         <textarea
                                             id="mock-sd-fu-1"
                                             value={followUpAnswer1}
-                                            onChange={(event) =>
-                                                setFollowUpAnswer1(event.target.value)
+                                            onChange={(event) => {
+                                                setFollowUpAnswer1(event.target.value);
+                                                clear('followUpAnswer1');
+                                            }}
+                                            onBlur={() =>
+                                                touch(
+                                                    'followUpAnswer1',
+                                                    validateFollowUpAnswer(followUpAnswer1, 1),
+                                                )
                                             }
                                             rows={5}
                                             disabled={readOnly}
+                                            aria-invalid={Boolean(errors.followUpAnswer1)}
+                                            aria-describedby={
+                                                errors.followUpAnswer1
+                                                    ? 'mock-sd-fu-1-error'
+                                                    : undefined
+                                            }
                                             className="input-base mt-1.5 min-h-[120px] resize-y text-sm"
+                                        />
+                                        <FieldError
+                                            id="mock-sd-fu-1-error"
+                                            message={errors.followUpAnswer1}
                                         />
                                     </div>
                                     <div>
@@ -532,12 +698,29 @@ export function SystemDesignSectionWorkspace({
                                         <textarea
                                             id="mock-sd-fu-2"
                                             value={followUpAnswer2}
-                                            onChange={(event) =>
-                                                setFollowUpAnswer2(event.target.value)
+                                            onChange={(event) => {
+                                                setFollowUpAnswer2(event.target.value);
+                                                clear('followUpAnswer2');
+                                            }}
+                                            onBlur={() =>
+                                                touch(
+                                                    'followUpAnswer2',
+                                                    validateFollowUpAnswer(followUpAnswer2, 2),
+                                                )
                                             }
                                             rows={5}
                                             disabled={readOnly}
+                                            aria-invalid={Boolean(errors.followUpAnswer2)}
+                                            aria-describedby={
+                                                errors.followUpAnswer2
+                                                    ? 'mock-sd-fu-2-error'
+                                                    : undefined
+                                            }
                                             className="input-base mt-1.5 min-h-[120px] resize-y text-sm"
+                                        />
+                                        <FieldError
+                                            id="mock-sd-fu-2-error"
+                                            message={errors.followUpAnswer2}
                                         />
                                     </div>
                                     <button

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { PracticeAuthLoading } from '@/components/practice/PracticeListShell';
+import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileStats } from '@/components/profile/ProfileStats';
 import { StudyPlanDetail } from '@/components/profile/StudyPlanDetail';
@@ -27,7 +27,7 @@ import type {
 
 export default function ProfilePage() {
     const router = useRouter();
-    const { accessToken, logout, setUser, isLoading: authLoading } =
+    const { accessToken, logout, setUser } =
         useAuthStore();
 
     const [hydrated, setHydrated] = useState(false);
@@ -203,7 +203,6 @@ export default function ProfilePage() {
                 selectedPlan.id,
                 { completedTaskKeys },
             );
-            setSelectedPlan(updated);
             setPlans((current) =>
                 current.map((plan) =>
                     plan.id === updated.id
@@ -216,6 +215,7 @@ export default function ProfilePage() {
                         : plan,
                 ),
             );
+            setSelectedPlan(null);
         } catch (err) {
             setError(
                 err instanceof ApiError
@@ -227,13 +227,13 @@ export default function ProfilePage() {
         }
     }
 
-    async function handleLogout() {
-        await logout();
+    function handleLogout() {
+        void logout();
         router.replace('/login');
     }
 
     if (!hydrated || !accessToken) {
-        return <PracticeAuthLoading />;
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -259,7 +259,7 @@ export default function ProfilePage() {
                             onUpdateProfile={handleUpdateProfile}
                             isUploadingAvatar={isUploadingAvatar}
                             isUpdatingProfile={isUpdatingProfile}
-                            isLoggingOut={authLoading}
+                            isLoggingOut={false}
                         />
                         <div className="border-t border-zinc-200/80 pt-8 sm:pt-10">
                             <ProfileStats stats={profile.stats} />

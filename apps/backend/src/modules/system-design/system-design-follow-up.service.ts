@@ -60,6 +60,9 @@ function mapAIError(err: AIError): SystemDesignError {
     if (err.code === 'CONFIG_ERROR') {
         return new SystemDesignError(err.message, 'CONFIG_ERROR');
     }
+    if (err.code === 'QUOTA_EXCEEDED') {
+        return new SystemDesignError(err.message, 'QUOTA_EXCEEDED');
+    }
     return new SystemDesignError(err.message, 'INVALID_INPUT');
 }
 
@@ -106,7 +109,10 @@ export async function generateSystemDesignFollowUpQuestions(
         if (err instanceof AIError) {
             throw mapAIError(err);
         }
-        throw err;
+        throw new SystemDesignError(
+            err instanceof Error ? err.message : 'AI request failed',
+            'INVALID_INPUT',
+        );
     }
 
     const updated = await prisma.systemDesignSubmission.update({

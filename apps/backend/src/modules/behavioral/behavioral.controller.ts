@@ -1,5 +1,9 @@
 import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/auth.middleware.js';
+import {
+    AIError,
+    httpStatusForAIError,
+} from '../../services/AIService.js';
 import { FreeAiReportLimitError } from '../../services/freeAiReport.service.js';
 import {
     BehavioralEvaluationError,
@@ -39,6 +43,14 @@ function sendValidationError(res: Response, details: unknown): void {
 }
 
 function handleBehavioralError(err: unknown, res: Response): void {
+    if (err instanceof AIError) {
+        res.status(httpStatusForAIError(err)).json({
+            error: err.message,
+            code: err.code,
+        });
+        return;
+    }
+
     if (err instanceof BehavioralError) {
         const statusByCode: Record<BehavioralError['code'], number> = {
             NOT_FOUND: 404,
@@ -48,8 +60,12 @@ function handleBehavioralError(err: unknown, res: Response): void {
             UPLOAD_FAILED: 502,
             CONFIG_ERROR: 503,
             PARSE_FAILED: 400,
+            QUOTA_EXCEEDED: 429,
         };
-        res.status(statusByCode[err.code]).json({ error: err.message });
+        res.status(statusByCode[err.code]).json({
+            error: err.message,
+            code: err.code,
+        });
         return;
     }
 

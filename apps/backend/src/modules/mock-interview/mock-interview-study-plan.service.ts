@@ -209,12 +209,20 @@ export async function generateMockInterviewStudyPlan(
         aiResult = await generateStudyPlanWithAI(aiInput);
     } catch (err) {
         if (err instanceof AIError) {
+            if (err.code === 'QUOTA_EXCEEDED') {
+                throw new MockInterviewError(err.message, 'QUOTA_EXCEEDED');
+            }
             throw new MockInterviewError(
                 `Failed to generate study plan: ${err.message}`,
                 'CONFIG_ERROR',
             );
         }
-        throw err;
+        throw new MockInterviewError(
+            err instanceof Error
+                ? `Failed to generate study plan: ${err.message}`
+                : 'Failed to generate study plan',
+            'CONFIG_ERROR',
+        );
     }
 
     const plan = parseStudyPlan(aiResult.plan);

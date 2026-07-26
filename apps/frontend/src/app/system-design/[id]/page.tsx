@@ -19,8 +19,18 @@ import {
     writePracticeDraft,
 } from '@/lib/practice-drafts';
 import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
+import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
 import { RevealSection } from '@/components/RevealSection';
 import { SystemDesignSubmissionView } from '@/components/system-design/SystemDesignSubmissionView';
+import { SystemDesignEvaluationReport } from '@/components/system-design/SystemDesignEvaluationReport';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import {
+    validateDiagramFile,
+    validateFollowUpAnswer,
+    validateSystemDesignInitialContent,
+    validateTextAnswer,
+} from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import type {
     EvaluationMetric,
@@ -32,6 +42,11 @@ import type {
 
 type LeftTab = 'question' | 'submissions';
 type ExpandedPanel = 'submission' | 'report';
+type SystemDesignField =
+    | 'textAnswer'
+    | 'diagram'
+    | 'followUpAnswer1'
+    | 'followUpAnswer2';
 
 interface SystemDesignPracticeDraft {
     textAnswer: string;
@@ -58,211 +73,6 @@ function difficultyPill(difficulty: SystemDesignQuestionDetail['difficulty']): s
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
     return <h2 className="section-label">{children}</h2>;
-}
-
-function getScoreTier(score: number): {
-    label: string;
-    color: string;
-    bg: string;
-    ring: string;
-    bar: string;
-} {
-    if (score >= 85) {
-        return {
-            label: 'Excellent',
-            color: 'text-emerald-700',
-            bg: 'bg-emerald-50',
-            ring: 'ring-emerald-200',
-            bar: 'bg-emerald-500',
-        };
-    }
-    if (score >= 70) {
-        return {
-            label: 'Good',
-            color: 'text-sky-700',
-            bg: 'bg-sky-50',
-            ring: 'ring-sky-200',
-            bar: 'bg-sky-500',
-        };
-    }
-    if (score >= 50) {
-        return {
-            label: 'Fair',
-            color: 'text-amber-700',
-            bg: 'bg-amber-50',
-            ring: 'ring-amber-200',
-            bar: 'bg-amber-500',
-        };
-    }
-    return {
-        label: 'Needs Work',
-        color: 'text-rose-700',
-        bg: 'bg-rose-50',
-        ring: 'ring-rose-200',
-        bar: 'bg-rose-500',
-    };
-}
-
-function ScoreBar({ label, score }: { label: string; score: number }) {
-    const tier = getScoreTier(score);
-    return (
-        <div className="rounded-lg border border-zinc-100 bg-white px-3.5 py-3 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-zinc-700">{label}</span>
-                <span className="text-sm font-semibold tabular-nums text-zinc-900">
-                    {score}
-                    <span className="font-normal text-zinc-400">/100</span>
-                </span>
-            </div>
-            <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-zinc-100">
-                <div
-                    className={`h-full rounded-full transition-all duration-500 ease-out ${tier.bar}`}
-                    style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
-                />
-            </div>
-        </div>
-    );
-}
-
-function ReportSection({
-    title,
-    subtitle,
-    children,
-}: {
-    title: string;
-    subtitle?: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <section>
-            <div className="mb-3">
-                <h3 className="text-sm font-semibold tracking-tight text-zinc-900">{title}</h3>
-                {subtitle && (
-                    <p className="mt-0.5 text-xs font-normal leading-relaxed text-zinc-500">
-                        {subtitle}
-                    </p>
-                )}
-            </div>
-            {children}
-        </section>
-    );
-}
-
-//This shows the AI evaluation report
-function SystemDesignEvaluationReport({
-    evaluation,
-    metrics,
-}: {
-    evaluation: SystemDesignEvaluationDetail;
-    metrics: EvaluationMetric[];
-}) {
-    const tier = getScoreTier(evaluation.overallScore);
-    const reviewedAt = new Date(evaluation.createdAt).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-    });
-    return (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-card">
-            <div className={`border-b border-zinc-200 px-5 py-5 sm:px-6 ${tier.bg}`}>
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                            AI Review
-                        </p>
-                        <div className="mt-2 flex items-baseline gap-2">
-                            <span className={`text-4xl font-bold tabular-nums ${tier.color}`}>
-                                {evaluation.overallScore}
-                            </span>
-                            <span className="text-sm font-medium text-zinc-500">/ 100</span>
-                        </div>
-                        <p className={`mt-1 text-sm font-semibold ${tier.color}`}>{tier.label}</p>
-                    </div>
-                    <p className="text-xs text-zinc-500">Reviewed {reviewedAt}</p>
-                </div>
-            </div>
-            <div className="space-y-6 p-5 sm:p-6">
-                <ReportSection title="Rubric scores" subtitle="Weighted metrics from the question rubric.">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        {metrics.map((metric) => (
-                            <ScoreBar
-                                key={metric.id}
-                                label={metric.title}
-                                score={evaluation.metricScores[metric.id] ?? 0}
-                            />
-                        ))}
-                    </div>
-                </ReportSection>
-                <ReportSection title="Feedback">
-                    <p className="ai-report-body rounded-lg border border-zinc-100 bg-zinc-50/60 px-4 py-3.5 text-zinc-700">
-                        {evaluation.feedback}
-                    </p>
-                </ReportSection>
-                {evaluation.strengths.length > 0 && (
-                    <ReportSection title="Strengths">
-                        <ul className="space-y-2">
-                            {evaluation.strengths.map((item, idx) => (
-                                <li
-                                    key={idx}
-                                    className="ai-report-list-item rounded-lg border border-emerald-100 bg-emerald-50/50 px-3.5 py-2.5 text-emerald-900"
-                                >
-                                    {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </ReportSection>
-                )}
-                {evaluation.weaknesses.length > 0 && (
-                    <ReportSection title="Areas to improve">
-                        <ul className="space-y-2">
-                            {evaluation.weaknesses.map((item, idx) => (
-                                <li
-                                    key={idx}
-                                    className="ai-report-list-item rounded-lg border border-amber-100 bg-amber-50/50 px-3.5 py-2.5 text-amber-900"
-                                >
-                                    {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </ReportSection>
-                )}
-                {evaluation.suggestions.length > 0 && (
-                    <ReportSection title="Suggestions">
-                        <ul className="space-y-2">
-                            {evaluation.suggestions.map((item, idx) => (
-                                <li
-                                    key={idx}
-                                    className="ai-report-list-item rounded-lg border border-zinc-100 bg-white px-3.5 py-2.5 text-zinc-800"
-                                >
-                                    {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </ReportSection>
-                )}
-                {evaluation.followUpQuestions.length > 0 && (
-                    <ReportSection
-                        title="Follow-up questions"
-                        subtitle="Questions an interviewer might ask you next."
-                    >
-                        <ol className="space-y-2.5">
-                            {evaluation.followUpQuestions.map((question, idx) => (
-                                <li
-                                    key={idx}
-                                    className="flex gap-3 rounded-lg border border-zinc-100 bg-gradient-to-r from-white to-zinc-50/80 px-3.5 py-3"
-                                >
-                                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-[10px] font-bold text-white">
-                                        Q{idx + 1}
-                                    </span>
-                                    <span className="ai-report-list-item text-zinc-800">{question}</span>
-                                </li>
-                            ))}
-                        </ol>
-                    </ReportSection>
-                )}
-            </div>
-        </div>
-    );
 }
 
 async function pollForSystemDesignEvaluation(
@@ -300,6 +110,7 @@ export default function SystemDesignPracticePage() {
     const params = useParams<{ id: string }>();
 
     const { accessToken } = useAuthStore();
+    const { errors, touch, clear, setMany } = useFieldErrors<SystemDesignField>();
 
     const [hydrated, setHydrated] = useState(false);
     const [question, setQuestion] = useState<SystemDesignQuestionDetail | null>(null);
@@ -594,6 +405,7 @@ export default function SystemDesignPracticePage() {
         setFollowUpAnswer1('');
         setFollowUpAnswer2('');
         resetAiReviewState();
+        clear();
         clearPracticeDraft(practiceDraftKey('system-design', question.id));
     }
 
@@ -605,8 +417,20 @@ export default function SystemDesignPracticePage() {
             return;
         }
 
-        if (!hasInitialAnswer) {
-            setActionError('Provide a text answer, a diagram, or both.');
+        const contentErr = validateSystemDesignInitialContent(textAnswer, diagramFile);
+        const textErr = validateTextAnswer(textAnswer);
+        const diagramErr = validateDiagramFile(diagramFile);
+        const next: Partial<Record<SystemDesignField, string>> = {};
+        if (textErr) {
+            next.textAnswer = textErr;
+        } else if (contentErr && !diagramErr) {
+            next.textAnswer = contentErr;
+        }
+        if (diagramErr) {
+            next.diagram = diagramErr;
+        }
+        setMany(next);
+        if (Object.keys(next).length > 0 || contentErr) {
             return;
         }
 
@@ -624,6 +448,7 @@ export default function SystemDesignPracticePage() {
             setSubmission(res.submission);
             setTextAnswer(res.submission.textAnswer ?? '');
             setDiagramFile(null);
+            clear();
             setSubmissionsLoadedFor(null);
             resetExpandedState();
             writePracticeDraft(practiceDraftKey('system-design', question.id), {
@@ -669,6 +494,16 @@ export default function SystemDesignPracticePage() {
             return;
         }
 
+        const next: Partial<Record<SystemDesignField, string>> = {};
+        const fu1Err = validateFollowUpAnswer(followUpAnswer1, 1);
+        const fu2Err = validateFollowUpAnswer(followUpAnswer2, 2);
+        if (fu1Err) next.followUpAnswer1 = fu1Err;
+        if (fu2Err) next.followUpAnswer2 = fu2Err;
+        setMany(next);
+        if (Object.keys(next).length > 0) {
+            return;
+        }
+
         setIsSubmittingFollowUps(true);
         setActionError(null);
         resetAiReviewState();
@@ -678,6 +513,8 @@ export default function SystemDesignPracticePage() {
                 answers: [followUpAnswer1.trim(), followUpAnswer2.trim()],
             });
             setSubmission(res.submission);
+            clear('followUpAnswer1');
+            clear('followUpAnswer2');
             if (question) {
                 clearPracticeDraft(practiceDraftKey('system-design', question.id));
                 setSubmissionsLoadedFor(null);
@@ -844,11 +681,7 @@ export default function SystemDesignPracticePage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-            </div>
-        );
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -1166,7 +999,11 @@ export default function SystemDesignPracticePage() {
 
                             {/*based on submission how right panel looks*/}
                             {!submission ? (
-                                <form onSubmit={handleInitialSubmit} className="card space-y-4 p-5 shadow-elevated sm:p-6">
+                                <form
+                                    onSubmit={handleInitialSubmit}
+                                    noValidate
+                                    className="card space-y-4 p-5 shadow-elevated sm:p-6"
+                                >
                                     <div>
                                         <h2 className="text-base font-semibold text-zinc-900">
                                             Your answer
@@ -1185,11 +1022,22 @@ export default function SystemDesignPracticePage() {
                                         <textarea
                                             id="textAnswer"
                                             value={textAnswer}
-                                            onChange={(e) => setTextAnswer(e.target.value)}
+                                            onChange={(e) => {
+                                                setTextAnswer(e.target.value);
+                                                clear('textAnswer');
+                                            }}
+                                            onBlur={() =>
+                                                touch('textAnswer', validateTextAnswer(textAnswer))
+                                            }
                                             rows={12}
                                             placeholder="Describe your high-level design, APIs, data model, scaling approach…"
+                                            aria-invalid={Boolean(errors.textAnswer)}
+                                            aria-describedby={
+                                                errors.textAnswer ? 'text-answer-error' : undefined
+                                            }
                                             className="input-base mt-1.5 min-h-[220px] resize-y font-mono text-sm"
                                         />
+                                        <FieldError id="text-answer-error" message={errors.textAnswer} />
                                     </div>
                                     <div>
                                         <label
@@ -1201,9 +1049,19 @@ export default function SystemDesignPracticePage() {
                                         <input
                                             id="diagram"
                                             type="file"
-                                            accept="image/*"
-                                            onChange={(e) =>
-                                                setDiagramFile(e.target.files?.[0] ?? null)
+                                            accept="image/jpeg,image/png,image/webp,image/gif"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0] ?? null;
+                                                setDiagramFile(file);
+                                                touch('diagram', validateDiagramFile(file));
+                                                clear('textAnswer');
+                                            }}
+                                            onBlur={() =>
+                                                touch('diagram', validateDiagramFile(diagramFile))
+                                            }
+                                            aria-invalid={Boolean(errors.diagram)}
+                                            aria-describedby={
+                                                errors.diagram ? 'diagram-error' : undefined
                                             }
                                             className="mt-1.5 block w-full text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
                                         />
@@ -1212,6 +1070,7 @@ export default function SystemDesignPracticePage() {
                                                 Selected: {diagramFile.name}
                                             </p>
                                         )}
+                                        <FieldError id="diagram-error" message={errors.diagram} />
                                     </div>
                                     <button
                                         type="submit"
@@ -1221,7 +1080,7 @@ export default function SystemDesignPracticePage() {
                                         {isSubmitting ? 'Submitting…' : 'Submit answer'}
                                     </button>
                                 </form>
-                            ) : (
+                            ) : !followUpQuestions ? (
                                 <div className="card space-y-4 p-5 shadow-elevated sm:p-6">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
@@ -1232,15 +1091,6 @@ export default function SystemDesignPracticePage() {
                                                 Submission ID: {submission.id}
                                             </p>
                                         </div>
-                                        {canStartNewAttempt && (
-                                            <button
-                                                type="button"
-                                                onClick={handleStartNewAttempt}
-                                                className="btn-secondary !py-1.5 !text-xs"
-                                            >
-                                                Start new attempt
-                                            </button>
-                                        )}
                                     </div>
                                     {submission.textAnswer && (
                                         <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
@@ -1273,18 +1123,29 @@ export default function SystemDesignPracticePage() {
                                         </button>
                                     )}
                                 </div>
-                            )}
+                            ) : null}
 
                             {/*UI for followUp question , answers area , whether answered or not , and generate aiReview button*/}
                             {followUpQuestions && (
                                 <div className="card space-y-4 p-5 shadow-elevated sm:p-6">
-                                    <div>
-                                        <h2 className="text-base font-semibold text-zinc-900">
-                                            Follow-up round
-                                        </h2>
-                                        <p className="mt-1 text-sm text-zinc-500">
-                                            Answer both interviewer follow-up questions.
-                                        </p>
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <h2 className="text-base font-semibold text-zinc-900">
+                                                Follow-up round
+                                            </h2>
+                                            <p className="mt-1 text-sm text-zinc-500">
+                                                Answer both interviewer follow-up questions.
+                                            </p>
+                                        </div>
+                                        {canStartNewAttempt ? (
+                                            <button
+                                                type="button"
+                                                onClick={handleStartNewAttempt}
+                                                className="btn-secondary !py-1.5 !text-xs"
+                                            >
+                                                Start new attempt
+                                            </button>
+                                        ) : null}
                                     </div>
                                     <ol className="space-y-3">
                                         {followUpQuestions.map((q, idx) => (
@@ -1301,7 +1162,11 @@ export default function SystemDesignPracticePage() {
                                     </ol>
 
                                     {!followUpAnswers ? (
-                                        <form onSubmit={handleSubmitFollowUps} className="space-y-4">
+                                        <form
+                                            onSubmit={handleSubmitFollowUps}
+                                            noValidate
+                                            className="space-y-4"
+                                        >
                                             <div>
                                                 <label
                                                     htmlFor="followUpAnswer1"
@@ -1312,9 +1177,28 @@ export default function SystemDesignPracticePage() {
                                                 <textarea
                                                     id="followUpAnswer1"
                                                     value={followUpAnswer1}
-                                                    onChange={(e) => setFollowUpAnswer1(e.target.value)}
+                                                    onChange={(e) => {
+                                                        setFollowUpAnswer1(e.target.value);
+                                                        clear('followUpAnswer1');
+                                                    }}
+                                                    onBlur={() =>
+                                                        touch(
+                                                            'followUpAnswer1',
+                                                            validateFollowUpAnswer(followUpAnswer1, 1),
+                                                        )
+                                                    }
                                                     rows={5}
+                                                    aria-invalid={Boolean(errors.followUpAnswer1)}
+                                                    aria-describedby={
+                                                        errors.followUpAnswer1
+                                                            ? 'follow-up-1-error'
+                                                            : undefined
+                                                    }
                                                     className="input-base mt-1.5 min-h-[120px] resize-y text-sm"
+                                                />
+                                                <FieldError
+                                                    id="follow-up-1-error"
+                                                    message={errors.followUpAnswer1}
                                                 />
                                             </div>
                                             <div>
@@ -1327,9 +1211,28 @@ export default function SystemDesignPracticePage() {
                                                 <textarea
                                                     id="followUpAnswer2"
                                                     value={followUpAnswer2}
-                                                    onChange={(e) => setFollowUpAnswer2(e.target.value)}
+                                                    onChange={(e) => {
+                                                        setFollowUpAnswer2(e.target.value);
+                                                        clear('followUpAnswer2');
+                                                    }}
+                                                    onBlur={() =>
+                                                        touch(
+                                                            'followUpAnswer2',
+                                                            validateFollowUpAnswer(followUpAnswer2, 2),
+                                                        )
+                                                    }
                                                     rows={5}
+                                                    aria-invalid={Boolean(errors.followUpAnswer2)}
+                                                    aria-describedby={
+                                                        errors.followUpAnswer2
+                                                            ? 'follow-up-2-error'
+                                                            : undefined
+                                                    }
                                                     className="input-base mt-1.5 min-h-[120px] resize-y text-sm"
+                                                />
+                                                <FieldError
+                                                    id="follow-up-2-error"
+                                                    message={errors.followUpAnswer2}
                                                 />
                                             </div>
                                             <button

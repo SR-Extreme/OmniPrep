@@ -55,21 +55,21 @@ function buildTopicSearchWhere(query: ListAdminQuestionsQuery) {
             : {}),
         ...(query.search
             ? {
-                  OR: [
-                      {
-                          title: {
-                              contains: query.search,
-                              mode: 'insensitive' as const,
-                          },
-                      },
-                      {
-                          slug: {
-                              contains: query.search,
-                              mode: 'insensitive' as const,
-                          },
-                      },
-                  ],
-              }
+                OR: [
+                    {
+                        title: {
+                            contains: query.search,
+                            mode: 'insensitive' as const,
+                        },
+                    },
+                    {
+                        slug: {
+                            contains: query.search,
+                            mode: 'insensitive' as const,
+                        },
+                    },
+                ],
+            }
             : {}),
     };
 }
@@ -396,11 +396,26 @@ export async function publishDsaQuestion(
 }
 
 export async function deleteDsaQuestion(questionId: string): Promise<void> {
-    try {
-        await prisma.problem.delete({ where: { id: questionId } });
-    } catch {
+    const existing = await prisma.problem.findUnique({
+        where: { id: questionId },
+        select: {
+            id: true,
+            _count: { select: { mockInterviewDsaSlots: true } },
+        },
+    });
+
+    if (!existing) {
         throw new AdminQuestionsError('DSA question not found', 'NOT_FOUND');
     }
+
+    if (existing._count.mockInterviewDsaSlots > 0) {
+        throw new AdminQuestionsError(
+            "This question has appeared in the mock interviews and thus can't be deleted",
+            'CONFLICT',
+        );
+    }
+
+    await prisma.problem.delete({ where: { id: questionId } });
 }
 
 export async function createSystemDesignQuestion(
@@ -485,14 +500,29 @@ export async function publishSystemDesignQuestion(
 export async function deleteSystemDesignQuestion(
     questionId: string,
 ): Promise<void> {
-    try {
-        await prisma.systemDesignQuestion.delete({ where: { id: questionId } });
-    } catch {
+    const existing = await prisma.systemDesignQuestion.findUnique({
+        where: { id: questionId },
+        select: {
+            id: true,
+            _count: { select: { mockInterviewAssignments: true } },
+        },
+    });
+
+    if (!existing) {
         throw new AdminQuestionsError(
             'System design question not found',
             'NOT_FOUND',
         );
     }
+
+    if (existing._count.mockInterviewAssignments > 0) {
+        throw new AdminQuestionsError(
+            "This question has appeared in the mock interviews and thus can't be deleted",
+            'CONFLICT',
+        );
+    }
+
+    await prisma.systemDesignQuestion.delete({ where: { id: questionId } });
 }
 
 export async function listBehavioralQuestions(
@@ -505,49 +535,49 @@ export async function listBehavioralQuestions(
         ...(query.difficulty ? { difficulty: query.difficulty } : {}),
         ...(query.company
             ? {
-                  companyName: {
-                      equals: query.company,
-                      mode: 'insensitive' as const,
-                  },
-              }
+                companyName: {
+                    equals: query.company,
+                    mode: 'insensitive' as const,
+                },
+            }
             : {}),
         ...(query.role
             ? {
-                  roleName: {
-                      equals: query.role,
-                      mode: 'insensitive' as const,
-                  },
-              }
+                roleName: {
+                    equals: query.role,
+                    mode: 'insensitive' as const,
+                },
+            }
             : {}),
         ...(query.search
             ? {
-                  OR: [
-                      {
-                          title: {
-                              contains: query.search,
-                              mode: 'insensitive' as const,
-                          },
-                      },
-                      {
-                          slug: {
-                              contains: query.search,
-                              mode: 'insensitive' as const,
-                          },
-                      },
-                      {
-                          companyName: {
-                              contains: query.search,
-                              mode: 'insensitive' as const,
-                          },
-                      },
-                      {
-                          roleName: {
-                              contains: query.search,
-                              mode: 'insensitive' as const,
-                          },
-                      },
-                  ],
-              }
+                OR: [
+                    {
+                        title: {
+                            contains: query.search,
+                            mode: 'insensitive' as const,
+                        },
+                    },
+                    {
+                        slug: {
+                            contains: query.search,
+                            mode: 'insensitive' as const,
+                        },
+                    },
+                    {
+                        companyName: {
+                            contains: query.search,
+                            mode: 'insensitive' as const,
+                        },
+                    },
+                    {
+                        roleName: {
+                            contains: query.search,
+                            mode: 'insensitive' as const,
+                        },
+                    },
+                ],
+            }
             : {}),
     };
 
@@ -754,12 +784,27 @@ export async function publishBehavioralQuestion(
 export async function deleteBehavioralQuestion(
     questionId: string,
 ): Promise<void> {
-    try {
-        await prisma.behavioralQuestion.delete({ where: { id: questionId } });
-    } catch {
+    const existing = await prisma.behavioralQuestion.findUnique({
+        where: { id: questionId },
+        select: {
+            id: true,
+            _count: { select: { mockInterviewAssignments: true } },
+        },
+    });
+
+    if (!existing) {
         throw new AdminQuestionsError(
             'Behavioral question not found',
             'NOT_FOUND',
         );
     }
+
+    if (existing._count.mockInterviewAssignments > 0) {
+        throw new AdminQuestionsError(
+            "This question has appeared in the mock interviews and thus can't be deleted",
+            'CONFLICT',
+        );
+    }
+
+    await prisma.behavioralQuestion.delete({ where: { id: questionId } });
 }

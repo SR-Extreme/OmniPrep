@@ -19,8 +19,9 @@ import {
     studyPlanSchema,
     type StudyPlan,
 } from '../types/mock-interview.types.js';
+import { env } from '../config/env.js';
 
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = env.GEMINI_MODEL ?? 'gemini-3.5-flash-lite';
 
 const complexityAnalysisSchema = z.object({
     detected: z.object({
@@ -72,16 +73,84 @@ const behavioralEvaluationResponseSchema = z.object({
 
 const mockInterviewStudyPlanResponseSchema = studyPlanSchema;
 
+export const AI_QUOTA_EXCEEDED_MESSAGE =
+    "The system's total AI tokens have been exhausted for today. Sorry for the inconvenience — please come back tomorrow.";
+
 export class AIError extends Error {
     constructor(
         message: string,
         public readonly code:
             | 'CONFIG_ERROR'
             | 'REQUEST_FAILED'
-            | 'INVALID_RESPONSE',
+            | 'INVALID_RESPONSE'
+            | 'QUOTA_EXCEEDED',
     ) {
         super(message);
         this.name = 'AIError';
+    }
+}
+
+function readErrorStatus(err: unknown): number | null {
+    if (typeof err !== 'object' || err === null) {
+        return null;
+    }
+
+    const record = err as Record<string, unknown>;
+    if (typeof record.status === 'number') {
+        return record.status;
+    }
+    if (typeof record.code === 'number') {
+        return record.code;
+    }
+    if (typeof record.statusCode === 'number') {
+        return record.statusCode;
+    }
+
+    const nested = record.error;
+    if (typeof nested === 'object' && nested !== null) {
+        const nestedRecord = nested as Record<string, unknown>;
+        if (typeof nestedRecord.code === 'number') {
+            return nestedRecord.code;
+        }
+        if (typeof nestedRecord.status === 'number') {
+            return nestedRecord.status;
+        }
+    }
+
+    return null;
+}
+
+function isGeminiQuotaExhausted(err: unknown): boolean {
+    const status = readErrorStatus(err);
+    if (status === 429) {
+        return true;
+    }
+
+    const message = err instanceof Error ? err.message : String(err ?? '');
+    return /RESOURCE_EXHAUSTED|exceeded your current quota|generate_content_free_tier|Too Many Requests|\b429\b/i.test(
+        message,
+    );
+}
+
+export function toGeminiRequestError(err: unknown): AIError {
+    if (err instanceof AIError) {
+        return err;
+    }
+    if (isGeminiQuotaExhausted(err)) {
+        return new AIError(AI_QUOTA_EXCEEDED_MESSAGE, 'QUOTA_EXCEEDED');
+    }
+    const message = err instanceof Error ? err.message : 'Unknown Gemini API error';
+    return new AIError(message, 'REQUEST_FAILED');
+}
+
+export function httpStatusForAIError(err: AIError): number {
+    switch (err.code) {
+        case 'QUOTA_EXCEEDED':
+            return 429;
+        case 'CONFIG_ERROR':
+            return 503;
+        default:
+            return 502;
     }
 }
 
@@ -341,13 +410,11 @@ async function generateJsonFromGemini(
     textPrompt: string,
     diagramUrl: string | null,
 ): Promise<{ text: string; tokensUsed: number }> {
-    const client = getGeminiClient();
-    const parts = await buildMultimodalParts(textPrompt, diagramUrl);
-
-    let response;
-
     try {
-        response = await client.models.generateContent({
+        const client = getGeminiClient();
+        const parts = await buildMultimodalParts(textPrompt, diagramUrl);
+
+        const response = await client.models.generateContent({
             model: DEFAULT_MODEL,
             contents: [{ role: 'user', parts }],
             config: {
@@ -356,21 +423,20 @@ async function generateJsonFromGemini(
                 responseMimeType: 'application/json',
             },
         });
+
+        const text = response.text;
+
+        if (!text) {
+            throw new AIError('Gemini returned an empty response.', 'INVALID_RESPONSE');
+        }
+
+        return {
+            text,
+            tokensUsed: response.usageMetadata?.totalTokenCount ?? 0,
+        };
     } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown Gemini API error';
-        throw new AIError(message, 'REQUEST_FAILED');
+        throw toGeminiRequestError(err);
     }
-
-    const text = response.text;
-
-    if (!text) {
-        throw new AIError('Gemini returned an empty response.', 'INVALID_RESPONSE');
-    }
-
-    return {
-        text,
-        tokensUsed: response.usageMetadata?.totalTokenCount ?? 0,
-    };
 }
 
 function parseJsonResponse<T>(
@@ -787,11 +853,9 @@ function buildMockInterviewStudyPlanUserPrompt(
 export async function evaluateDSA(
     input: EvaluateDSAInput,
 ): Promise<DSAEvaluationCachePayload> {
-    const client = getGeminiClient();
-    let response;
-
     try {
-        response = await client.models.generateContent({
+        const client = getGeminiClient();
+        const response = await client.models.generateContent({
             model: DEFAULT_MODEL,
             contents: buildUserPrompt(input),
             config: {
@@ -800,25 +864,24 @@ export async function evaluateDSA(
                 responseMimeType: 'application/json',
             },
         });
+
+        const content = response.text;
+
+        if (!content) {
+            throw new AIError('Gemini returned an empty response.', 'INVALID_RESPONSE');
+        }
+
+        const evaluation = parseEvaluationResponse(content);
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
+
+        return {
+            ...evaluation,
+            model: DEFAULT_MODEL,
+            tokensUsed,
+        };
     } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown Gemini API error';
-        throw new AIError(message, 'REQUEST_FAILED');
+        throw toGeminiRequestError(err);
     }
-
-    const content = response.text;
-
-    if (!content) {
-        throw new AIError('Gemini returned an empty response.', 'INVALID_RESPONSE');
-    }
-
-    const evaluation = parseEvaluationResponse(content);
-    const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
-
-    return {
-        ...evaluation,
-        model: DEFAULT_MODEL,
-        tokensUsed,
-    };
 }
 
 //--

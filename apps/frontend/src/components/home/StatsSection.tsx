@@ -85,7 +85,7 @@ export function StatsSection() {
                                 key={stat.title}
                                 initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true, margin: '-40px' }}
+                                viewport={{ once: true, amount: 0.2 }}
                                 transition={{ duration: 0.4, delay: index * 0.06 }}
                                 whileHover={{ y: -4 }}
                                 className="rounded-2xl border border-emerald-200/70 bg-white p-6 shadow-soft transition hover:shadow-elevated"

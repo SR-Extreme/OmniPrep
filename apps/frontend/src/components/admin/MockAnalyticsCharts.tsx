@@ -45,7 +45,7 @@ export function MockAnalyticsCharts({ data }: MockAnalyticsChartsProps) {
                     hint="Completed mock interviews only"
                 />
                 <AdminStatCard
-                    label="Average Interview Score"
+                    label="Average Interview Score of all the users"
                     value={averageScore}
                 />
             </div>

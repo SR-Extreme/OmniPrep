@@ -20,9 +20,11 @@ import {
     type MockWorkspaceSelection,
 } from '@/components/MockInterviewSidebar';
 import { MockInterviewReport } from '@/components/MockInterviewReport';
+import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
 import { SectionTimer } from '@/components/SectionTimer';
 import { StudyPlanPanel } from '@/components/StudyPlanPanel';
 import { SystemDesignSectionWorkspace } from '@/components/SystemDesignSectionWorkspace';
+import { toast } from '@/components/ui/Toast';
 import { useAuthStore } from '@/store/authStore';
 import {
     getSectionLabel,
@@ -220,17 +222,6 @@ export default function MockInterviewSessionPage() {
         );
     }, [interview]);
 
-    const activeDsaSlot = useMemo(() => {
-        if (!interview || selection?.section !== 'DSA') {
-            return null;
-        }
-        return (
-            interview.dsaProblems.find(
-                (slot) => slot.slotIndex === selection.slotIndex,
-            ) ?? null
-        );
-    }, [interview, selection]);
-
     async function handleFinalize() {
         if (!accessToken || !params?.id) {
             return;
@@ -241,9 +232,13 @@ export default function MockInterviewSessionPage() {
 
         try {
             const res = await finalizeMockInterview(accessToken, params.id);
+            const reportRes = await getMockInterviewReport(
+                accessToken,
+                params.id,
+            );
+            setReport(reportRes.report);
             setInterview(res.interview);
-            await refreshReport();
-            await refreshStudyPlan();
+            void refreshStudyPlan();
         } catch (err) {
             setPageError(
                 err instanceof ApiError
@@ -269,6 +264,10 @@ export default function MockInterviewSessionPage() {
                 params.id,
             );
             setStudyPlan(res.studyPlan);
+            toast(
+                'Study plan ready — view and update it in your profile to track progress.',
+                'success',
+            );
         } catch (err) {
             setPlanError(
                 err instanceof ApiError
@@ -281,11 +280,7 @@ export default function MockInterviewSessionPage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-            </div>
-        );
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -318,7 +313,11 @@ export default function MockInterviewSessionPage() {
 
                     <HiringRecommendation
                         overallScore={report.overallScore}
-                        onGenerateStudyPlan={() => void handleGenerateStudyPlan()}
+                        onGenerateStudyPlan={
+                            studyPlan
+                                ? undefined
+                                : () => void handleGenerateStudyPlan()
+                        }
                         isGeneratingStudyPlan={isGeneratingPlan}
                     />
 
@@ -336,7 +335,8 @@ export default function MockInterviewSessionPage() {
                         isGenerating={isGeneratingPlan}
                     />
                 </main>
-            ) : interview?.status === 'AWAITING_FINAL_SUBMIT' ? (
+            ) : interview?.status === 'AWAITING_FINAL_SUBMIT' ||
+              (isFinalizing && !report) ? (
                 <main className="mx-auto w-full max-w-lg px-4 py-16 sm:px-6">
                     {pageError ? (
                         <div
@@ -362,7 +362,9 @@ export default function MockInterviewSessionPage() {
                             disabled={isFinalizing}
                             onClick={() => void handleFinalize()}
                         >
-                            {isFinalizing ? 'Finalizing…' : 'Finalize interview'}
+                            {isFinalizing
+                                ? 'Creating final report…'
+                                : 'Finalize interview'}
                         </button>
                     </section>
                 </main>
@@ -451,22 +453,39 @@ export default function MockInterviewSessionPage() {
                                 </div>
                             ) : null}
 
-                            {selection.section === 'DSA' && activeDsaSlot ? (
-                                <DsaSectionWorkspace
-                                    accessToken={accessToken}
-                                    interviewId={interview.id}
-                                    slot={activeDsaSlot}
-                                    readOnly={interview.currentSection !== 'DSA'}
-                                    onInterviewChange={(next) => {
-                                        setInterview(next);
-                                        setSelection((prev) =>
-                                            prev && prev.section === next.currentSection
-                                                ? prev
-                                                : defaultSelection(next),
-                                        );
-                                    }}
-                                />
-                            ) : null}
+                            {selection.section === 'DSA'
+                                ? interview.dsaProblems.map((slot) => {
+                                      const isActive = slot.slotIndex === selection.slotIndex;
+                                      return (
+                                          <div
+                                              key={slot.id}
+                                              className={
+                                                  isActive ? 'h-full min-h-0' : 'hidden'
+                                              }
+                                              aria-hidden={!isActive}
+                                          >
+                                              <DsaSectionWorkspace
+                                                  accessToken={accessToken}
+                                                  interviewId={interview.id}
+                                                  slot={slot}
+                                                  readOnly={
+                                                      interview.currentSection !== 'DSA'
+                                                  }
+                                                  onInterviewChange={(next) => {
+                                                      setInterview(next);
+                                                      setSelection((prev) =>
+                                                          prev &&
+                                                          prev.section ===
+                                                              next.currentSection
+                                                              ? prev
+                                                              : defaultSelection(next),
+                                                      );
+                                                  }}
+                                              />
+                                          </div>
+                                      );
+                                  })
+                                : null}
 
                             {selection.section === 'SYSTEM_DESIGN' &&
                             interview.systemDesign ? (

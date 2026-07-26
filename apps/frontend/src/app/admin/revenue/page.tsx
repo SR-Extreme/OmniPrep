@@ -8,7 +8,7 @@ import {
     AdminEmptyState,
     AdminErrorAlert,
     AdminInlineLoading,
-    AdminLoading,
+    AdminAuthGate,
     AdminPageHeader,
     AdminPageShell,
 } from '@/components/admin/AdminPageShell';
@@ -89,7 +89,7 @@ export default function AdminRevenuePage() {
     }, [hydrated, accessToken, user, range]);
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return <AdminLoading />;
+        return <AdminAuthGate hydrated={hydrated} />;
     }
 
     return (

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { PracticePageHero } from '@/components/practice/PracticePageHero';
 import {
-    PracticeAuthLoading,
+    PracticeAuthGate,
     PracticeEmptyState,
     PracticeErrorAlert,
     PracticeFilterCard,
@@ -17,8 +17,11 @@ import {
     TopicTag,
 } from '@/components/practice/PracticeListShell';
 import { TopicMultiSelect } from '@/components/TopicMultiSelect';
+import { FieldError } from '@/components/ui/FieldError';
 import { listProblems } from '@/lib/api/problems';
 import { ApiError } from '@/lib/api/client';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { validateSearchQuery } from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import { DIFFICULTIES, type Difficulty, type ListProblemsQuery, type ProblemListItem } from '@/types/dsa';
 
@@ -68,6 +71,7 @@ export default function ProblemsPage() {
     const [availableTopics, setAvailableTopics] = useState<string[]>([]);
     const [search, setSearch] = useState('');
     const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
+    const { errors, touch, clear } = useFieldErrors<'search'>();
 
     useEffect(() => {
         setHydrated(true);
@@ -132,6 +136,12 @@ export default function ProblemsPage() {
     function handleFilterSubmit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
 
+        const searchErr = validateSearchQuery(search);
+        touch('search', searchErr);
+        if (searchErr) {
+            return;
+        }
+
         setAppliedFilters({
             difficulty: difficulty || undefined,
             topics: selectedTopics.length > 0 ? selectedTopics : undefined,
@@ -144,12 +154,13 @@ export default function ProblemsPage() {
         setDifficulty('');
         setSelectedTopics([]);
         setSearch('');
+        clear('search');
         setAppliedFilters({});
         setPage(1);
     }
 
     if (!hydrated || !accessToken) {
-        return <PracticeAuthLoading />;
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -210,10 +221,16 @@ export default function ProblemsPage() {
                             id="search"
                             type="text"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                clear('search');
+                            }}
+                            onBlur={() => touch('search', validateSearchQuery(search))}
                             placeholder="Search by title or slug"
+                            aria-invalid={Boolean(errors.search)}
                             className="input-base mt-1.5"
                         />
+                        <FieldError message={errors.search} />
                     </div>
 
                     <div className="flex items-end gap-2 md:col-span-2 lg:col-span-4">

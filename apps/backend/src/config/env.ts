@@ -25,6 +25,7 @@ const envSchema = z.object({
     JUDGE0_API_KEY: optionalNonEmptyString,
     JUDGE0_BASE_URL: z.string().url(),
     GEMINI_API_KEY: optionalNonEmptyString,
+    GEMINI_MODEL: optionalNonEmptyString,
     CLOUDINARY_CLOUD_NAME: optionalNonEmptyString,
     CLOUDINARY_API_KEY: optionalNonEmptyString,
     CLOUDINARY_API_SECRET: optionalNonEmptyString,

@@ -4,6 +4,9 @@ import { motion } from 'framer-motion';
 import { Camera, LogOut, Pencil, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { validateAvatarFile, validateName, validatePhone } from '@/lib/validation/fields';
 import type { ProfileResponse, UpdateProfileBody } from '@/types/profile';
 
 export interface ProfileHeaderProps {
@@ -52,15 +55,16 @@ export function ProfileHeader({
     const [isEditing, setIsEditing] = useState(false);
     const [name, setName] = useState(profile.name);
     const [phoneNo, setPhoneNo] = useState(profile.phoneNo ?? '');
-    const [formError, setFormError] = useState<string | null>(null);
+    const [avatarError, setAvatarError] = useState<string | null>(null);
+    const { errors, touch, clear, setMany } = useFieldErrors<'name' | 'phoneNo'>();
 
     useEffect(() => {
         if (!isEditing) {
             setName(profile.name);
             setPhoneNo(profile.phoneNo ?? '');
-            setFormError(null);
+            clear();
         }
-    }, [profile.name, profile.phoneNo, isEditing]);
+    }, [profile.name, profile.phoneNo, isEditing, clear]);
 
     const scoreText =
         profile.averageInterviewScore == null
@@ -81,17 +85,15 @@ export function ProfileHeader({
         const trimmedName = name.trim();
         const trimmedPhone = phoneNo.trim();
 
-        if (!trimmedName) {
-            setFormError('Name is required');
+        const next: Partial<Record<'name' | 'phoneNo', string>> = {};
+        const nameErr = validateName(name);
+        const phoneErr = validatePhone(phoneNo);
+        if (nameErr) next.name = nameErr;
+        if (phoneErr) next.phoneNo = phoneErr;
+        setMany(next);
+        if (Object.keys(next).length > 0) {
             return;
         }
-
-        if (!/^\d{10}$/.test(trimmedPhone)) {
-            setFormError('Phone number must be exactly 10 digits');
-            return;
-        }
-
-        setFormError(null);
 
         const body: UpdateProfileBody = {};
         if (trimmedName !== profile.name) {
@@ -185,20 +187,29 @@ export function ProfileHeader({
                                     onChange={(event) => {
                                         const file = event.target.files?.[0];
                                         if (file) {
-                                            onAvatarSelected(file);
+                                            const message = validateAvatarFile(file);
+                                            if (message) {
+                                                setAvatarError(message);
+                                            } else {
+                                                setAvatarError(null);
+                                                onAvatarSelected(file);
+                                            }
                                         }
                                         event.target.value = '';
                                     }}
                                 />
-                                <button
-                                    type="button"
-                                    disabled={isUploadingAvatar}
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="btn-secondary !rounded-xl"
-                                >
-                                    <Camera className="h-4 w-4" aria-hidden="true" />
-                                    {isUploadingAvatar ? 'Uploading…' : 'Change photo'}
-                                </button>
+                                <div>
+                                    <button
+                                        type="button"
+                                        disabled={isUploadingAvatar}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="btn-secondary !rounded-xl"
+                                    >
+                                        <Camera className="h-4 w-4" aria-hidden="true" />
+                                        {isUploadingAvatar ? 'Uploading…' : 'Change photo'}
+                                    </button>
+                                    <FieldError message={avatarError} />
+                                </div>
                             </>
                         ) : null}
                         {!profile.isPremium ? (
@@ -221,6 +232,7 @@ export function ProfileHeader({
                 {isEditing && onUpdateProfile ? (
                     <form
                         onSubmit={(event) => void handleSave(event)}
+                        noValidate
                         className="mt-6 space-y-4 border-t border-zinc-100 pt-5"
                     >
                         <div className="flex items-center justify-between gap-3">
@@ -234,7 +246,7 @@ export function ProfileHeader({
                                     setIsEditing(false);
                                     setName(profile.name);
                                     setPhoneNo(profile.phoneNo ?? '');
-                                    setFormError(null);
+                                    clear();
                                 }}
                                 className="btn-ghost !rounded-xl !px-2 !py-1.5"
                                 aria-label="Cancel editing"
@@ -255,14 +267,18 @@ export function ProfileHeader({
                                     id="profile-name"
                                     type="text"
                                     autoComplete="name"
-                                    required
-                                    minLength={1}
                                     maxLength={100}
                                     value={name}
                                     disabled={isUpdatingProfile}
-                                    onChange={(event) => setName(event.target.value)}
+                                    onChange={(event) => {
+                                        setName(event.target.value);
+                                        clear('name');
+                                    }}
+                                    onBlur={() => touch('name', validateName(name))}
+                                    aria-invalid={Boolean(errors.name)}
                                     className="input-base mt-1.5 !rounded-xl"
                                 />
+                                <FieldError message={errors.name} />
                             </div>
                             <div>
                                 <label
@@ -276,26 +292,23 @@ export function ProfileHeader({
                                     type="tel"
                                     inputMode="numeric"
                                     autoComplete="tel"
-                                    required
-                                    minLength={10}
                                     maxLength={10}
-                                    pattern="\d{10}"
                                     value={phoneNo}
                                     disabled={isUpdatingProfile}
-                                    onChange={(event) =>
+                                    onChange={(event) => {
                                         setPhoneNo(
                                             event.target.value.replace(/\D/g, '').slice(0, 10),
-                                        )
-                                    }
+                                        );
+                                        clear('phoneNo');
+                                    }}
+                                    onBlur={() => touch('phoneNo', validatePhone(phoneNo))}
                                     placeholder="9876543210"
+                                    aria-invalid={Boolean(errors.phoneNo)}
                                     className="input-base mt-1.5 !rounded-xl"
                                 />
+                                <FieldError message={errors.phoneNo} />
                             </div>
                         </div>
-
-                        {formError ? (
-                            <p className="text-sm text-rose-600">{formError}</p>
-                        ) : null}
 
                         <div className="flex flex-wrap gap-2">
                             <button
@@ -312,7 +325,7 @@ export function ProfileHeader({
                                     setIsEditing(false);
                                     setName(profile.name);
                                     setPhoneNo(profile.phoneNo ?? '');
-                                    setFormError(null);
+                                    clear();
                                 }}
                                 className="btn-secondary !rounded-xl"
                             >

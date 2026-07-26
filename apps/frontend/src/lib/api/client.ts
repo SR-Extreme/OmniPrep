@@ -17,8 +17,36 @@ export class ApiError extends Error {
 
 export const FREE_AI_REPORT_LIMIT_CODE = 'FREE_AI_REPORT_LIMIT';
 
+export const AI_QUOTA_EXCEEDED_CODE = 'QUOTA_EXCEEDED';
+
+export const AI_QUOTA_EXCEEDED_MESSAGE =
+    "The system's total AI tokens have been exhausted for today. Sorry for the inconvenience — please come back tomorrow.";
+
 export function isFreeAiReportLimitError(err: unknown): boolean {
     return err instanceof ApiError && err.code === FREE_AI_REPORT_LIMIT_CODE;
+}
+
+function looksLikeAiQuotaMessage(message: string): boolean {
+    return /RESOURCE_EXHAUSTED|exceeded your current quota|generate_content_free_tier|QUOTA_EXCEEDED|tokens have been exhausted/i.test(
+        message,
+    );
+}
+
+export function isAiQuotaExhaustedError(err: unknown): boolean {
+    if (err instanceof ApiError) {
+        return err.code === AI_QUOTA_EXCEEDED_CODE || looksLikeAiQuotaMessage(err.message);
+    }
+    return typeof err === 'string' && looksLikeAiQuotaMessage(err);
+}
+
+export function resolveActionErrorMessage(err: unknown, fallback: string): string {
+    if (isAiQuotaExhaustedError(err)) {
+        return AI_QUOTA_EXCEEDED_MESSAGE;
+    }
+    if (err instanceof ApiError) {
+        return err.message;
+    }
+    return fallback;
 }
 
 export type ApiRequestOptions = {

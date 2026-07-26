@@ -33,7 +33,8 @@ export class SystemDesignError extends Error {
             | 'QUESTION_UNAVAILABLE'
             | 'INVALID_INPUT'
             | 'UPLOAD_FAILED'
-            | 'CONFIG_ERROR',
+            | 'CONFIG_ERROR'
+            | 'QUOTA_EXCEEDED',
     ) {
         super(message);
         this.name = 'SystemDesignError';
@@ -161,7 +162,7 @@ export async function listSystemDesignQuestions(
         ...statusWhere,
         ...(query.difficulty ? { difficulty: query.difficulty } : {}),
         ...(query.topics && query.topics.length > 0
-            ? { topics: { hasSome: query.topics } }
+            ? { topics: { hasEvery: query.topics } }
             : {}),
         ...(query.search
             ? {

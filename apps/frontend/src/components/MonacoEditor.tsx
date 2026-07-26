@@ -25,10 +25,17 @@ export interface MonacoEditorProps {
     readOnly?: boolean;
     height?: string;
     className?: string;
+    onBlur?: () => void;
 }
 
 export function MonacoEditor({
-    value, onChange, language, readOnly = false, height = '400px', className,
+    value,
+    onChange,
+    language,
+    readOnly = false,
+    height = '400px',
+    className,
+    onBlur,
 }: MonacoEditorProps) {
     return (
         <div
@@ -44,6 +51,14 @@ export function MonacoEditor({
                 language={LANGUAGE_TO_MONACO[language]}
                 value={value}
                 onChange={(next) => onChange(next ?? '')}
+                onMount={(editor) => {
+                    if (!onBlur) {
+                        return;
+                    }
+                    editor.onDidBlurEditorWidget(() => {
+                        onBlur();
+                    });
+                }}
                 theme="vs-dark"
                 options={{
                     readOnly,

@@ -7,14 +7,17 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
     AdminErrorAlert,
     AdminInlineLoading,
-    AdminLoading,
+    AdminAuthGate,
     AdminPageHeader,
     AdminPageShell,
     AdminPanel,
 } from '@/components/admin/AdminPageShell';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
 import { getAdminProfile } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
 import { updateProfile, uploadAvatar } from '@/lib/api/profile';
+import { validateAvatarFile, validateName, validatePhone } from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import type { AdminProfileResponse } from '@/types/admin';
 
@@ -43,7 +46,7 @@ function initials(name: string): string {
 
 export default function AdminProfilePage() {
     const router = useRouter();
-    const { user, accessToken, logout, setUser, isLoading: authLoading } =
+    const { user, accessToken, logout, setUser } =
         useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,7 +58,8 @@ export default function AdminProfilePage() {
     const [isEditing, setIsEditing] = useState(false);
     const [name, setName] = useState('');
     const [phoneNo, setPhoneNo] = useState('');
-    const [formError, setFormError] = useState<string | null>(null);
+    const [avatarError, setAvatarError] = useState<string | null>(null);
+    const { errors, touch, clear, setMany } = useFieldErrors<'name' | 'phoneNo'>();
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -120,6 +124,13 @@ export default function AdminProfilePage() {
             return;
         }
 
+        const message = validateAvatarFile(file);
+        if (message) {
+            setAvatarError(message);
+            return;
+        }
+        setAvatarError(null);
+
         setIsUploadingAvatar(true);
         setError(null);
 
@@ -163,17 +174,15 @@ export default function AdminProfilePage() {
         const trimmedName = name.trim();
         const trimmedPhone = phoneNo.trim();
 
-        if (!trimmedName) {
-            setFormError('Name is required');
+        const next: Partial<Record<'name' | 'phoneNo', string>> = {};
+        const nameErr = validateName(name);
+        const phoneErr = validatePhone(phoneNo);
+        if (nameErr) next.name = nameErr;
+        if (phoneErr) next.phoneNo = phoneErr;
+        setMany(next);
+        if (Object.keys(next).length > 0) {
             return;
         }
-
-        if (!/^\d{10}$/.test(trimmedPhone)) {
-            setFormError('Phone number must be exactly 10 digits');
-            return;
-        }
-
-        setFormError(null);
 
         const body: { name?: string; phoneNo?: string } = {};
         if (trimmedName !== profile.name) {
@@ -222,13 +231,13 @@ export default function AdminProfilePage() {
         }
     }
 
-    async function handleLogout() {
-        await logout();
+    function handleLogout() {
+        void logout();
         router.replace('/login');
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return <AdminLoading />;
+        return <AdminAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -286,7 +295,7 @@ export default function AdminProfilePage() {
                                             onClick={() => {
                                                 setName(profile.name);
                                                 setPhoneNo(profile.phoneNo ?? '');
-                                                setFormError(null);
+                                                clear();
                                                 setIsEditing(true);
                                             }}
                                             className="btn-secondary !w-full !rounded-xl"
@@ -325,11 +334,11 @@ export default function AdminProfilePage() {
                                             ? 'Uploading…'
                                             : 'Change photo'}
                                     </button>
+                                    <FieldError message={avatarError} />
                                     <button
                                         type="button"
-                                        disabled={authLoading}
-                                        onClick={() => void handleLogout()}
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-700 shadow-sm transition hover:bg-rose-50 disabled:opacity-60"
+                                        onClick={() => handleLogout()}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-700 shadow-sm transition hover:bg-rose-50"
                                     >
                                         <LogOut
                                             className="h-4 w-4"
@@ -342,6 +351,7 @@ export default function AdminProfilePage() {
                                 {isEditing ? (
                                     <form
                                         onSubmit={(event) => void handleSaveProfile(event)}
+                                        noValidate
                                         className="mt-6 w-full space-y-4 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/40 to-white p-4 text-left sm:p-5"
                                     >
                                         <div className="grid gap-4 sm:grid-cols-2">
@@ -356,16 +366,20 @@ export default function AdminProfilePage() {
                                                     id="admin-profile-name"
                                                     type="text"
                                                     autoComplete="name"
-                                                    required
-                                                    minLength={1}
                                                     maxLength={100}
                                                     value={name}
                                                     disabled={isUpdatingProfile}
-                                                    onChange={(event) =>
-                                                        setName(event.target.value)
+                                                    onChange={(event) => {
+                                                        setName(event.target.value);
+                                                        clear('name');
+                                                    }}
+                                                    onBlur={() =>
+                                                        touch('name', validateName(name))
                                                     }
+                                                    aria-invalid={Boolean(errors.name)}
                                                     className="input-base mt-1.5 !rounded-xl"
                                                 />
+                                                <FieldError message={errors.name} />
                                             </div>
                                             <div>
                                                 <label
@@ -379,30 +393,30 @@ export default function AdminProfilePage() {
                                                     type="tel"
                                                     inputMode="numeric"
                                                     autoComplete="tel"
-                                                    required
-                                                    minLength={10}
                                                     maxLength={10}
-                                                    pattern="\d{10}"
                                                     value={phoneNo}
                                                     disabled={isUpdatingProfile}
-                                                    onChange={(event) =>
+                                                    onChange={(event) => {
                                                         setPhoneNo(
                                                             event.target.value
                                                                 .replace(/\D/g, '')
                                                                 .slice(0, 10),
+                                                        );
+                                                        clear('phoneNo');
+                                                    }}
+                                                    onBlur={() =>
+                                                        touch(
+                                                            'phoneNo',
+                                                            validatePhone(phoneNo),
                                                         )
                                                     }
                                                     placeholder="9876543210"
+                                                    aria-invalid={Boolean(errors.phoneNo)}
                                                     className="input-base mt-1.5 !rounded-xl"
                                                 />
+                                                <FieldError message={errors.phoneNo} />
                                             </div>
                                         </div>
-
-                                        {formError ? (
-                                            <p className="text-sm text-rose-600">
-                                                {formError}
-                                            </p>
-                                        ) : null}
 
                                         <div className="flex flex-wrap gap-2">
                                             <button
@@ -421,7 +435,7 @@ export default function AdminProfilePage() {
                                                     setIsEditing(false);
                                                     setName(profile.name);
                                                     setPhoneNo(profile.phoneNo ?? '');
-                                                    setFormError(null);
+                                                    clear();
                                                 }}
                                                 className="btn-secondary !rounded-xl"
                                             >

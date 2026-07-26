@@ -31,7 +31,8 @@ export class MockInterviewError extends Error {
             | 'FORBIDDEN'
             | 'INVALID_STATE'
             | 'CONFIG_ERROR'
-            | 'PREMIUM_REQUIRED',
+            | 'PREMIUM_REQUIRED'
+            | 'QUOTA_EXCEEDED',
     ) {
         super(message);
         this.name = 'MockInterviewError';

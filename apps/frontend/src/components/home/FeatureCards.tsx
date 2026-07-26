@@ -85,8 +85,7 @@ export function FeatureCards() {
                 <motion.div
                     variants={container}
                     initial="hidden"
-                    whileInView="show"
-                    viewport={{ once: true, margin: '-60px' }}
+                    animate="show"
                     className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 xl:gap-6"
                 >
                     {FEATURES.map((feature) => {

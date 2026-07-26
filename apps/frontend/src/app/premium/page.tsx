@@ -5,7 +5,7 @@ import { CheckCircle2 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { PracticeAuthLoading } from '@/components/practice/PracticeListShell';
+import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
 import { PricingCards } from '@/components/PricingCards';
 import { createCheckoutSession, getPremiumStatus } from '@/lib/api/billing';
 import { ApiError } from '@/lib/api/client';
@@ -104,7 +104,7 @@ export default function PremiumPage() {
     }
 
     if (!hydrated || !accessToken) {
-        return <PracticeAuthLoading />;
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     const plans = status?.planCatalog?.length ? status.planCatalog : PLAN_CATALOG;

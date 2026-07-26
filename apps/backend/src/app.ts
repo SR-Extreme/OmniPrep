@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
 import { env } from './config/env.js';
 import authRouter from './modules/auth/auth.routes.js';
@@ -56,5 +56,16 @@ app.get('/api/me', authMiddleware, (req: AuthenticatedRequest, res: Response) =>
     res.status(200).json({ user: req.user });
 },
 );
+
+// Final safety net for unexpected thrown errors (keeps the process alive).
+app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+        next(err);
+        return;
+    }
+
+    console.error('Unhandled express error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+});
 
 export default app;

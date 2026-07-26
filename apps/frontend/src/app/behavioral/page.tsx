@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { PracticePageHero } from '@/components/practice/PracticePageHero';
 import {
-    PracticeAuthLoading,
+    PracticeAuthGate,
     PracticeEmptyState,
     PracticeErrorAlert,
     PracticeFilterCard,
@@ -15,8 +15,11 @@ import {
     PracticePageShell,
     PracticePagination,
 } from '@/components/practice/PracticeListShell';
+import { FieldError } from '@/components/ui/FieldError';
 import { ApiError } from '@/lib/api/client';
 import { listBehavioralQuestions } from '@/lib/api/behavioral';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { validateSearchQuery } from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import { DIFFICULTIES, type Difficulty } from '@/types/dsa';
 import type {
@@ -67,6 +70,7 @@ export default function BehavioralPage() {
     const [difficulty, setDifficulty] = useState<Difficulty | ''>('');
     const [search, setSearch] = useState('');
     const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
+    const { errors, touch, clear } = useFieldErrors<'search'>();
 
     useEffect(() => {
         setHydrated(true);
@@ -132,6 +136,13 @@ export default function BehavioralPage() {
 
     function handleFilterSubmit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
+
+        const searchErr = validateSearchQuery(search);
+        touch('search', searchErr);
+        if (searchErr) {
+            return;
+        }
+
         setAppliedFilters({
             company: company || undefined,
             role: role || undefined,
@@ -146,12 +157,13 @@ export default function BehavioralPage() {
         setRole('');
         setDifficulty('');
         setSearch('');
+        clear('search');
         setAppliedFilters({});
         setPage(1);
     }
 
     if (!hydrated || !accessToken) {
-        return <PracticeAuthLoading />;
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     return (
@@ -247,10 +259,16 @@ export default function BehavioralPage() {
                             id="search"
                             type="text"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                clear('search');
+                            }}
+                            onBlur={() => touch('search', validateSearchQuery(search))}
                             placeholder="Search by title, company, or role"
+                            aria-invalid={Boolean(errors.search)}
                             className="input-base mt-1.5"
                         />
+                        <FieldError message={errors.search} />
                     </div>
                     <div className="flex items-end gap-2 md:col-span-2 lg:col-span-4">
                         <button type="submit" className="btn-primary !rounded-xl">

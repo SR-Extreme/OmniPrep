@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
     AdminLoading,
+    AdminAuthGate,
     AdminPageShell,
 } from '@/components/admin/AdminPageShell';
 import { Button } from '@/components/ui/button';
@@ -485,7 +486,7 @@ export default function AdminCreateBehavioralPage() {
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return <AdminLoading />;
+        return <AdminAuthGate hydrated={hydrated} />;
     }
 
     if (isLoadingQuestion) {

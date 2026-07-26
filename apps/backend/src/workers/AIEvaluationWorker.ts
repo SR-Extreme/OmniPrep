@@ -1,8 +1,9 @@
-import { Worker } from 'bullmq';
+import { UnrecoverableError, Worker } from 'bullmq';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
 import {
+    AIError,
     evaluateDSA,
     evaluateSystemDesign,
     evaluateBehavioral,
@@ -39,6 +40,17 @@ import {
 } from '../types/system-design.types.js';
 
 let aiEvaluationWorker: Worker<AIQueueJobData> | undefined;
+
+function rethrowWorkerAIError(err: unknown): never {
+    if (err instanceof AIError) {
+        // Quota / missing config will not recover on retry — fail the job once.
+        if (err.code === 'QUOTA_EXCEEDED' || err.code === 'CONFIG_ERROR') {
+            throw new UnrecoverableError(err.message);
+        }
+        throw new Error(err.message);
+    }
+    throw err;
+}
 
 function getWorkerConnectionOptions() {
     if (!env.REDIS_URL) {
@@ -227,18 +239,22 @@ async function processAIEvalJob(data: AIEvalJobData): Promise<void> {
     let payload = await getCachedEvaluation(cacheKey);
 
     if (!payload) {
-        payload = await evaluateDSA({
-            problemTitle: submission.problem.title,
-            problemDescription: submission.problem.description,
-            difficulty: submission.problem.difficulty,
-            topics: submission.problem.topics,
-            constraints: submission.problem.constraints,
-            language: submission.language,
-            sourceCode: submission.sourceCode,
-            submissionStatus: submission.status,
-            passedTests: submission.passedTests,
-            totalTests: submission.totalTests,
-        });
+        try {
+            payload = await evaluateDSA({
+                problemTitle: submission.problem.title,
+                problemDescription: submission.problem.description,
+                difficulty: submission.problem.difficulty,
+                topics: submission.problem.topics,
+                constraints: submission.problem.constraints,
+                language: submission.language,
+                sourceCode: submission.sourceCode,
+                submissionStatus: submission.status,
+                passedTests: submission.passedTests,
+                totalTests: submission.totalTests,
+            });
+        } catch (err) {
+            rethrowWorkerAIError(err);
+        }
 
         await setCachedEvaluation(cacheKey, payload);
     }
@@ -286,19 +302,24 @@ async function processSystemDesignEvalJob(
         followUpAnswers,
     });
 
-    const aiResult: SystemDesignEvaluationAIResult = await evaluateSystemDesign({
-        questionTitle: submission.question.title,
-        questionDescription: submission.question.description,
-        requirements,
-        deliverables,
-        constraints: submission.question.constraints,
-        scaleFactors: submission.question.scaleFactors,
-        evaluationMetrics,
-        textAnswer: submission.textAnswer,
-        diagramUrl: submission.diagramUrl,
-        followUpQuestions,
-        followUpAnswers,
-    });
+    let aiResult: SystemDesignEvaluationAIResult;
+    try {
+        aiResult = await evaluateSystemDesign({
+            questionTitle: submission.question.title,
+            questionDescription: submission.question.description,
+            requirements,
+            deliverables,
+            constraints: submission.question.constraints,
+            scaleFactors: submission.question.scaleFactors,
+            evaluationMetrics,
+            textAnswer: submission.textAnswer,
+            diagramUrl: submission.diagramUrl,
+            followUpQuestions,
+            followUpAnswers,
+        });
+    } catch (err) {
+        rethrowWorkerAIError(err);
+    }
 
     const cachePayload: SystemDesignEvaluationCachePayload = {
         metricScores: aiResult.metricScores,
@@ -359,26 +380,30 @@ async function processBehavioralEvalJob(
     let payload = await getCachedBehavioralEvaluation(cacheKey);
 
     if (!payload) {
-        const aiResult = await evaluateBehavioral({
-            companyName: session.question.companyName,
-            roleName: session.question.roleName,
-            questionTitle: session.question.title,
-            questionDescription: session.question.description,
-            resumeText: session.resumeText,
-            transcript,
-        });
+        try {
+            const aiResult = await evaluateBehavioral({
+                companyName: session.question.companyName,
+                roleName: session.question.roleName,
+                questionTitle: session.question.title,
+                questionDescription: session.question.description,
+                resumeText: session.resumeText,
+                transcript,
+            });
 
-        payload = {
-            evaluationMetrics: aiResult.evaluationMetrics,
-            strongestAnswer: aiResult.strongestAnswer,
-            weakestAnswer: aiResult.weakestAnswer,
-            strengths: aiResult.strengths,
-            weaknesses: aiResult.weaknesses,
-            suggestions: aiResult.suggestions,
-            summary: aiResult.summary,
-            model: aiResult.model,
-            tokensUsed: aiResult.tokensUsed,
-        };
+            payload = {
+                evaluationMetrics: aiResult.evaluationMetrics,
+                strongestAnswer: aiResult.strongestAnswer,
+                weakestAnswer: aiResult.weakestAnswer,
+                strengths: aiResult.strengths,
+                weaknesses: aiResult.weaknesses,
+                suggestions: aiResult.suggestions,
+                summary: aiResult.summary,
+                model: aiResult.model,
+                tokensUsed: aiResult.tokensUsed,
+            };
+        } catch (err) {
+            rethrowWorkerAIError(err);
+        }
 
         await setCachedBehavioralEvaluation(cacheKey, payload);
     }
@@ -423,7 +448,11 @@ export function startAIEvaluationWorker(): Worker<AIQueueJobData> {
     });
 
     aiEvaluationWorker.on('failed', (job, err) => {
-        console.error(`AI evaluation job failed: ${job?.id}`, err);
+        console.error(`AI evaluation job failed: ${job?.id}`, err?.message ?? err);
+    });
+
+    aiEvaluationWorker.on('error', (err) => {
+        console.error('AI evaluation worker error:', err);
     });
 
     console.log(`AI evaluation worker listening on "${AI_EVAL_QUEUE_NAME}"`);

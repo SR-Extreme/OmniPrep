@@ -8,6 +8,7 @@ import {
     MockInterviewStats,
     type MockInterviewStatsData,
 } from '@/components/mock-interview/MockInterviewStats';
+import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
 import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
 import { ApiError } from '@/lib/api/client';
 import {
@@ -250,11 +251,7 @@ export default function MockInterviewPage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-            </div>
-        );
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     return (

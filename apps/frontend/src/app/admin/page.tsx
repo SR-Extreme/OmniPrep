@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { AdminAuthGate } from '@/components/admin/AdminPageShell';
 import { AdminFeatureCards } from '@/components/admin/AdminFeatureCards';
 import { AdminHero } from '@/components/admin/AdminHero';
 import { useAuthStore } from '@/store/authStore';
@@ -31,14 +32,7 @@ export default function AdminHomePage() {
     }, [hydrated, accessToken, user, router]);
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
-                <div className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-                    Loading…
-                </div>
-            </div>
-        );
+        return <AdminAuthGate hydrated={hydrated} />;
     }
 
     return (

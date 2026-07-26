@@ -144,7 +144,7 @@ export async function listProblems(
         ...statusWhere,
         ...(query.difficulty ? { difficulty: query.difficulty } : {}),
         ...(query.topics && query.topics.length > 0
-            ? { topics: { hasSome: query.topics } }
+            ? { topics: { hasEvery: query.topics } }
             : {}),
         ...(query.search
             ? {

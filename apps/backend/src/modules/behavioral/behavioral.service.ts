@@ -33,7 +33,8 @@ export class BehavioralError extends Error {
             | 'INVALID_INPUT'
             | 'UPLOAD_FAILED'
             | 'CONFIG_ERROR'
-            | 'PARSE_FAILED',
+            | 'PARSE_FAILED'
+            | 'QUOTA_EXCEEDED',
     ) {
         super(message);
         this.name = 'BehavioralError';

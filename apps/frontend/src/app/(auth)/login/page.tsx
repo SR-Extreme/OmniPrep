@@ -6,7 +6,9 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { RoleTabs } from '@/components/auth/RoleTabs';
 import { OtpInput } from '@/components/auth/OtpInput';
+import { FieldError } from '@/components/ui/FieldError';
 import { toast } from '@/components/ui/Toast';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
 import {
     forgotPassword,
     resendLoginOtp,
@@ -15,6 +17,13 @@ import {
     verifyPasswordResetOtp,
 } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/client';
+import {
+    validateConfirmPassword,
+    validateEmail,
+    validateLoginPassword,
+    validateOtp,
+    validatePassword,
+} from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import type { LoginPageStep, Role } from '@/types/auth';
 
@@ -22,9 +31,17 @@ function getErrorMessage(err: unknown, fallback: string): string {
     return err instanceof ApiError ? err.message : fallback;
 }
 
+type LoginField =
+    | 'email'
+    | 'password'
+    | 'otp'
+    | 'newPassword'
+    | 'confirmPassword';
+
 export default function LoginPage() {
     const router = useRouter();
     const { login, verifyLoginOtp, isLoading, error, clearError } = useAuthStore();
+    const { errors, touch, clear, setMany } = useFieldErrors<LoginField>();
 
     const [role, setRole] = useState<Role>('CANDIDATE');
     const [step, setStep] = useState<LoginPageStep>('login');
@@ -67,6 +84,7 @@ export default function LoginPage() {
         setOtp('');
         setLocalError(null);
         clearError();
+        clear('otp');
     }
 
     function goToLogin() {
@@ -81,6 +99,7 @@ export default function LoginPage() {
         setConfirmPassword('');
         setLocalError(null);
         clearError();
+        clear();
     }
 
     async function handleLoginSubmit(e: FormEvent<HTMLFormElement>) {
@@ -88,9 +107,19 @@ export default function LoginPage() {
         setLocalError(null);
         clearError();
 
+        const next: Partial<Record<LoginField, string>> = {};
+        const emailErr = validateEmail(email);
+        const passwordErr = validateLoginPassword(password);
+        if (emailErr) next.email = emailErr;
+        if (passwordErr) next.password = passwordErr;
+        setMany(next);
+        if (Object.keys(next).length > 0) {
+            return;
+        }
+
         try {
             const result = await login({
-                email,
+                email: email.trim(),
                 password,
                 expectedRole: role,
             });
@@ -106,6 +135,7 @@ export default function LoginPage() {
             setOtpMessage(result.message);
             setResendAvailableAt(result.resendAvailableAt);
             setOtp('');
+            clear('otp');
             setStep('login-otp');
             toast(result.message, 'success');
         } catch {
@@ -118,8 +148,9 @@ export default function LoginPage() {
         setLocalError(null);
         clearError();
 
-        if (otp.length !== 6) {
-            setLocalError('Enter the 6-digit verification code');
+        const otpErr = validateOtp(otp);
+        touch('otp', otpErr);
+        if (otpErr) {
             return;
         }
 
@@ -148,6 +179,7 @@ export default function LoginPage() {
             setOtpMessage(challenge.message);
             setResendAvailableAt(challenge.resendAvailableAt);
             setOtp('');
+            clear('otp');
             toast(challenge.message, 'success');
         } catch (err) {
             setLocalError(getErrorMessage(err, 'Failed to resend code'));
@@ -163,13 +195,21 @@ export default function LoginPage() {
         setLocalError(null);
         clearError();
 
+        const emailErr = validateEmail(email);
+        touch('email', emailErr);
+        if (emailErr) {
+            setLocalLoading(false);
+            return;
+        }
+
         try {
-            const challenge = await forgotPassword({ email });
+            const challenge = await forgotPassword({ email: email.trim() });
             setChallengeToken(challenge.challengeToken);
             setMaskedEmail(challenge.maskedEmail);
             setOtpMessage(challenge.message);
             setResendAvailableAt(challenge.resendAvailableAt);
             setOtp('');
+            clear('otp');
             setStep('forgot-otp');
             toast(challenge.message, 'success');
         } catch (err) {
@@ -185,8 +225,9 @@ export default function LoginPage() {
         setLocalLoading(true);
         setLocalError(null);
 
-        if (otp.length !== 6) {
-            setLocalError('Enter the 6-digit verification code');
+        const otpErr = validateOtp(otp);
+        touch('otp', otpErr);
+        if (otpErr) {
             setLocalLoading(false);
             return;
         }
@@ -197,6 +238,7 @@ export default function LoginPage() {
             setOtp('');
             setNewPassword('');
             setConfirmPassword('');
+            clear();
             setStep('forgot-reset');
             toast(result.message, 'success');
         } catch (err) {
@@ -222,6 +264,7 @@ export default function LoginPage() {
             setOtpMessage(challenge.message);
             setResendAvailableAt(challenge.resendAvailableAt);
             setOtp('');
+            clear('otp');
             toast(challenge.message, 'success');
         } catch (err) {
             setLocalError(getErrorMessage(err, 'Failed to resend code'));
@@ -236,14 +279,13 @@ export default function LoginPage() {
         setLocalLoading(true);
         setLocalError(null);
 
-        if (newPassword.length < 8) {
-            setLocalError('Password must be at least 8 characters');
-            setLocalLoading(false);
-            return;
-        }
-
-        if (newPassword !== confirmPassword) {
-            setLocalError('Passwords do not match');
+        const next: Partial<Record<LoginField, string>> = {};
+        const newPasswordErr = validatePassword(newPassword);
+        const confirmErr = validateConfirmPassword(newPassword, confirmPassword);
+        if (newPasswordErr) next.newPassword = newPasswordErr;
+        if (confirmErr) next.confirmPassword = confirmErr;
+        setMany(next);
+        if (Object.keys(next).length > 0) {
             setLocalLoading(false);
             return;
         }
@@ -305,7 +347,7 @@ export default function LoginPage() {
             <p className="mt-2 text-sm text-zinc-500">{subtitleByStep[step]}</p>
 
             {step === 'login' ? (
-                <form onSubmit={handleLoginSubmit} className="mt-8 space-y-5">
+                <form onSubmit={handleLoginSubmit} noValidate className="mt-8 space-y-5">
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
                             Email
@@ -314,12 +356,18 @@ export default function LoginPage() {
                             type="email"
                             id="email"
                             autoComplete="email"
-                            required
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e) => {
+                                setEmail(e.target.value);
+                                clear('email');
+                            }}
+                            onBlur={() => touch('email', validateEmail(email))}
                             placeholder="you@company.com"
+                            aria-invalid={Boolean(errors.email)}
+                            aria-describedby={errors.email ? 'login-email-error' : undefined}
                             className="input-base mt-1.5 !rounded-xl"
                         />
+                        <FieldError id="login-email-error" message={errors.email} />
                     </div>
 
                     <div>
@@ -335,6 +383,7 @@ export default function LoginPage() {
                                 className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
                                 onClick={() => {
                                     resetOtpFields();
+                                    clear();
                                     setStep('forgot-email');
                                 }}
                             >
@@ -345,11 +394,19 @@ export default function LoginPage() {
                             id="password"
                             type="password"
                             autoComplete="current-password"
-                            required
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => {
+                                setPassword(e.target.value);
+                                clear('password');
+                            }}
+                            onBlur={() => touch('password', validateLoginPassword(password))}
+                            aria-invalid={Boolean(errors.password)}
+                            aria-describedby={
+                                errors.password ? 'login-password-error' : undefined
+                            }
                             className="input-base mt-1.5 !rounded-xl"
                         />
+                        <FieldError id="login-password-error" message={errors.password} />
                     </div>
 
                     {displayError ? (
@@ -388,9 +445,21 @@ export default function LoginPage() {
                     onSubmit={
                         step === 'login-otp' ? handleVerifyLoginOtp : handleVerifyForgotOtp
                     }
+                    noValidate
                     className="mt-8 space-y-5"
                 >
-                    <OtpInput value={otp} onChange={setOtp} disabled={busy} />
+                    <div>
+                        <OtpInput
+                            value={otp}
+                            onChange={(value) => {
+                                setOtp(value);
+                                clear('otp');
+                            }}
+                            onBlur={() => touch('otp', validateOtp(otp))}
+                            disabled={busy}
+                        />
+                        <FieldError id="otp-error" message={errors.otp} />
+                    </div>
 
                     {displayError ? (
                         <div
@@ -441,7 +510,11 @@ export default function LoginPage() {
             ) : null}
 
             {step === 'forgot-email' ? (
-                <form onSubmit={handleForgotEmailSubmit} className="mt-8 space-y-5">
+                <form
+                    onSubmit={handleForgotEmailSubmit}
+                    noValidate
+                    className="mt-8 space-y-5"
+                >
                     <div>
                         <label
                             htmlFor="forgot-email"
@@ -453,12 +526,20 @@ export default function LoginPage() {
                             type="email"
                             id="forgot-email"
                             autoComplete="email"
-                            required
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e) => {
+                                setEmail(e.target.value);
+                                clear('email');
+                            }}
+                            onBlur={() => touch('email', validateEmail(email))}
                             placeholder="you@company.com"
+                            aria-invalid={Boolean(errors.email)}
+                            aria-describedby={
+                                errors.email ? 'forgot-email-error' : undefined
+                            }
                             className="input-base mt-1.5 !rounded-xl"
                         />
+                        <FieldError id="forgot-email-error" message={errors.email} />
                     </div>
 
                     {displayError ? (
@@ -486,7 +567,7 @@ export default function LoginPage() {
             ) : null}
 
             {step === 'forgot-reset' ? (
-                <form onSubmit={handleResetPassword} className="mt-8 space-y-5">
+                <form onSubmit={handleResetPassword} noValidate className="mt-8 space-y-5">
                     <div>
                         <label
                             htmlFor="new-password"
@@ -498,12 +579,22 @@ export default function LoginPage() {
                             id="new-password"
                             type="password"
                             autoComplete="new-password"
-                            required
-                            minLength={8}
+                            maxLength={128}
                             value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
+                            onChange={(e) => {
+                                setNewPassword(e.target.value);
+                                clear('newPassword');
+                            }}
+                            onBlur={() =>
+                                touch('newPassword', validatePassword(newPassword))
+                            }
+                            aria-invalid={Boolean(errors.newPassword)}
+                            aria-describedby={
+                                errors.newPassword ? 'new-password-error' : undefined
+                            }
                             className="input-base mt-1.5 !rounded-xl"
                         />
+                        <FieldError id="new-password-error" message={errors.newPassword} />
                     </div>
 
                     <div>
@@ -517,11 +608,29 @@ export default function LoginPage() {
                             id="confirm-password"
                             type="password"
                             autoComplete="new-password"
-                            required
-                            minLength={8}
+                            maxLength={128}
                             value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            onChange={(e) => {
+                                setConfirmPassword(e.target.value);
+                                clear('confirmPassword');
+                            }}
+                            onBlur={() =>
+                                touch(
+                                    'confirmPassword',
+                                    validateConfirmPassword(newPassword, confirmPassword),
+                                )
+                            }
+                            aria-invalid={Boolean(errors.confirmPassword)}
+                            aria-describedby={
+                                errors.confirmPassword
+                                    ? 'confirm-password-error'
+                                    : undefined
+                            }
                             className="input-base mt-1.5 !rounded-xl"
+                        />
+                        <FieldError
+                            id="confirm-password-error"
+                            message={errors.confirmPassword}
                         />
                     </div>
 

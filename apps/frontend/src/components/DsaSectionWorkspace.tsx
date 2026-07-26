@@ -1,14 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MonacoEditor } from '@/components/MonacoEditor';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
 import { ApiError } from '@/lib/api/client';
 import {
     linkMockDsaSubmission,
     submitMockSection,
 } from '@/lib/api/mock-interview';
 import { getProblem } from '@/lib/api/problems';
-import { createSubmission } from '@/lib/api/submissions';
+import { createSubmission, getSubmission } from '@/lib/api/submissions';
+import {
+    practiceDraftKey,
+    readPracticeDraft,
+    writePracticeDraft,
+} from '@/lib/practice-drafts';
+import { validateSourceCode } from '@/lib/validation/fields';
 import {
     PROGRAMMING_LANGUAGES,
     type Example,
@@ -28,6 +36,31 @@ export interface DsaSectionWorkspaceProps {
     slot: MockInterviewDsaSlotDetail;
     readOnly?: boolean;
     onInterviewChange: (interview: MockInterviewSessionDetail) => void;
+}
+
+type DsaWorkspaceField = 'sourceCode';
+type LeftTab = 'problem' | 'results';
+
+interface DsaMockDraft {
+    problemId: string;
+    language: ProgrammingLanguage;
+    codeByLang: Record<ProgrammingLanguage, string>;
+    activeTab: LeftTab;
+    lastSubmissionId: string | null;
+    updatedAt: number;
+}
+
+const DSA_DRAFT_DEBOUNCE_MS = 400;
+
+function mockDsaDraftKey(interviewId: string, slotIndex: number, problemId: string) {
+    return practiceDraftKey('dsa', interviewId, `slot-${slotIndex}:${problemId}`);
+}
+
+function submissionBelongsToProblem(
+    submission: SubmissionDetail,
+    problemId: string,
+): boolean {
+    return submission.problemId === problemId;
 }
 
 function difficultyPill(difficulty: ProblemDetail['difficulty']): string {
@@ -86,6 +119,8 @@ export function DsaSectionWorkspace({
     readOnly = false,
     onInterviewChange,
 }: DsaSectionWorkspaceProps) {
+    const { errors, touch, clear, setMany } = useFieldErrors<DsaWorkspaceField>();
+
     const [problem, setProblem] = useState<ProblemDetail | null>(null);
     const [isProblemLoading, setIsProblemLoading] = useState(true);
     const [problemError, setProblemError] = useState<string | null>(null);
@@ -97,20 +132,27 @@ export function DsaSectionWorkspace({
         PYTHON: '',
     });
 
-    const [activeTab, setActiveTab] = useState<'problem' | 'results'>('problem');
-    const [isRunning, setIsRunning] = useState(false);
+    const [activeTab, setActiveTab] = useState<LeftTab>('problem');
+    const [pendingAction, setPendingAction] = useState<'run' | 'submit' | null>(null);
     const [runError, setRunError] = useState<string | null>(null);
     const [lastSubmission, setLastSubmission] = useState<SubmissionDetail | null>(null);
 
     const [isSubmittingSection, setIsSubmittingSection] = useState(false);
     const [sectionError, setSectionError] = useState<string | null>(null);
 
+    const resumeReadyRef = useRef(false);
+    const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const activeProblemIdRef = useRef(slot.problemId);
+    activeProblemIdRef.current = slot.problemId;
+
     useEffect(() => {
         let cancelled = false;
+        resumeReadyRef.current = false;
 
         async function load() {
             setIsProblemLoading(true);
             setProblemError(null);
+            setPendingAction(null);
             setLastSubmission(null);
             setRunError(null);
             setActiveTab('problem');
@@ -122,12 +164,100 @@ export function DsaSectionWorkspace({
                 }
 
                 setProblem(res.problem);
-                const starter = res.problem.starterCode;
-                setCodeByLang({
-                    CPP: starter?.cpp ?? '',
-                    JAVA: starter?.java ?? '',
-                    PYTHON: starter?.python ?? '',
-                });
+
+                const starter = {
+                    CPP: res.problem.starterCode?.cpp ?? '',
+                    JAVA: res.problem.starterCode?.java ?? '',
+                    PYTHON: res.problem.starterCode?.python ?? '',
+                };
+
+                const draftKey = mockDsaDraftKey(
+                    interviewId,
+                    slot.slotIndex,
+                    slot.problemId,
+                );
+                const legacyDraftKey = practiceDraftKey(
+                    'dsa',
+                    interviewId,
+                    `slot-${slot.slotIndex}`,
+                );
+                const draft =
+                    readPracticeDraft<DsaMockDraft>(draftKey) ??
+                    readPracticeDraft<DsaMockDraft>(legacyDraftKey);
+                const draftForProblem =
+                    draft && (!draft.problemId || draft.problemId === slot.problemId)
+                        ? draft
+                        : null;
+
+                let nextCode = starter;
+                let nextLanguage: ProgrammingLanguage = 'PYTHON';
+                let nextTab: LeftTab = 'problem';
+                let resumeSubmissionId: string | null = null;
+                let nextSubmission: SubmissionDetail | null = null;
+
+                if (draftForProblem?.codeByLang) {
+                    nextCode = {
+                        CPP: draftForProblem.codeByLang.CPP ?? starter.CPP,
+                        JAVA: draftForProblem.codeByLang.JAVA ?? starter.JAVA,
+                        PYTHON: draftForProblem.codeByLang.PYTHON ?? starter.PYTHON,
+                    };
+                    if (PROGRAMMING_LANGUAGES.includes(draftForProblem.language)) {
+                        nextLanguage = draftForProblem.language;
+                    }
+                    if (
+                        draftForProblem.activeTab === 'problem' ||
+                        draftForProblem.activeTab === 'results'
+                    ) {
+                        nextTab = draftForProblem.activeTab;
+                    }
+                    resumeSubmissionId = draftForProblem.lastSubmissionId;
+                }
+
+                if (!resumeSubmissionId && slot.submissionId) {
+                    resumeSubmissionId = slot.submissionId;
+                }
+
+                if (resumeSubmissionId) {
+                    try {
+                        const detail = await getSubmission(
+                            accessToken,
+                            resumeSubmissionId,
+                        );
+                        if (cancelled) {
+                            return;
+                        }
+                        if (
+                            submissionBelongsToProblem(
+                                detail.submission,
+                                slot.problemId,
+                            )
+                        ) {
+                            nextSubmission = detail.submission;
+                            if (!draftForProblem?.codeByLang) {
+                                nextLanguage = detail.submission.language;
+                                nextCode = {
+                                    ...starter,
+                                    [detail.submission.language]:
+                                        detail.submission.sourceCode,
+                                };
+                            }
+                            if (nextTab === 'problem' && !detail.submission.isSampleRun) {
+                                nextTab = 'results';
+                            }
+                        }
+                    } catch {
+                        // Submission restore is best-effort; problem + draft still load.
+                    }
+                }
+
+                if (cancelled) {
+                    return;
+                }
+
+                setCodeByLang(nextCode);
+                setLanguage(nextLanguage);
+                setActiveTab(nextSubmission ? nextTab : 'problem');
+                setLastSubmission(nextSubmission);
             } catch (err) {
                 if (cancelled) {
                     return;
@@ -138,6 +268,7 @@ export function DsaSectionWorkspace({
             } finally {
                 if (!cancelled) {
                     setIsProblemLoading(false);
+                    resumeReadyRef.current = true;
                 }
             }
         }
@@ -146,56 +277,155 @@ export function DsaSectionWorkspace({
         return () => {
             cancelled = true;
         };
-    }, [accessToken, slot.problemId, slot.slotIndex]);
+    }, [accessToken, interviewId, slot.problemId, slot.slotIndex, slot.submissionId]);
 
-    const stats = useMemo(() => {
-        if (!lastSubmission) {
-            return null;
-        }
-        const passed = lastSubmission.passedTests;
-        const total = lastSubmission.totalTests;
-        const pct = total > 0 ? ((passed / total) * 100).toFixed(2) : 0;
-        return { passed, total, pct };
-    }, [lastSubmission]);
-
-    function setEditorValue(next: string) {
-        setCodeByLang((prev) => ({ ...prev, [language]: next }));
-    }
-
-    async function run(isSampleRun: boolean) {
-        if (!problem || readOnly) {
+    useEffect(() => {
+        if (!problem || !resumeReadyRef.current || readOnly) {
             return;
         }
 
-        setIsRunning(true);
+        if (draftTimerRef.current) {
+            clearTimeout(draftTimerRef.current);
+        }
+
+        const persist = () => {
+            const scopedSubmission =
+                lastSubmission &&
+                submissionBelongsToProblem(lastSubmission, problem.id)
+                    ? lastSubmission
+                    : null;
+            const draft: DsaMockDraft = {
+                problemId: problem.id,
+                language,
+                codeByLang,
+                activeTab,
+                lastSubmissionId: scopedSubmission?.id ?? null,
+                updatedAt: Date.now(),
+            };
+            writePracticeDraft(
+                mockDsaDraftKey(interviewId, slot.slotIndex, problem.id),
+                draft,
+            );
+        };
+
+        draftTimerRef.current = setTimeout(persist, DSA_DRAFT_DEBOUNCE_MS);
+
+        const onHide = () => {
+            if (document.visibilityState === 'hidden') {
+                persist();
+            }
+        };
+        document.addEventListener('visibilitychange', onHide);
+        window.addEventListener('pagehide', persist);
+
+        return () => {
+            if (draftTimerRef.current) {
+                clearTimeout(draftTimerRef.current);
+            }
+            document.removeEventListener('visibilitychange', onHide);
+            window.removeEventListener('pagehide', persist);
+        };
+    }, [
+        problem,
+        language,
+        codeByLang,
+        activeTab,
+        lastSubmission,
+        interviewId,
+        slot.slotIndex,
+        readOnly,
+    ]);
+
+    const scopedSubmission = useMemo(() => {
+        if (!problem || !lastSubmission) {
+            return null;
+        }
+        return submissionBelongsToProblem(lastSubmission, problem.id)
+            ? lastSubmission
+            : null;
+    }, [problem, lastSubmission]);
+
+    const stats = useMemo(() => {
+        if (!scopedSubmission) {
+            return null;
+        }
+        const passed = scopedSubmission.passedTests;
+        const total = scopedSubmission.totalTests;
+        const pct = total > 0 ? ((passed / total) * 100).toFixed(2) : 0;
+        return { passed, total, pct };
+    }, [scopedSubmission]);
+
+    function setEditorValue(next: string) {
+        setCodeByLang((prev) => ({ ...prev, [language]: next }));
+        clear('sourceCode');
+    }
+
+    async function run(isSampleRun: boolean) {
+        if (!problem || readOnly || pendingAction) {
+            return;
+        }
+
+        const codeErr = validateSourceCode(codeByLang[language]);
+        setMany(codeErr ? { sourceCode: codeErr } : {});
+        if (codeErr) {
+            return;
+        }
+
+        const problemId = problem.id;
+        const slotIndex = slot.slotIndex;
+        const selectedLanguage = language;
+        const codeSnapshot = { ...codeByLang };
+        const sourceCode = codeByLang[language];
+
+        setPendingAction(isSampleRun ? 'run' : 'submit');
         setRunError(null);
         setLastSubmission(null);
         setSectionError(null);
 
         try {
             const res = await createSubmission(accessToken, {
-                problemId: problem.id,
-                language,
-                sourceCode: codeByLang[language],
+                problemId,
+                language: selectedLanguage,
+                sourceCode,
                 isSampleRun,
             });
 
-            setLastSubmission(res.submission);
-            setActiveTab('results');
+            writePracticeDraft(
+                mockDsaDraftKey(interviewId, slotIndex, problemId),
+                {
+                    problemId,
+                    language: selectedLanguage,
+                    codeByLang: codeSnapshot,
+                    activeTab: 'results',
+                    lastSubmissionId: res.submission.id,
+                    updatedAt: Date.now(),
+                } satisfies DsaMockDraft,
+            );
 
             if (!isSampleRun) {
                 const linked = await linkMockDsaSubmission(
                     accessToken,
                     interviewId,
-                    slot.slotIndex,
+                    slotIndex,
                     { submissionId: res.submission.id },
                 );
                 onInterviewChange(linked.interview);
             }
+
+            // Only apply results if this workspace is still on the same problem.
+            if (activeProblemIdRef.current === problemId) {
+                setLastSubmission(res.submission);
+                setActiveTab('results');
+                clear('sourceCode');
+            }
         } catch (err) {
-            setRunError(err instanceof ApiError ? err.message : 'Submission failed');
+            if (activeProblemIdRef.current === problemId) {
+                setRunError(err instanceof ApiError ? err.message : 'Submission failed');
+            }
         } finally {
-            setIsRunning(false);
+            if (activeProblemIdRef.current === problemId) {
+                setPendingAction(null);
+            }
         }
     }
 
@@ -340,7 +570,7 @@ export function DsaSectionWorkspace({
                                         {runError}
                                     </div>
                                 ) : null}
-                                {!lastSubmission ? (
+                                {!scopedSubmission ? (
                                     <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
                                         Run or submit to see results here.
                                     </div>
@@ -351,7 +581,7 @@ export function DsaSectionWorkspace({
                                                 <div>
                                                     <p className="section-label">Status</p>
                                                     <p className="mt-1 text-base font-semibold text-zinc-900">
-                                                        {lastSubmission.status}
+                                                        {scopedSubmission.status}
                                                     </p>
                                                 </div>
                                                 {stats ? (
@@ -365,32 +595,32 @@ export function DsaSectionWorkspace({
                                                 ) : null}
                                             </div>
                                             <p className="mt-3 text-xs text-zinc-500">
-                                                {lastSubmission.isSampleRun
+                                                {scopedSubmission.isSampleRun
                                                     ? 'Sample run (visible tests only)'
                                                     : 'Full submission — will be used if this is your latest for the section'}
                                             </p>
                                         </div>
-                                        {lastSubmission.compileOutput ? (
+                                        {scopedSubmission.compileOutput ? (
                                             <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
                                                 <p className="section-label mb-2">Compile output</p>
                                                 <pre className="overflow-x-auto font-mono text-xs text-zinc-800">
-                                                    {lastSubmission.compileOutput}
+                                                    {scopedSubmission.compileOutput}
                                                 </pre>
                                             </div>
                                         ) : null}
-                                        {lastSubmission.stderr ? (
+                                        {scopedSubmission.stderr ? (
                                             <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
                                                 <p className="section-label mb-2">Stderr</p>
                                                 <pre className="overflow-x-auto font-mono text-xs text-zinc-800">
-                                                    {lastSubmission.stderr}
+                                                    {scopedSubmission.stderr}
                                                 </pre>
                                             </div>
                                         ) : null}
-                                        {lastSubmission.testResults &&
-                                            lastSubmission.testResults.length > 0 ? (
+                                        {scopedSubmission.testResults &&
+                                            scopedSubmission.testResults.length > 0 ? (
                                             <div className="space-y-2">
                                                 <p className="section-label">Test results</p>
-                                                {lastSubmission.testResults.map((result) => (
+                                                {scopedSubmission.testResults.map((result) => (
                                                     <div
                                                         key={result.testCaseId}
                                                         className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs"
@@ -429,7 +659,7 @@ export function DsaSectionWorkspace({
                         <select
                             className="select-base !w-auto !py-2"
                             value={language}
-                            disabled={readOnly || isRunning}
+                            disabled={readOnly || pendingAction !== null}
                             onChange={(event) =>
                                 setLanguage(event.target.value as ProgrammingLanguage)
                             }
@@ -444,18 +674,18 @@ export function DsaSectionWorkspace({
                             <button
                                 type="button"
                                 className="btn-secondary !py-2"
-                                disabled={readOnly || isRunning}
+                                disabled={readOnly || pendingAction !== null}
                                 onClick={() => void run(true)}
                             >
-                                {isRunning ? 'Running…' : 'Run'}
+                                {pendingAction === 'run' ? 'Running…' : 'Run'}
                             </button>
                             <button
                                 type="button"
                                 className="btn-primary !py-2"
-                                disabled={readOnly || isRunning}
+                                disabled={readOnly || pendingAction !== null}
                                 onClick={() => void run(false)}
                             >
-                                {isRunning ? 'Submitting…' : 'Submit'}
+                                {pendingAction === 'submit' ? 'Submitting…' : 'Submit'}
                             </button>
                         </div>
                     </div>
@@ -463,11 +693,18 @@ export function DsaSectionWorkspace({
                         <MonacoEditor
                             value={codeByLang[language]}
                             onChange={setEditorValue}
+                            onBlur={() =>
+                                touch(
+                                    'sourceCode',
+                                    validateSourceCode(codeByLang[language]),
+                                )
+                            }
                             language={language}
                             readOnly={readOnly}
                             height="100%"
                             className="h-full min-h-[420px]"
                         />
+                        <FieldError id="mock-dsa-source-error" message={errors.sourceCode} />
                     </div>
                 </section>
             </div>

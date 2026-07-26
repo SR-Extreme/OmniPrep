@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, isFreeAiReportLimitError } from '@/lib/api/client';
-import { getDSAEvaluation, requestDSAEvaluation, type ComplexityAnalysis, type DSAEvaluationDetail } from '@/lib/api/evaluations';
+import { getDSAEvaluation, requestDSAEvaluation, type DSAEvaluationDetail } from '@/lib/api/evaluations';
+import { AIEvaluationReport } from '@/components/dsa/AIEvaluationReport';
+import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
 import { getProblem } from '@/lib/api/problems';
 import { createSubmission, getSubmission, listMySubmissions } from '@/lib/api/submissions';
 import {
@@ -16,6 +18,9 @@ import { MonacoEditor } from '@/components/MonacoEditor';
 import { PremiumRequiredModal } from '@/components/PremiumRequiredModal';
 import { RevealSection } from '@/components/RevealSection';
 import { SubmissionResultView } from '@/components/dsa/SubmissionResultView';
+import { FieldError } from '@/components/ui/FieldError';
+import { useFieldErrors } from '@/hooks/useFieldErrors';
+import { validateSourceCode } from '@/lib/validation/fields';
 import { useAuthStore } from '@/store/authStore';
 import {
     PROGRAMMING_LANGUAGES,
@@ -27,6 +32,7 @@ import {
 } from '@/types/dsa';
 
 type LeftTab = 'problem' | 'results' | 'submissions';
+type DsaField = 'sourceCode';
 
 interface DsaPracticeDraft {
     language: ProgrammingLanguage;
@@ -85,241 +91,6 @@ function ExampleCard({ example, index }: { example: Example; index: number }) {
     );
 }
 
-function getScoreTier(score: number): {
-    label: string;
-    color: string;
-    bg: string;
-    ring: string;
-    bar: string;
-} {
-    if (score >= 85) {
-        return {
-            label: 'Excellent',
-            color: 'text-emerald-700',
-            bg: 'bg-emerald-50',
-            ring: 'ring-emerald-200',
-            bar: 'bg-emerald-500',
-        };
-    }
-    if (score >= 70) {
-        return {
-            label: 'Good',
-            color: 'text-sky-700',
-            bg: 'bg-sky-50',
-            ring: 'ring-sky-200',
-            bar: 'bg-sky-500',
-        };
-    }
-    if (score >= 50) {
-        return {
-            label: 'Fair',
-            color: 'text-amber-700',
-            bg: 'bg-amber-50',
-            ring: 'ring-amber-200',
-            bar: 'bg-amber-500',
-        };
-    }
-    return {
-        label: 'Needs Work',
-        color: 'text-rose-700',
-        bg: 'bg-rose-50',
-        ring: 'ring-rose-200',
-        bar: 'bg-rose-500',
-    };
-}
-
-function ScoreBar({ label, score }: { label: string; score: number }) {
-    const tier = getScoreTier(score);
-
-    return (
-        <div className="rounded-lg border border-zinc-100 bg-white px-3.5 py-3 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-zinc-700">{label}</span>
-                <span className="text-sm font-semibold tabular-nums text-zinc-900">{score}<span className="font-normal text-zinc-400">/100</span></span>
-            </div>
-            <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-zinc-100">
-                <div
-                    className={`h-full rounded-full transition-all duration-500 ease-out ${tier.bar}`}
-                    style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
-                />
-            </div>
-        </div>
-    );
-}
-
-function ComplexityMetric({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="rounded-md border border-zinc-100 bg-white px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">{label}</p>
-            <p className="mt-1 font-mono text-sm font-medium text-zinc-900">{value}</p>
-        </div>
-    );
-}
-
-function ComplexityCard({ analysis }: { analysis: ComplexityAnalysis }) {
-    return (
-        <div className="space-y-4 rounded-xl border border-zinc-200 bg-gradient-to-br from-zinc-50 to-white p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Your Solution</p>
-                    <ComplexityMetric label="Time" value={analysis.detected.time} />
-                    <ComplexityMetric label="Space" value={analysis.detected.space} />
-                </div>
-                <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Optimal Target</p>
-                    <ComplexityMetric label="Time" value={analysis.optimal.time} />
-                    <ComplexityMetric label="Space" value={analysis.optimal.space} />
-                </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200/80 pt-4">
-                {analysis.isOptimal ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        Optimal complexity
-                    </span>
-                ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/15">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                        Room for improvement
-                    </span>
-                )}
-            </div>
-            {analysis.notes && (
-                <p className="ai-report-body border-l-2 border-zinc-200 pl-3.5 text-zinc-600">{analysis.notes}</p>
-            )}
-        </div>
-    );
-}
-
-function ReportSection({
-    title,
-    subtitle,
-    children,
-}: {
-    title: string;
-    subtitle?: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <section>
-            <div className="mb-3">
-                <h3 className="text-sm font-semibold tracking-tight text-zinc-900">{title}</h3>
-                {subtitle && (
-                    <p className="mt-0.5 text-xs font-normal leading-relaxed text-zinc-500">{subtitle}</p>
-                )}
-            </div>
-            {children}
-        </section>
-    );
-}
-
-function AIEvaluationReport({ evaluation }: { evaluation: DSAEvaluationDetail }) {
-    const tier = getScoreTier(evaluation.overallScore);
-    const reviewedAt = new Date(evaluation.createdAt).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-    });
-
-    return (
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-card">
-            <div className="border-b border-zinc-100 bg-gradient-to-r from-zinc-50 via-white to-emerald-50/40 px-5 py-5 sm:px-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                            AI Interview Report
-                        </p>
-                        <p className="mt-1 text-xs text-zinc-500">
-                            Reviewed {reviewedAt}
-                            {evaluation.model && (
-                                <span className="text-zinc-400"> · {evaluation.model}</span>
-                            )}
-                        </p>
-                    </div>
-                    <div
-                        className={`flex h-[4.5rem] w-[4.5rem] shrink-0 flex-col items-center justify-center rounded-full ring-4 ${tier.bg} ${tier.ring}`}
-                    >
-                        <span className="text-2xl font-bold tabular-nums leading-none text-zinc-900">
-                            {evaluation.overallScore}
-                        </span>
-                        <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-                            / 100
-                        </span>
-                    </div>
-                </div>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tier.bg} ${tier.color} ring-1 ring-inset ${tier.ring}`}
-                    >
-                        {tier.label}
-                    </span>
-                    <span className="text-xs text-zinc-500">Overall performance rating</span>
-                </div>
-            </div>
-
-            <div className="space-y-6 px-5 py-6 sm:px-6">
-                <ReportSection title="Score Breakdown" subtitle="How your submission performed across key dimensions.">
-                    <div className="grid gap-2.5 sm:grid-cols-2">
-                        <ScoreBar label="Correctness" score={evaluation.correctnessScore} />
-                        <ScoreBar label="Efficiency" score={evaluation.efficiencyScore} />
-                        <ScoreBar label="Code Quality" score={evaluation.codeQualityScore} />
-                        <ScoreBar label="Explanation" score={evaluation.explanationScore} />
-                    </div>
-                </ReportSection>
-
-                <ReportSection title="Time & Space Complexity" subtitle="Your approach compared to the optimal solution.">
-                    <ComplexityCard analysis={evaluation.complexityAnalysis} />
-                </ReportSection>
-
-                <ReportSection title="Interviewer Feedback" subtitle="A summary of strengths and areas to refine.">
-                    <div className="rounded-lg border border-zinc-100 bg-zinc-50/60 px-4 py-4">
-                        <p className="ai-report-feedback">{evaluation.feedback}</p>
-                    </div>
-                </ReportSection>
-
-                {evaluation.suggestions.length > 0 && (
-                    <ReportSection title="Actionable Suggestions" subtitle="Concrete steps to improve your solution.">
-                        <ul className="space-y-2.5">
-                            {evaluation.suggestions.map((item, idx) => (
-                                <li
-                                    key={idx}
-                                    className="flex gap-3 rounded-lg border border-zinc-100 bg-white px-3.5 py-3 shadow-sm"
-                                >
-                                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-[11px] font-bold text-emerald-700">
-                                        {idx + 1}
-                                    </span>
-                                    <span className="ai-report-list-item">{item}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </ReportSection>
-                )}
-
-                {evaluation.followUpQuestions.length > 0 && (
-                    <ReportSection
-                        title="Follow-up Questions"
-                        subtitle="Questions an interviewer might ask you next."
-                    >
-                        <ol className="space-y-2.5">
-                            {evaluation.followUpQuestions.map((question, idx) => (
-                                <li
-                                    key={idx}
-                                    className="flex gap-3 rounded-lg border border-zinc-100 bg-gradient-to-r from-white to-zinc-50/80 px-3.5 py-3"
-                                >
-                                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-[10px] font-bold text-white">
-                                        Q{idx + 1}
-                                    </span>
-                                    <span className="ai-report-list-item text-zinc-800">{question}</span>
-                                </li>
-                            ))}
-                        </ol>
-                    </ReportSection>
-                )}
-            </div>
-        </div>
-    );
-}
-
 const AI_POLL_INTERVAL_MS = 2000;
 const AI_POLL_MAX_ATTEMPTS = 60;
 
@@ -370,6 +141,7 @@ export default function ProblemSolverPage() {
     const params = useParams<{ id: string }>();
 
     const { accessToken } = useAuthStore();
+    const { errors, touch, clear, setMany } = useFieldErrors<DsaField>();
 
     const [hydrated, setHydrated] = useState(false);
 
@@ -386,7 +158,7 @@ export default function ProblemSolverPage() {
 
     const [activeTab, setActiveTab] = useState<LeftTab>('problem');
 
-    const [isRunning, setIsRunning] = useState(false);
+    const [pendingAction, setPendingAction] = useState<'run' | 'submit' | null>(null);
     const [runError, setRunError] = useState<string | null>(null);
     const [lastSubmission, setLastSubmission] = useState<SubmissionDetail | null>(null);
 
@@ -655,12 +427,17 @@ export default function ProblemSolverPage() {
 
     function setEditorValue(next: string) {
         setCodeByLang((prev) => ({ ...prev, [language]: next }));
+        clear('sourceCode');
     }
 
     async function run(isSampleRun: boolean) {
-        if (!accessToken || !problem) return;
+        if (!accessToken || !problem || pendingAction) return;
 
-        setIsRunning(true);
+        const codeErr = validateSourceCode(codeByLang[language]);
+        setMany(codeErr ? { sourceCode: codeErr } : {});
+        if (codeErr) return;
+
+        setPendingAction(isSampleRun ? 'run' : 'submit');
         setRunError(null);
         setLastSubmission(null);
         resetAiReviewState();
@@ -675,6 +452,7 @@ export default function ProblemSolverPage() {
 
             setLastSubmission(res.submission);
             setActiveTab('results');
+            clear('sourceCode');
 
             writePracticeDraft(practiceDraftKey('dsa', problem.id), {
                 language,
@@ -692,7 +470,7 @@ export default function ProblemSolverPage() {
             const message = err instanceof ApiError ? err.message : 'Submission failed';
             setRunError(message);
         } finally {
-            setIsRunning(false);
+            setPendingAction(null);
         }
     }
 
@@ -839,11 +617,7 @@ export default function ProblemSolverPage() {
     }
 
     if (!hydrated || !accessToken) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center bg-zinc-50 text-zinc-500">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />
-            </div>
-        );
+        return <PracticeAuthGate hydrated={hydrated} />;
     }
 
     const tabButtonClass = (tab: LeftTab) =>
@@ -1180,18 +954,18 @@ export default function ProblemSolverPage() {
                                     <button
                                         type="button"
                                         onClick={() => run(true)}
-                                        disabled={isRunning}
+                                        disabled={pendingAction !== null}
                                         className="btn-secondary !py-2"
                                     >
-                                        {isRunning ? 'Running…' : 'Run'}
+                                        {pendingAction === 'run' ? 'Running…' : 'Run'}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => run(false)}
-                                        disabled={isRunning}
+                                        disabled={pendingAction !== null}
                                         className="btn-primary !py-2"
                                     >
-                                        {isRunning ? 'Submitting…' : 'Submit'}
+                                        {pendingAction === 'submit' ? 'Submitting…' : 'Submit'}
                                     </button>
                                 </div>
                             </div>
@@ -1199,9 +973,13 @@ export default function ProblemSolverPage() {
                                 <MonacoEditor
                                     value={editorValue}
                                     onChange={setEditorValue}
+                                    onBlur={() =>
+                                        touch('sourceCode', validateSourceCode(editorValue))
+                                    }
                                     language={language}
                                     height="520px"
                                 />
+                                <FieldError id="source-code-error" message={errors.sourceCode} />
                                 <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
                                     <p className="font-medium text-zinc-700">I/O protocol</p>
                                     <p className="mt-1 leading-relaxed">
