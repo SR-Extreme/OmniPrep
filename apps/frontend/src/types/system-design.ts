@@ -89,6 +89,9 @@ export interface SystemDesignEvaluationDetail {
 export interface ListSystemDesignQuestionsResult {
     questions: SystemDesignQuestionListItem[];
     pagination: Pagination;
+    filterOptions: {
+        topics: string[];
+    };
 }
 
 export interface GetSystemDesignQuestionResponse {
@@ -121,7 +124,7 @@ export interface ListMySystemDesignSubmissionsQuery {
 
 export interface ListSystemDesignQuestionsQuery {
     difficulty?: Difficulty;
-    topic?: string;
+    topics?: string[];
     search?: string;
     page?: number;
     limit?: number;

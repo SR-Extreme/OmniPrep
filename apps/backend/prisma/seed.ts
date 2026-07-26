@@ -484,7 +484,6 @@ async function upsertProblem(problem: ProblemSeedFile): Promise<void> {
             timeLimitMs: problem.timeLimitMs,
             memoryLimitKb: problem.memoryLimitKb,
             starterCode: toInputJson(problem.starterCode),
-            solutionCode: toInputJson(problem.solutionCode),
             hints: problem.hints,
             isPublished: problem.isPublished,
             testCases: {
@@ -509,7 +508,6 @@ async function upsertProblem(problem: ProblemSeedFile): Promise<void> {
             timeLimitMs: problem.timeLimitMs,
             memoryLimitKb: problem.memoryLimitKb,
             starterCode: toInputJson(problem.starterCode),
-            solutionCode: toInputJson(problem.solutionCode),
             hints: problem.hints,
             isPublished: problem.isPublished,
             testCases: {

@@ -18,8 +18,8 @@ function buildQuestionsQueryString(query: ListSystemDesignQuestionsQuery): strin
     if (query.difficulty) {
         params.set('difficulty', query.difficulty);
     }
-    if (query.topic) {
-        params.set('topic', query.topic);
+    for (const topic of query.topics ?? []) {
+        params.append('topics', topic);
     }
     if (query.search) {
         params.set('search', query.search);
@@ -32,7 +32,7 @@ function buildQuestionsQueryString(query: ListSystemDesignQuestionsQuery): strin
     }
 
     const qs = params.toString();
-    return qs ? `?$${qs}` : '';
+    return qs ? `?${qs}` : '';
 }
 
 function buildMySubmissionsQueryString(

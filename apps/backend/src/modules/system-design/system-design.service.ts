@@ -48,6 +48,9 @@ export interface ListSystemDesignQuestionsResult {
         total: number;
         totalPages: number;
     };
+    filterOptions: {
+        topics: string[];
+    };
 }
 
 export interface SystemDesignSubmissionListItem {
@@ -153,10 +156,13 @@ export async function listSystemDesignQuestions(
     query: ListSystemDesignQuestionsQuery,
     role?: Role,
 ): Promise<ListSystemDesignQuestionsResult> {
+    const statusWhere = publishedWhere(role);
     const where = {
-        ...publishedWhere(role),
+        ...statusWhere,
         ...(query.difficulty ? { difficulty: query.difficulty } : {}),
-        ...(query.topic ? { topics: { has: query.topic } } : {}),
+        ...(query.topics && query.topics.length > 0
+            ? { topics: { hasSome: query.topics } }
+            : {}),
         ...(query.search
             ? {
                 OR: [
@@ -170,7 +176,7 @@ export async function listSystemDesignQuestions(
 
     const skip = (query.page - 1) * query.limit;
 
-    const [total, questions] = await Promise.all([
+    const [total, questions, topicRows] = await Promise.all([
         prisma.systemDesignQuestion.count({ where }),
         prisma.systemDesignQuestion.findMany({
             where,
@@ -185,6 +191,10 @@ export async function listSystemDesignQuestions(
                 topics: true,
             },
         }),
+        prisma.systemDesignQuestion.findMany({
+            where: statusWhere,
+            select: { topics: true },
+        }),
     ]);
 
     return {
@@ -194,6 +204,11 @@ export async function listSystemDesignQuestions(
             limit: query.limit,
             total,
             totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+        },
+        filterOptions: {
+            topics: [...new Set(topicRows.flatMap((row) => row.topics))].sort((a, b) =>
+                a.localeCompare(b),
+            ),
         },
     };
 }

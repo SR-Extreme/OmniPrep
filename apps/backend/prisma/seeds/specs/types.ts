@@ -16,23 +16,6 @@ export interface ProblemSpec {
     outputFormat: string;
     constraints: string;
     hints: string[];
-    /** Body of solve(data) — assign to `result` or use `return`. */
-    pythonBody: string;
-    javaBody: string;
-    cppBody: string;
     visibleCases: [CasePair, CasePair];
     hiddenCases: [CasePair, CasePair, CasePair, CasePair, CasePair, CasePair, CasePair, CasePair];
-}
-
-export function wrapPython(body: string): string {
-    return `import json
-import sys
-
-${body.trim()}
-
-if __name__ == "__main__":
-    data = json.loads(sys.stdin.read() or "{}")
-    result = solve(data)
-    print(json.dumps(result))
-`;
 }

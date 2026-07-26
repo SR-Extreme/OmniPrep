@@ -1,15 +1,17 @@
 'use client';
 
+import { motion } from 'framer-motion';
+import { Camera, LogOut, Pencil, Shield, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+    AdminErrorAlert,
+    AdminInlineLoading,
+    AdminLoading,
+    AdminPageHeader,
+    AdminPageShell,
+    AdminPanel,
+} from '@/components/admin/AdminPageShell';
 import { getAdminProfile } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
 import { updateProfile, uploadAvatar } from '@/lib/api/profile';
@@ -226,216 +228,254 @@ export default function AdminProfilePage() {
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading…
-            </div>
-        );
+        return <AdminLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-3xl space-y-6 px-6 py-10">
-                <div>
-                    <p className="section-label">Admin</p>
-                    <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900">
-                        Profile
-                    </h1>
-                </div>
+        <AdminPageShell>
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="space-y-6"
+            >
+                <AdminPageHeader
+                    label="Admin"
+                    title="Profile"
+                    description="Manage your admin account details and security settings."
+                />
 
-                {error ? (
-                    <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                        {error}
-                    </p>
-                ) : null}
+                {error ? <AdminErrorAlert message={error} /> : null}
 
                 {isLoading || !profile ? (
-                    <p className="text-sm text-zinc-500">Loading profile…</p>
+                    <AdminInlineLoading label="Loading profile…" />
                 ) : (
-                    <Card>
-                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="flex items-start gap-4">
+                    <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr] lg:items-stretch">
+                        <AdminPanel className="flex h-full flex-col">
+                            <div className="relative flex h-full min-h-[32rem] flex-col items-center px-5 py-8 text-center sm:px-6 sm:py-10 lg:px-10 lg:py-12">
                                 {profile.image ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                         src={profile.image}
                                         alt={profile.name}
-                                        className="h-16 w-16 rounded-full object-cover ring-1 ring-zinc-200"
+                                        className="h-28 w-28 rounded-2xl object-cover ring-1 ring-zinc-200 sm:h-32 sm:w-32"
                                     />
                                 ) : (
-                                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-base font-semibold text-emerald-700 ring-1 ring-emerald-600/15">
+                                    <div className="flex h-28 w-28 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-2xl font-semibold text-emerald-700 sm:h-32 sm:w-32 sm:text-3xl">
                                         {initials(profile.name)}
                                     </div>
                                 )}
-                                <div>
-                                    <CardTitle className="text-xl">{profile.name}</CardTitle>
-                                    <CardDescription>{profile.email}</CardDescription>
-                                </div>
-                            </div>
 
-                            <div className="flex flex-wrap gap-2">
-                                {!isEditing ? (
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={() => {
-                                            setName(profile.name);
-                                            setPhoneNo(profile.phoneNo ?? '');
-                                            setFormError(null);
-                                            setIsEditing(true);
-                                        }}
-                                    >
-                                        Edit profile
-                                    </Button>
-                                ) : null}
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp"
-                                    className="hidden"
-                                    onChange={(event) => {
-                                        const file = event.target.files?.[0];
-                                        if (file) {
-                                            void handleAvatarSelected(file);
-                                        }
-                                        event.target.value = '';
-                                    }}
-                                />
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    disabled={isUploadingAvatar}
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    {isUploadingAvatar ? 'Uploading…' : 'Change photo'}
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    disabled={authLoading}
-                                    onClick={() => void handleLogout()}
-                                >
-                                    Logout
-                                </Button>
-                            </div>
-                        </CardHeader>
+                                <h2 className="mt-5 text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">
+                                    {profile.name}
+                                </h2>
 
-                        <CardContent className="space-y-5">
-                            {isEditing ? (
-                                <form
-                                    onSubmit={(event) => void handleSaveProfile(event)}
-                                    className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4"
-                                >
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <div>
-                                            <label
-                                                htmlFor="admin-profile-name"
-                                                className="block text-sm font-medium text-zinc-700"
-                                            >
-                                                Name
-                                            </label>
-                                            <input
-                                                id="admin-profile-name"
-                                                type="text"
-                                                autoComplete="name"
-                                                required
-                                                minLength={1}
-                                                maxLength={100}
-                                                value={name}
-                                                disabled={isUpdatingProfile}
-                                                onChange={(event) =>
-                                                    setName(event.target.value)
-                                                }
-                                                className="input-base mt-1.5 !rounded-xl"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label
-                                                htmlFor="admin-profile-phone"
-                                                className="block text-sm font-medium text-zinc-700"
-                                            >
-                                                Phone number
-                                            </label>
-                                            <input
-                                                id="admin-profile-phone"
-                                                type="tel"
-                                                inputMode="numeric"
-                                                autoComplete="tel"
-                                                required
-                                                minLength={10}
-                                                maxLength={10}
-                                                pattern="\d{10}"
-                                                value={phoneNo}
-                                                disabled={isUpdatingProfile}
-                                                onChange={(event) =>
-                                                    setPhoneNo(
-                                                        event.target.value
-                                                            .replace(/\D/g, '')
-                                                            .slice(0, 10),
-                                                    )
-                                                }
-                                                placeholder="9876543210"
-                                                className="input-base mt-1.5 !rounded-xl"
-                                            />
-                                        </div>
-                                    </div>
+                                <span className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                    <Shield className="h-3 w-3" aria-hidden="true" />
+                                    Admin
+                                </span>
 
-                                    {formError ? (
-                                        <p className="text-sm text-rose-600">
-                                            {formError}
-                                        </p>
-                                    ) : null}
+                                <p className="mt-2.5 max-w-md break-all text-sm text-zinc-500">
+                                    {profile.email}
+                                </p>
 
-                                    <div className="flex flex-wrap gap-2">
-                                        <Button
-                                            type="submit"
-                                            disabled={isUpdatingProfile}
-                                        >
-                                            {isUpdatingProfile
-                                                ? 'Saving…'
-                                                : 'Save changes'}
-                                        </Button>
-                                        <Button
+                                <div className="mt-8 flex w-full max-w-md flex-1 flex-col justify-end gap-3">
+                                    {!isEditing ? (
+                                        <button
                                             type="button"
-                                            variant="secondary"
-                                            disabled={isUpdatingProfile}
                                             onClick={() => {
-                                                setIsEditing(false);
                                                 setName(profile.name);
                                                 setPhoneNo(profile.phoneNo ?? '');
                                                 setFormError(null);
+                                                setIsEditing(true);
                                             }}
+                                            className="btn-secondary !w-full !rounded-xl"
                                         >
-                                            Cancel
-                                        </Button>
-                                    </div>
-                                </form>
-                            ) : null}
+                                            <Pencil
+                                                className="h-4 w-4"
+                                                aria-hidden="true"
+                                            />
+                                            Edit profile
+                                        </button>
+                                    ) : null}
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        className="hidden"
+                                        onChange={(event) => {
+                                            const file = event.target.files?.[0];
+                                            if (file) {
+                                                void handleAvatarSelected(file);
+                                            }
+                                            event.target.value = '';
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        disabled={isUploadingAvatar}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="btn-secondary !w-full !rounded-xl"
+                                    >
+                                        <Camera
+                                            className="h-4 w-4"
+                                            aria-hidden="true"
+                                        />
+                                        {isUploadingAvatar
+                                            ? 'Uploading…'
+                                            : 'Change photo'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={authLoading}
+                                        onClick={() => void handleLogout()}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-700 shadow-sm transition hover:bg-rose-50 disabled:opacity-60"
+                                    >
+                                        <LogOut
+                                            className="h-4 w-4"
+                                            aria-hidden="true"
+                                        />
+                                        Logout
+                                    </button>
+                                </div>
 
-                            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                                <div>
-                                    <dt className="section-label">Phone</dt>
-                                    <dd className="mt-1 font-medium text-zinc-900">
-                                        {profile.phoneNo || '—'}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="section-label">Joined</dt>
-                                    <dd className="mt-1 font-medium text-zinc-900">
-                                        {formatDate(profile.createdAt)}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="section-label">Latest login</dt>
-                                    <dd className="mt-1 font-medium text-zinc-900">
-                                        {formatDate(profile.recentLogin)}
-                                    </dd>
-                                </div>
-                            </dl>
-                        </CardContent>
-                    </Card>
+                                {isEditing ? (
+                                    <form
+                                        onSubmit={(event) => void handleSaveProfile(event)}
+                                        className="mt-6 w-full space-y-4 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/40 to-white p-4 text-left sm:p-5"
+                                    >
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <div>
+                                                <label
+                                                    htmlFor="admin-profile-name"
+                                                    className="block text-sm font-medium text-zinc-700"
+                                                >
+                                                    Name
+                                                </label>
+                                                <input
+                                                    id="admin-profile-name"
+                                                    type="text"
+                                                    autoComplete="name"
+                                                    required
+                                                    minLength={1}
+                                                    maxLength={100}
+                                                    value={name}
+                                                    disabled={isUpdatingProfile}
+                                                    onChange={(event) =>
+                                                        setName(event.target.value)
+                                                    }
+                                                    className="input-base mt-1.5 !rounded-xl"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label
+                                                    htmlFor="admin-profile-phone"
+                                                    className="block text-sm font-medium text-zinc-700"
+                                                >
+                                                    Phone number
+                                                </label>
+                                                <input
+                                                    id="admin-profile-phone"
+                                                    type="tel"
+                                                    inputMode="numeric"
+                                                    autoComplete="tel"
+                                                    required
+                                                    minLength={10}
+                                                    maxLength={10}
+                                                    pattern="\d{10}"
+                                                    value={phoneNo}
+                                                    disabled={isUpdatingProfile}
+                                                    onChange={(event) =>
+                                                        setPhoneNo(
+                                                            event.target.value
+                                                                .replace(/\D/g, '')
+                                                                .slice(0, 10),
+                                                        )
+                                                    }
+                                                    placeholder="9876543210"
+                                                    className="input-base mt-1.5 !rounded-xl"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {formError ? (
+                                            <p className="text-sm text-rose-600">
+                                                {formError}
+                                            </p>
+                                        ) : null}
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="submit"
+                                                disabled={isUpdatingProfile}
+                                                className="btn-primary !rounded-xl"
+                                            >
+                                                {isUpdatingProfile
+                                                    ? 'Saving…'
+                                                    : 'Save changes'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={isUpdatingProfile}
+                                                onClick={() => {
+                                                    setIsEditing(false);
+                                                    setName(profile.name);
+                                                    setPhoneNo(profile.phoneNo ?? '');
+                                                    setFormError(null);
+                                                }}
+                                                className="btn-secondary !rounded-xl"
+                                            >
+                                                <X
+                                                    className="h-4 w-4"
+                                                    aria-hidden="true"
+                                                />
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : null}
+                            </div>
+                        </AdminPanel>
+
+                        <AdminPanel className="flex h-full flex-col">
+                            <div className="relative flex h-full flex-col p-5 sm:p-6 lg:p-8">
+                                <h3 className="text-base font-semibold text-zinc-900">
+                                    Account details
+                                </h3>
+                                <p className="mt-1 text-sm text-zinc-500">
+                                    Key information for this admin account.
+                                </p>
+                                <dl className="mt-6 flex flex-1 flex-col justify-between gap-4">
+                                    <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/50 px-4 py-4">
+                                        <dt className="section-label">Phone</dt>
+                                        <dd className="mt-1.5 font-medium text-zinc-900">
+                                            {profile.phoneNo || '—'}
+                                        </dd>
+                                    </div>
+                                    <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/50 px-4 py-4">
+                                        <dt className="section-label">Joined</dt>
+                                        <dd className="mt-1.5 font-medium text-zinc-900">
+                                            {formatDate(profile.createdAt)}
+                                        </dd>
+                                    </div>
+                                    <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/50 px-4 py-4">
+                                        <dt className="section-label">Latest login</dt>
+                                        <dd className="mt-1.5 font-medium text-zinc-900">
+                                            {formatDate(profile.recentLogin)}
+                                        </dd>
+                                    </div>
+                                    <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/50 px-4 py-4">
+                                        <dt className="section-label">Role</dt>
+                                        <dd className="mt-1.5 font-medium text-zinc-900">
+                                            Administrator
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </AdminPanel>
+                    </div>
                 )}
-            </main>
-        </div>
+            </motion.div>
+        </AdminPageShell>
     );
 }

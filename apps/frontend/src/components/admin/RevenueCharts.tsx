@@ -14,6 +14,7 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
+import { AdminStatCard } from '@/components/admin/AdminPageShell';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -59,27 +60,27 @@ export function RevenueCharts({
 
     return (
         <div className={cn('space-y-6', isLoading && 'opacity-70')}>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <StatCard label="Total Users" value={String(stats.totalUsers)} />
-                <StatCard
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <AdminStatCard label="Total Users" value={String(stats.totalUsers)} />
+                <AdminStatCard
                     label="Total Revenue"
                     value={formatInr(stats.totalRevenueInr)}
                 />
-                <StatCard
+                <AdminStatCard
                     label="Monthly Plans"
                     value={String(stats.totalMonthlySubscriptions)}
                 />
-                <StatCard
+                <AdminStatCard
                     label="6-Month Plans"
                     value={String(stats.totalSixMonthSubscriptions)}
                 />
-                <StatCard
+                <AdminStatCard
                     label="Yearly Plans"
                     value={String(stats.totalYearlySubscriptions)}
                 />
             </div>
 
-            <Card>
+            <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <CardTitle>Revenue vs Time</CardTitle>
@@ -126,7 +127,7 @@ export function RevenueCharts({
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
-                <Card>
+                <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
                     <CardHeader>
                         <CardTitle>Premium vs Free</CardTitle>
                         <CardDescription>Current user split</CardDescription>
@@ -156,7 +157,7 @@ export function RevenueCharts({
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
                     <CardHeader>
                         <CardTitle>Subscription Distribution</CardTitle>
                         <CardDescription>
@@ -177,53 +178,42 @@ export function RevenueCharts({
                 </Card>
             </div>
 
-            <Card>
+            <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
                 <CardHeader>
                     <CardTitle>Summaries</CardTitle>
                     <CardDescription>Derived from paid subscription history</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <StatCard
+                <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <AdminStatCard
                         label="Total Revenue"
                         value={formatInr(summaries.totalRevenueInr)}
                     />
-                    <StatCard
+                    <AdminStatCard
                         label="Premium %"
                         value={`${summaries.premiumPercentage.toFixed(1)}%`}
                     />
-                    <StatCard
+                    <AdminStatCard
                         label="Average Revenue Per User (ARPU)"
                         value={formatInr(summaries.averageRevenuePerUserInr)}
                     />
-                    <StatCard
+                    <AdminStatCard
                         label="Highest Selling Plan"
                         value={summaries.highestSellingPlan ?? '—'}
                     />
-                    <StatCard
+                    <AdminStatCard
                         label="Monthly Sales"
                         value={formatInr(summaries.monthlySalesInr)}
                     />
-                    <StatCard
+                    <AdminStatCard
                         label="6-Month Sales"
                         value={formatInr(summaries.sixMonthSalesInr)}
                     />
-                    <StatCard
+                    <AdminStatCard
                         label="Annual Sales"
                         value={formatInr(summaries.annualSalesInr)}
                     />
                 </CardContent>
             </Card>
-        </div>
-    );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-3">
-            <p className="section-label">{label}</p>
-            <p className="mt-1 text-lg font-semibold tracking-tight text-zinc-900">
-                {value}
-            </p>
         </div>
     );
 }

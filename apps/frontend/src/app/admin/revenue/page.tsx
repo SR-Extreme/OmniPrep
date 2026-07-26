@@ -1,8 +1,17 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { RevenueCharts } from '@/components/admin/RevenueCharts';
+import {
+    AdminEmptyState,
+    AdminErrorAlert,
+    AdminInlineLoading,
+    AdminLoading,
+    AdminPageHeader,
+    AdminPageShell,
+} from '@/components/admin/AdminPageShell';
 import { getRevenueDashboard } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
 import { useAuthStore } from '@/store/authStore';
@@ -80,31 +89,24 @@ export default function AdminRevenuePage() {
     }, [hydrated, accessToken, user, range]);
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading…
-            </div>
-        );
+        return <AdminLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-6xl space-y-6 px-6 py-10">
-                <div>
-                    <p className="section-label">Analytics</p>
-                    <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900">
-                        Revenue dashboard
-                    </h1>
-                    <p className="mt-2 text-sm text-zinc-600">
-                        Subscription revenue, plan mix, and premium vs free users.
-                    </p>
-                </div>
+        <AdminPageShell>
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="space-y-6"
+            >
+                <AdminPageHeader
+                    label="Analytics"
+                    title="Revenue dashboard"
+                    description="Subscription revenue, plan mix, and premium vs free users."
+                />
 
-                {error ? (
-                    <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                        {error}
-                    </p>
-                ) : null}
+                {error ? <AdminErrorAlert message={error} /> : null}
 
                 {data ? (
                     <RevenueCharts
@@ -113,9 +115,11 @@ export default function AdminRevenuePage() {
                         isLoading={isLoading}
                     />
                 ) : isLoading ? (
-                    <p className="text-sm text-zinc-500">Loading revenue data…</p>
-                ) : null}
-            </main>
-        </div>
+                    <AdminInlineLoading label="Loading revenue data…" />
+                ) : (
+                    <AdminEmptyState message="No revenue data available." />
+                )}
+            </motion.div>
+        </AdminPageShell>
     );
 }

@@ -2,15 +2,21 @@ import { z } from 'zod';
 import { followUpAnswersSchema } from '../../types/system-design.types.js';
 import { DIFFICULTIES } from '../problems/problems.validation.js';
 
+const topicsQuerySchema = z.preprocess((value) => {
+    if (value == null || value === '') {
+        return undefined;
+    }
+    const values = Array.isArray(value) ? value : String(value).split(',');
+    const topics = values
+        .map((item) => String(item).trim())
+        .filter((item) => item.length > 0);
+    return topics.length > 0 ? topics : undefined;
+}, z.array(z.string().trim().min(1).max(100)).max(50).optional());
+
 export const listSystemDesignQuestionsQuerySchema = z.object({
     difficulty: z.enum(DIFFICULTIES).optional(),
 
-    topic: z
-        .string()
-        .trim()
-        .min(1, 'Topic filter cannot be empty')
-        .max(100, 'Topic filter must be at most 100 characters')
-        .optional(),
+    topics: topicsQuerySchema,
 
     search: z
         .string()

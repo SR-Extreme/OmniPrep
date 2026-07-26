@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+    AdminLoading,
+    AdminPageShell,
+} from '@/components/admin/AdminPageShell';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -22,7 +26,11 @@ import {
 import { ApiError } from '@/lib/api/client';
 import { useAuthStore } from '@/store/authStore';
 import type { CreateBehavioralQuestionBody } from '@/types/admin';
-import type { BehavioralPhases } from '@/types/behavioral';
+import {
+    BEHAVIORAL_PHASE_TYPES,
+    type BehavioralPhaseType,
+    type BehavioralPhases,
+} from '@/types/behavioral';
 import { DIFFICULTIES, type Difficulty } from '@/types/dsa';
 
 type FormState = {
@@ -35,6 +43,168 @@ type FormState = {
     isPublished: boolean;
     phasesJson: string;
 };
+
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+const EXPECTED_PHASE_TOTALS: Record<BehavioralPhaseType, number> = {
+    INTRODUCTION: 0,
+    ICE_BREAKER: 2,
+    RESUME_DEEP_DIVE: 3,
+    CORE_BEHAVIORAL: 3,
+    COMPANY_VALUES: 2,
+    CANDIDATE_QUESTIONS: 0,
+    WRAP_UP: 0,
+};
+
+function validatePhasesJson(phasesJson: string): string | null {
+    const trimmed = phasesJson.trim();
+    if (!trimmed) {
+        return 'Phases JSON is required';
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(trimmed);
+    } catch {
+        return 'Phases JSON is invalid';
+    }
+
+    if (!Array.isArray(parsed)) {
+        return 'Phases must be a JSON array';
+    }
+
+    if (parsed.length !== BEHAVIORAL_PHASE_TYPES.length) {
+        return `Phases must contain exactly ${BEHAVIORAL_PHASE_TYPES.length} phases`;
+    }
+
+    for (let i = 0; i < BEHAVIORAL_PHASE_TYPES.length; i++) {
+        const phase = parsed[i];
+        const expectedType = BEHAVIORAL_PHASE_TYPES[i];
+
+        if (!phase || typeof phase !== 'object' || Array.isArray(phase)) {
+            return `Phase at index ${i} must be an object`;
+        }
+
+        const record = phase as Record<string, unknown>;
+
+        if (record.type !== expectedType) {
+            return `Phase at index ${i} must be ${expectedType}`;
+        }
+
+        if (typeof record.title !== 'string' || !record.title.trim()) {
+            return `${expectedType} title is required`;
+        }
+
+        if (typeof record.description !== 'string' || !record.description.trim()) {
+            return `${expectedType} description is required`;
+        }
+
+        if (
+            typeof record.totalQuestions !== 'number' ||
+            !Number.isInteger(record.totalQuestions) ||
+            record.totalQuestions < 0
+        ) {
+            return `${expectedType} totalQuestions must be a non-negative integer`;
+        }
+
+        if (record.totalQuestions !== EXPECTED_PHASE_TOTALS[expectedType]) {
+            return `${expectedType} must have totalQuestions=${EXPECTED_PHASE_TOTALS[expectedType]}`;
+        }
+
+        if (
+            !record.content ||
+            typeof record.content !== 'object' ||
+            Array.isArray(record.content)
+        ) {
+            return `${expectedType} content must be an object`;
+        }
+    }
+
+    return null;
+}
+
+function validateField(form: FormState, key: keyof FormState): string | undefined {
+    switch (key) {
+        case 'slug': {
+            const slug = form.slug.trim();
+            if (!slug) {
+                return 'Slug is required';
+            }
+            if (slug.length > 200) {
+                return 'Slug must be at most 200 characters';
+            }
+            if (!SLUG_PATTERN.test(slug)) {
+                return 'Slug must be lowercase kebab-case (e.g. google-swe-behavioral)';
+            }
+            return undefined;
+        }
+        case 'title': {
+            const title = form.title.trim();
+            if (!title) {
+                return 'Title is required';
+            }
+            if (title.length > 200) {
+                return 'Title must be at most 200 characters';
+            }
+            return undefined;
+        }
+        case 'description':
+            return form.description.trim() ? undefined : 'Description is required';
+        case 'companyName': {
+            const companyName = form.companyName.trim();
+            if (!companyName) {
+                return 'Company name is required';
+            }
+            if (companyName.length > 200) {
+                return 'Company name must be at most 200 characters';
+            }
+            return undefined;
+        }
+        case 'roleName': {
+            const roleName = form.roleName.trim();
+            if (!roleName) {
+                return 'Role name is required';
+            }
+            if (roleName.length > 200) {
+                return 'Role name must be at most 200 characters';
+            }
+            return undefined;
+        }
+        case 'difficulty':
+            return DIFFICULTIES.includes(form.difficulty)
+                ? undefined
+                : 'Difficulty must be EASY, MEDIUM, or HARD';
+        case 'phasesJson':
+            return validatePhasesJson(form.phasesJson) ?? undefined;
+        case 'isPublished':
+            return undefined;
+        default:
+            return undefined;
+    }
+}
+
+function validateForm(form: FormState): FieldErrors {
+    const keys: (keyof FormState)[] = [
+        'slug',
+        'title',
+        'description',
+        'companyName',
+        'roleName',
+        'difficulty',
+        'phasesJson',
+    ];
+
+    const errors: FieldErrors = {};
+    for (const key of keys) {
+        const message = validateField(form, key);
+        if (message) {
+            errors[key] = message;
+        }
+    }
+    return errors;
+}
 
 function buildDefaultPhases(
     companyName = 'Company',
@@ -152,6 +322,7 @@ export default function AdminCreateBehavioralPage() {
     const { user, accessToken } = useAuthStore();
     const [hydrated, setHydrated] = useState(false);
     const [form, setForm] = useState<FormState>(INITIAL);
+    const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingQuestion, setIsLoadingQuestion] = useState(Boolean(editId));
     const [error, setError] = useState<string | null>(null);
@@ -228,6 +399,34 @@ export default function AdminCreateBehavioralPage() {
 
     function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
         setForm((current) => ({ ...current, [key]: value }));
+        setFieldErrors((current) => {
+            if (!current[key]) {
+                return current;
+            }
+            const next = { ...current };
+            delete next[key];
+            return next;
+        });
+    }
+
+    function handleFieldBlur<K extends keyof FormState>(
+        key: K,
+        value?: FormState[K],
+    ) {
+        const snapshot =
+            value !== undefined ? { ...form, [key]: value } : form;
+        const message = validateField(snapshot, key);
+        setFieldErrors((current) => {
+            if (!message) {
+                if (!current[key]) {
+                    return current;
+                }
+                const next = { ...current };
+                delete next[key];
+                return next;
+            }
+            return { ...current, [key]: message };
+        });
     }
 
     function resetPhasesTemplate() {
@@ -242,8 +441,15 @@ export default function AdminCreateBehavioralPage() {
             return;
         }
 
-        setIsSubmitting(true);
+        const nextFieldErrors = validateForm(form);
+        setFieldErrors(nextFieldErrors);
         setError(null);
+
+        if (Object.keys(nextFieldErrors).length > 0) {
+            return;
+        }
+
+        setIsSubmitting(true);
 
         try {
             const phases = JSON.parse(form.phasesJson) as BehavioralPhases;
@@ -272,35 +478,24 @@ export default function AdminCreateBehavioralPage() {
             setError(
                 err instanceof ApiError
                     ? err.message
-                    : err instanceof SyntaxError
-                      ? 'Phases JSON is invalid'
-                      : `Failed to ${isEditing ? 'update' : 'create'} behavioral question`,
+                    : `Failed to ${isEditing ? 'update' : 'create'} behavioral question`,
             );
             setIsSubmitting(false);
         }
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading…
-            </div>
-        );
+        return <AdminLoading />;
     }
 
     if (isLoadingQuestion) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading question…
-            </div>
-        );
+        return <AdminLoading label="Loading question…" />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-3xl px-6 py-10">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <Card>
+        <AdminPageShell width="form">
+                <form onSubmit={handleSubmit} noValidate className="space-y-6">
+                    <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
                         <CardHeader>
                             <p className="section-label">
                                 {isEditing ? 'Edit' : 'Create'}
@@ -315,6 +510,12 @@ export default function AdminCreateBehavioralPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            <p className="text-sm font-bold text-rose-600">
+                                Inputs should be in accordance to the placeholders and
+                                messages given with fields for smooth creation of
+                                question.
+                            </p>
+
                             {error ? (
                                 <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                                     {error}
@@ -328,9 +529,17 @@ export default function AdminCreateBehavioralPage() {
                                         id="slug"
                                         value={form.slug}
                                         onChange={(e) => updateField('slug', e.target.value)}
+                                        onBlur={(e) =>
+                                            handleFieldBlur('slug', e.target.value)
+                                        }
                                         placeholder="google-swe-behavioral"
-                                        required
+                                        aria-invalid={Boolean(fieldErrors.slug)}
                                     />
+                                    {fieldErrors.slug ? (
+                                        <p className="text-sm text-rose-600">
+                                            {fieldErrors.slug}
+                                        </p>
+                                    ) : null}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="difficulty">Difficulty</Label>
@@ -344,6 +553,13 @@ export default function AdminCreateBehavioralPage() {
                                                 e.target.value as Difficulty,
                                             )
                                         }
+                                        onBlur={(e) =>
+                                            handleFieldBlur(
+                                                'difficulty',
+                                                e.target.value as Difficulty,
+                                            )
+                                        }
+                                        aria-invalid={Boolean(fieldErrors.difficulty)}
                                     >
                                         {DIFFICULTIES.map((level) => (
                                             <option key={level} value={level}>
@@ -351,6 +567,11 @@ export default function AdminCreateBehavioralPage() {
                                             </option>
                                         ))}
                                     </select>
+                                    {fieldErrors.difficulty ? (
+                                        <p className="text-sm text-rose-600">
+                                            {fieldErrors.difficulty}
+                                        </p>
+                                    ) : null}
                                 </div>
                             </div>
 
@@ -360,8 +581,17 @@ export default function AdminCreateBehavioralPage() {
                                     id="title"
                                     value={form.title}
                                     onChange={(e) => updateField('title', e.target.value)}
-                                    required
+                                    onBlur={(e) =>
+                                        handleFieldBlur('title', e.target.value)
+                                    }
+                                    placeholder="Google SWE Behavioral Interview"
+                                    aria-invalid={Boolean(fieldErrors.title)}
                                 />
+                                {fieldErrors.title ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.title}
+                                    </p>
+                                ) : null}
                             </div>
 
                             <div className="space-y-2">
@@ -373,8 +603,19 @@ export default function AdminCreateBehavioralPage() {
                                     onChange={(e) =>
                                         updateField('description', e.target.value)
                                     }
-                                    required
+                                    onBlur={(e) =>
+                                        handleFieldBlur('description', e.target.value)
+                                    }
+                                    placeholder={
+                                        'Leave blank lines between points for a clear description.\n\nExample:\nPractice Google-style behavioral questions.\n\nCovers teamwork, ownership, and leadership.\n\nResume-aware follow-ups included.'
+                                    }
+                                    aria-invalid={Boolean(fieldErrors.description)}
                                 />
+                                {fieldErrors.description ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.description}
+                                    </p>
+                                ) : null}
                             </div>
 
                             <div className="grid gap-4 sm:grid-cols-2">
@@ -386,8 +627,20 @@ export default function AdminCreateBehavioralPage() {
                                         onChange={(e) =>
                                             updateField('companyName', e.target.value)
                                         }
-                                        required
+                                        onBlur={(e) =>
+                                            handleFieldBlur(
+                                                'companyName',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Google"
+                                        aria-invalid={Boolean(fieldErrors.companyName)}
                                     />
+                                    {fieldErrors.companyName ? (
+                                        <p className="text-sm text-rose-600">
+                                            {fieldErrors.companyName}
+                                        </p>
+                                    ) : null}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="roleName">Role</Label>
@@ -397,8 +650,17 @@ export default function AdminCreateBehavioralPage() {
                                         onChange={(e) =>
                                             updateField('roleName', e.target.value)
                                         }
-                                        required
+                                        onBlur={(e) =>
+                                            handleFieldBlur('roleName', e.target.value)
+                                        }
+                                        placeholder="Software Engineer"
+                                        aria-invalid={Boolean(fieldErrors.roleName)}
                                     />
+                                    {fieldErrors.roleName ? (
+                                        <p className="text-sm text-rose-600">
+                                            {fieldErrors.roleName}
+                                        </p>
+                                    ) : null}
                                 </div>
                             </div>
 
@@ -421,13 +683,23 @@ export default function AdminCreateBehavioralPage() {
                                     onChange={(e) =>
                                         updateField('phasesJson', e.target.value)
                                     }
-                                    required
+                                    onBlur={(e) =>
+                                        handleFieldBlur('phasesJson', e.target.value)
+                                    }
+                                    placeholder='[{"type":"INTRODUCTION","title":"...","description":"...","totalQuestions":0,"content":{}}]'
+                                    aria-invalid={Boolean(fieldErrors.phasesJson)}
                                 />
-                                <p className="text-xs text-zinc-500">
-                                    Exactly 7 phases in fixed order with required
-                                    totalQuestions: Intro 0, Ice-breaker 2, Resume 3,
-                                    Core 3, Values 2, Candidate 0, Wrap-up 0.
-                                </p>
+                                {fieldErrors.phasesJson ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.phasesJson}
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-zinc-500">
+                                        Exactly 7 phases in fixed order with required
+                                        totalQuestions: Intro 0, Ice-breaker 2, Resume 3,
+                                        Core 3, Values 2, Candidate 0, Wrap-up 0.
+                                    </p>
+                                )}
                             </div>
 
                             <label className="flex items-center gap-2 text-sm text-zinc-700">
@@ -457,7 +729,6 @@ export default function AdminCreateBehavioralPage() {
                         </CardFooter>
                     </Card>
                 </form>
-            </main>
-        </div>
+        </AdminPageShell>
     );
 }

@@ -1,14 +1,8 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -62,37 +56,48 @@ export function UserManagementCard({
 
     return (
         <>
-            <Card>
-                <CardHeader className="flex flex-row items-start gap-4 space-y-0">
+            <motion.article
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                whileHover={{ y: -2 }}
+                className="group relative overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-white via-white to-emerald-50/50 p-5 shadow-soft transition duration-300 hover:shadow-elevated sm:p-6"
+            >
+                <div
+                    className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-200/30 to-transparent"
+                    aria-hidden="true"
+                />
+
+                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start">
                     {user.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                             src={user.image}
                             alt={user.name}
-                            className="h-12 w-12 rounded-full object-cover ring-1 ring-zinc-200"
+                            className="h-12 w-12 rounded-2xl object-cover ring-1 ring-zinc-200"
                         />
                     ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-600/15">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-sm font-semibold text-emerald-700">
                             {initials(user.name)}
                         </div>
                     )}
 
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                            <CardTitle className="truncate">{user.name}</CardTitle>
+                            <h3 className="truncate text-base font-semibold text-zinc-900 sm:text-lg">
+                                {user.name}
+                            </h3>
                             {user.isPremium ? (
-                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                                     Premium
                                 </span>
                             ) : (
-                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 ring-1 ring-inset ring-zinc-500/15">
+                                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 ring-1 ring-inset ring-zinc-500/15">
                                     Free
                                 </span>
                             )}
                         </div>
-                        <CardDescription className="truncate">
-                            {user.email}
-                        </CardDescription>
+                        <p className="mt-1 truncate text-sm text-zinc-500">{user.email}</p>
                     </div>
 
                     <Button
@@ -101,32 +106,31 @@ export function UserManagementCard({
                         size="sm"
                         disabled={isDeleting}
                         onClick={() => setConfirmOpen(true)}
+                        className="self-start"
                     >
                         Remove
                     </Button>
-                </CardHeader>
+                </div>
 
-                <CardContent>
-                    <dl className="grid gap-3 text-sm sm:grid-cols-3">
-                        <div>
-                            <dt className="section-label">Avg score</dt>
-                            <dd className="mt-1 font-medium text-zinc-900">{scoreText}</dd>
-                        </div>
-                        <div>
-                            <dt className="section-label">Joined</dt>
-                            <dd className="mt-1 font-medium text-zinc-900">
-                                {formatDate(user.createdAt)}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="section-label">Latest login</dt>
-                            <dd className="mt-1 font-medium text-zinc-900">
-                                {formatDate(user.recentLogin)}
-                            </dd>
-                        </div>
-                    </dl>
-                </CardContent>
-            </Card>
+                <dl className="relative mt-5 grid gap-3 border-t border-zinc-100 pt-4 text-sm sm:grid-cols-3">
+                    <div>
+                        <dt className="section-label">Avg score</dt>
+                        <dd className="mt-1 font-medium text-zinc-900">{scoreText}</dd>
+                    </div>
+                    <div>
+                        <dt className="section-label">Joined</dt>
+                        <dd className="mt-1 font-medium text-zinc-900">
+                            {formatDate(user.createdAt)}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt className="section-label">Latest login</dt>
+                        <dd className="mt-1 font-medium text-zinc-900">
+                            {formatDate(user.recentLogin)}
+                        </dd>
+                    </div>
+                </dl>
+            </motion.article>
 
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <DialogContent className="max-w-md">

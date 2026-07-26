@@ -15,12 +15,6 @@ export interface StarterCode {
     python: string;
 }
 
-export interface SolutionCode {
-    cpp?: string;
-    java?: string;
-    python?: string;
-}
-
 export const exampleSchema = z.object({
     input: z.string(),
     output: z.string(),
@@ -35,12 +29,6 @@ export const starterCodeSchema = z.object({
     python: z.string(),
 });
 
-export const solutionCodeSchema = z.object({
-    cpp: z.string().optional(),
-    java: z.string().optional(),
-    python: z.string().optional(),
-});
-
 //to validate
 export function parseExamples(value: unknown): Example[] {
     return examplesSchema.parse(value);
@@ -48,10 +36,6 @@ export function parseExamples(value: unknown): Example[] {
 
 export function parseStarterCode(value: unknown): StarterCode {
     return starterCodeSchema.parse(value);
-}
-
-export function parseSolutionCode(value: unknown): SolutionCode {
-    return solutionCodeSchema.parse(value);
 }
 
 //----------------------------------------------------------------------

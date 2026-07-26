@@ -47,6 +47,21 @@ function buildUsersQueryString(query: ListAdminUsersQuery = {}): string {
 function buildQuestionsQueryString(query: ListAdminQuestionsQuery): string {
     const params = new URLSearchParams();
     params.set('status', query.status);
+    if (query.difficulty) {
+        params.set('difficulty', query.difficulty);
+    }
+    for (const topic of query.topics ?? []) {
+        params.append('topics', topic);
+    }
+    if (query.company) {
+        params.set('company', query.company);
+    }
+    if (query.role) {
+        params.set('role', query.role);
+    }
+    if (query.search) {
+        params.set('search', query.search);
+    }
     if (query.page != null) {
         params.set('page', String(query.page));
     }

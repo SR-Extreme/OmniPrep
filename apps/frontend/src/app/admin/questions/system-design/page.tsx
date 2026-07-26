@@ -1,8 +1,21 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
+import {
+    AdminQuestionFilters,
+    type AdminTopicFilters,
+} from '@/components/admin/AdminQuestionFilters';
 import { QuestionListCard } from '@/components/admin/QuestionListCard';
+import { AdminStatusFilter } from '@/components/admin/AdminStatusFilter';
+import {
+    AdminEmptyState,
+    AdminErrorAlert,
+    AdminInlineLoading,
+    AdminLoading,
+    AdminPageHeader,
+    AdminPageShell,
+} from '@/components/admin/AdminPageShell';
 import { Button } from '@/components/ui/button';
 import {
     deleteAdminSystemDesignQuestion,
@@ -10,9 +23,9 @@ import {
     publishAdminSystemDesignQuestion,
 } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
-import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import type { AdminQuestionListItem, QuestionListStatus } from '@/types/admin';
+import type { Difficulty } from '@/types/dsa';
 
 const PAGE_SIZE = 20;
 
@@ -34,6 +47,12 @@ export default function AdminSystemDesignQuestionsPage() {
     const [error, setError] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [busyAction, setBusyAction] = useState<'publish' | 'delete' | null>(null);
+
+    const [difficulty, setDifficulty] = useState<Difficulty | ''>('');
+    const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+    const [availableTopics, setAvailableTopics] = useState<string[]>([]);
+    const [search, setSearch] = useState('');
+    const [appliedFilters, setAppliedFilters] = useState<AdminTopicFilters>({});
 
     useEffect(() => {
         setHydrated(true);
@@ -70,7 +89,12 @@ export default function AdminSystemDesignQuestionsPage() {
             try {
                 const result = await listAdminSystemDesignQuestions(
                     accessToken as string,
-                    { status, page, limit: PAGE_SIZE },
+                    {
+                        status,
+                        ...appliedFilters,
+                        page,
+                        limit: PAGE_SIZE,
+                    },
                 );
 
                 if (cancelled) {
@@ -79,6 +103,7 @@ export default function AdminSystemDesignQuestionsPage() {
 
                 setQuestions(result.questions);
                 setTotalPages(result.pagination.totalPages);
+                setAvailableTopics(result.filterOptions?.topics ?? []);
             } catch (err) {
                 if (!cancelled) {
                     setError(
@@ -99,10 +124,28 @@ export default function AdminSystemDesignQuestionsPage() {
         return () => {
             cancelled = true;
         };
-    }, [hydrated, accessToken, user, status, page]);
+    }, [hydrated, accessToken, user, status, page, appliedFilters]);
 
     function setStatus(next: QuestionListStatus) {
         router.replace(`/admin/questions/system-design?status=${next}`);
+    }
+
+    function handleFilterSubmit(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        setAppliedFilters({
+            difficulty: difficulty || undefined,
+            topics: selectedTopics.length > 0 ? selectedTopics : undefined,
+            search: search.trim() || undefined,
+        });
+        setPage(1);
+    }
+
+    function handleClearFilters() {
+        setDifficulty('');
+        setSelectedTopics([]);
+        setSearch('');
+        setAppliedFilters({});
+        setPage(1);
     }
 
     async function handlePublish(question: AdminQuestionListItem) {
@@ -152,57 +195,42 @@ export default function AdminSystemDesignQuestionsPage() {
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading…
-            </div>
-        );
+        return <AdminLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto grid max-w-6xl gap-6 px-6 py-10 lg:grid-cols-[220px_1fr]">
-                <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-3 shadow-soft">
-                    <p className="section-label px-2 pb-2">Status</p>
-                    <div className="space-y-1">
-                        {(['published', 'draft'] as const).map((value) => (
-                            <button
-                                key={value}
-                                type="button"
-                                onClick={() => setStatus(value)}
-                                className={cn(
-                                    'w-full rounded-md px-3 py-2 text-left text-sm font-medium capitalize',
-                                    status === value
-                                        ? 'bg-emerald-50 text-emerald-800'
-                                        : 'text-zinc-600 hover:bg-zinc-50',
-                                )}
-                            >
-                                {value}
-                            </button>
-                        ))}
-                    </div>
-                </aside>
+        <AdminPageShell>
+            <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+                <AdminStatusFilter status={status} onChange={setStatus} />
 
                 <section className="space-y-4">
-                    <div>
-                        <p className="section-label">System Design questions</p>
-                        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900 capitalize">
-                            {status}
-                        </h1>
-                    </div>
+                    <AdminPageHeader
+                        label="System design questions"
+                        title={status === 'published' ? 'Published' : 'Draft'}
+                        description="Browse, edit, publish, or delete system design interview questions."
+                    />
 
-                    {error ? (
-                        <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                            {error}
-                        </p>
-                    ) : null}
+                    <AdminQuestionFilters
+                        variant="topic"
+                        difficulty={difficulty}
+                        selectedTopics={selectedTopics}
+                        availableTopics={availableTopics}
+                        search={search}
+                        onDifficultyChange={setDifficulty}
+                        onTopicsChange={setSelectedTopics}
+                        onSearchChange={setSearch}
+                        onSubmit={handleFilterSubmit}
+                        onClear={handleClearFilters}
+                    />
+
+                    {error ? <AdminErrorAlert message={error} /> : null}
 
                     {isLoading ? (
-                        <p className="text-sm text-zinc-500">Loading questions…</p>
+                        <AdminInlineLoading label="Loading questions…" />
                     ) : questions.length === 0 ? (
-                        <p className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-10 text-center text-sm text-zinc-500">
-                            No {status} system design questions yet.
-                        </p>
+                        <AdminEmptyState
+                            message={`No ${status} system design questions yet.`}
+                        />
                     ) : (
                         questions.map((question) => (
                             <QuestionListCard
@@ -232,7 +260,7 @@ export default function AdminSystemDesignQuestionsPage() {
                     )}
 
                     {totalPages > 1 ? (
-                        <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-soft sm:px-5">
                             <Button
                                 type="button"
                                 variant="secondary"
@@ -259,7 +287,7 @@ export default function AdminSystemDesignQuestionsPage() {
                         </div>
                     ) : null}
                 </section>
-            </main>
-        </div>
+            </div>
+        </AdminPageShell>
     );
 }

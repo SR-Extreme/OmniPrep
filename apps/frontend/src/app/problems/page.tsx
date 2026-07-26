@@ -16,6 +16,7 @@ import {
     PracticePagination,
     TopicTag,
 } from '@/components/practice/PracticeListShell';
+import { TopicMultiSelect } from '@/components/TopicMultiSelect';
 import { listProblems } from '@/lib/api/problems';
 import { ApiError } from '@/lib/api/client';
 import { useAuthStore } from '@/store/authStore';
@@ -29,7 +30,7 @@ const HIGHLIGHTS = [
     'Filter by difficulty, topic, and search to build a focused practice loop',
 ] as const;
 
-type AppliedFilters = Pick<ListProblemsQuery, 'difficulty' | 'topic' | 'search'>;
+type AppliedFilters = Pick<ListProblemsQuery, 'difficulty' | 'topics' | 'search'>;
 
 function difficultyBadgeClass(difficulty: Difficulty): string {
     switch (difficulty) {
@@ -63,7 +64,8 @@ export default function ProblemsPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [difficulty, setDifficulty] = useState<Difficulty | ''>('');
-    const [topic, setTopic] = useState('');
+    const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+    const [availableTopics, setAvailableTopics] = useState<string[]>([]);
     const [search, setSearch] = useState('');
     const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
 
@@ -106,6 +108,7 @@ export default function ProblemsPage() {
                 setProblems(result.problems);
                 setTotalPages(result.pagination.totalPages);
                 setTotal(result.pagination.total);
+                setAvailableTopics(result.filterOptions.topics);
             } catch (err) {
                 if (cancelled) {
                     return;
@@ -131,7 +134,7 @@ export default function ProblemsPage() {
 
         setAppliedFilters({
             difficulty: difficulty || undefined,
-            topic: topic.trim() || undefined,
+            topics: selectedTopics.length > 0 ? selectedTopics : undefined,
             search: search.trim() || undefined,
         });
         setPage(1);
@@ -139,7 +142,7 @@ export default function ProblemsPage() {
 
     function handleClearFilters() {
         setDifficulty('');
-        setTopic('');
+        setSelectedTopics([]);
         setSearch('');
         setAppliedFilters({});
         setPage(1);
@@ -190,22 +193,11 @@ export default function ProblemsPage() {
                         </select>
                     </div>
 
-                    <div>
-                        <label
-                            htmlFor="topic"
-                            className="block text-sm font-medium text-zinc-700"
-                        >
-                            Topic
-                        </label>
-                        <input
-                            id="topic"
-                            type="text"
-                            value={topic}
-                            onChange={(e) => setTopic(e.target.value)}
-                            placeholder="e.g. Array"
-                            className="input-base mt-1.5"
-                        />
-                    </div>
+                    <TopicMultiSelect
+                        topics={availableTopics}
+                        selected={selectedTopics}
+                        onChange={setSelectedTopics}
+                    />
 
                     <div className="md:col-span-2">
                         <label

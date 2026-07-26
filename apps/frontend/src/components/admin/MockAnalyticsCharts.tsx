@@ -9,6 +9,7 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
+import { AdminStatCard } from '@/components/admin/AdminPageShell';
 import {
     Card,
     CardContent,
@@ -32,24 +33,24 @@ export function MockAnalyticsCharts({ data }: MockAnalyticsChartsProps) {
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-3 sm:grid-cols-3">
-                <StatCard
+            <div className="grid gap-4 sm:grid-cols-3">
+                <AdminStatCard
                     label="Premium Users"
                     value={String(stats.premiumUsers)}
                     hint="Paid plan with ≥1 completed mock interview"
                 />
-                <StatCard
+                <AdminStatCard
                     label="Total Mock Interviews"
                     value={String(stats.totalMockInterviews)}
                     hint="Completed mock interviews only"
                 />
-                <StatCard
+                <AdminStatCard
                     label="Average Interview Score"
                     value={averageScore}
                 />
             </div>
 
-            <Card>
+            <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
                 <CardHeader>
                     <CardTitle>Hiring Band Distribution</CardTitle>
                     <CardDescription>
@@ -76,17 +77,17 @@ export function MockAnalyticsCharts({ data }: MockAnalyticsChartsProps) {
                 </CardContent>
             </Card>
 
-            <Card>
+            <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
                 <CardHeader>
                     <CardTitle>Band counts</CardTitle>
                     <CardDescription>Textual breakdown</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {hiringBandDistribution.map((band) => (
                             <li
                                 key={band.label}
-                                className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm"
+                                className="flex items-center justify-between rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/50 px-4 py-3 text-sm shadow-soft"
                             >
                                 <span className="text-zinc-700">{band.label}</span>
                                 <span className="font-semibold text-zinc-900">
@@ -97,28 +98,6 @@ export function MockAnalyticsCharts({ data }: MockAnalyticsChartsProps) {
                     </ul>
                 </CardContent>
             </Card>
-        </div>
-    );
-}
-
-function StatCard({
-    label,
-    value,
-    hint,
-}: {
-    label: string;
-    value: string;
-    hint?: string;
-}) {
-    return (
-        <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 shadow-soft">
-            <p className="section-label">{label}</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900">
-                {value}
-            </p>
-            {hint ? (
-                <p className="mt-1 text-xs leading-relaxed text-zinc-500">{hint}</p>
-            ) : null}
         </div>
     );
 }

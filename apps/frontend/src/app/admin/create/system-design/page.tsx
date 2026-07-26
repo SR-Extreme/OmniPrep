@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+    AdminLoading,
+    AdminPageShell,
+} from '@/components/admin/AdminPageShell';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -43,6 +47,11 @@ type FormState = {
     isPublished: boolean;
     metricsJson: string;
 };
+
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const METRIC_ID_PATTERN = /^[a-z][a-zA-Z0-9]*$/;
 
 const DEFAULT_METRICS: EvaluationMetric[] = [
     {
@@ -92,6 +101,208 @@ function joinList(value: string[] | null | undefined): string {
     return Array.isArray(value) ? value.join('\n') : '';
 }
 
+function validateOptionalList(value: string, label: string): string | undefined {
+    const items = value
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+
+    if (value.trim() && items.length === 0) {
+        return `${label} entries cannot be empty`;
+    }
+
+    return undefined;
+}
+
+function validateRequiredList(value: string, label: string): string | undefined {
+    const items = splitList(value);
+    if (items.length === 0) {
+        return `At least one ${label} is required (one per line)`;
+    }
+    return undefined;
+}
+
+function validateMetricsJson(
+    metricsJson: string,
+    deliverablesText: string,
+): string | undefined {
+    const trimmed = metricsJson.trim();
+    if (!trimmed) {
+        return 'Evaluation metrics JSON is required';
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(trimmed);
+    } catch {
+        return 'Evaluation metrics JSON is invalid';
+    }
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+        return 'Evaluation metrics must be a non-empty JSON array';
+    }
+
+    const deliverables = splitList(deliverablesText);
+    if (deliverables.length === 0) {
+        return 'Add deliverables first — metrics need one object per deliverable';
+    }
+
+    if (parsed.length !== deliverables.length) {
+        return `Evaluation metrics must contain exactly one object for each deliverable (${deliverables.length} expected)`;
+    }
+
+    const ids: string[] = [];
+    const titles: string[] = [];
+    let weightSum = 0;
+
+    for (let i = 0; i < parsed.length; i++) {
+        const metric = parsed[i];
+        if (!metric || typeof metric !== 'object' || Array.isArray(metric)) {
+            return `Metric at index ${i} must be an object`;
+        }
+
+        const record = metric as Record<string, unknown>;
+
+        if (typeof record.id !== 'string' || !record.id.trim()) {
+            return `Metric at index ${i} requires a camelCase id`;
+        }
+        if (!METRIC_ID_PATTERN.test(record.id)) {
+            return `Metric id "${record.id}" must be camelCase (e.g. highLevelDesign)`;
+        }
+
+        if (typeof record.title !== 'string' || !record.title.trim()) {
+            return `Metric at index ${i} requires a title matching a deliverable`;
+        }
+
+        if (
+            typeof record.weight !== 'number' ||
+            !Number.isInteger(record.weight) ||
+            record.weight <= 0
+        ) {
+            return `Metric "${record.title}" weight must be a positive integer`;
+        }
+
+        if (
+            !Array.isArray(record.criteria) ||
+            record.criteria.length === 0 ||
+            record.criteria.some(
+                (item) => typeof item !== 'string' || !item.trim(),
+            )
+        ) {
+            return `Metric "${record.title}" must include at least one non-empty criteria string`;
+        }
+
+        ids.push(record.id);
+        titles.push(record.title.trim());
+        weightSum += record.weight;
+    }
+
+    if (new Set(ids).size !== ids.length) {
+        return 'Evaluation metrics ids must be unique';
+    }
+
+    if (weightSum !== 100) {
+        return `Evaluation metrics weights must sum to 100 (currently ${weightSum})`;
+    }
+
+    const missing = deliverables.filter((item) => !titles.includes(item));
+    const extra = titles.filter((item) => !deliverables.includes(item));
+
+    if (missing.length > 0 || extra.length > 0) {
+        return 'Evaluation metrics titles must match deliverables exactly (one object per deliverable)';
+    }
+
+    return undefined;
+}
+
+function validateField(
+    form: FormState,
+    key: keyof FormState,
+): string | undefined {
+    switch (key) {
+        case 'slug': {
+            const slug = form.slug.trim();
+            if (!slug) {
+                return 'Slug is required';
+            }
+            if (slug.length > 200) {
+                return 'Slug must be at most 200 characters';
+            }
+            if (!SLUG_PATTERN.test(slug)) {
+                return 'Slug must be lowercase kebab-case (e.g. design-url-shortener)';
+            }
+            return undefined;
+        }
+        case 'title': {
+            const title = form.title.trim();
+            if (!title) {
+                return 'Title is required';
+            }
+            if (title.length > 200) {
+                return 'Title must be at most 200 characters';
+            }
+            return undefined;
+        }
+        case 'description':
+            return form.description.trim()
+                ? undefined
+                : 'Description is required';
+        case 'functional':
+            return validateRequiredList(form.functional, 'functional requirement');
+        case 'nonFunctional':
+            return validateRequiredList(
+                form.nonFunctional,
+                'non-functional requirement',
+            );
+        case 'deliverables':
+            return validateRequiredList(form.deliverables, 'deliverable');
+        case 'constraints':
+            return validateOptionalList(form.constraints, 'Constraints');
+        case 'scaleFactors':
+            return validateOptionalList(form.scaleFactors, 'Scale factors');
+        case 'topics':
+            return validateOptionalList(form.topics, 'Topics');
+        case 'hints':
+            return validateOptionalList(form.hints, 'Hints');
+        case 'difficulty':
+            return DIFFICULTIES.includes(form.difficulty)
+                ? undefined
+                : 'Difficulty must be EASY, MEDIUM, or HARD';
+        case 'metricsJson':
+            return validateMetricsJson(form.metricsJson, form.deliverables);
+        case 'isPublished':
+            return undefined;
+        default:
+            return undefined;
+    }
+}
+
+function validateForm(form: FormState): FieldErrors {
+    const keys: (keyof FormState)[] = [
+        'slug',
+        'title',
+        'description',
+        'functional',
+        'nonFunctional',
+        'deliverables',
+        'constraints',
+        'scaleFactors',
+        'topics',
+        'hints',
+        'difficulty',
+        'metricsJson',
+    ];
+
+    const errors: FieldErrors = {};
+    for (const key of keys) {
+        const message = validateField(form, key);
+        if (message) {
+            errors[key] = message;
+        }
+    }
+    return errors;
+}
+
 export default function AdminCreateSystemDesignPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -101,6 +312,7 @@ export default function AdminCreateSystemDesignPage() {
     const { user, accessToken } = useAuthStore();
     const [hydrated, setHydrated] = useState(false);
     const [form, setForm] = useState<FormState>(INITIAL);
+    const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingQuestion, setIsLoadingQuestion] = useState(Boolean(editId));
     const [error, setError] = useState<string | null>(null);
@@ -188,6 +400,48 @@ export default function AdminCreateSystemDesignPage() {
 
     function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
         setForm((current) => ({ ...current, [key]: value }));
+        setFieldErrors((current) => {
+            if (!current[key]) {
+                return current;
+            }
+            const next = { ...current };
+            delete next[key];
+            return next;
+        });
+    }
+
+    function handleFieldBlur<K extends keyof FormState>(
+        key: K,
+        value?: FormState[K],
+    ) {
+        const snapshot =
+            value !== undefined ? { ...form, [key]: value } : form;
+        const message = validateField(snapshot, key);
+
+        setFieldErrors((current) => {
+            const next = { ...current };
+
+            if (!message) {
+                delete next[key];
+            } else {
+                next[key] = message;
+            }
+
+            // Deliverables drive metrics matching — re-check metrics when deliverables change.
+            if (key === 'deliverables') {
+                const metricsMessage = validateMetricsJson(
+                    snapshot.metricsJson,
+                    snapshot.deliverables,
+                );
+                if (!metricsMessage) {
+                    delete next.metricsJson;
+                } else {
+                    next.metricsJson = metricsMessage;
+                }
+            }
+
+            return next;
+        });
     }
 
     async function handleSubmit(event: React.FormEvent) {
@@ -196,8 +450,15 @@ export default function AdminCreateSystemDesignPage() {
             return;
         }
 
-        setIsSubmitting(true);
+        const nextFieldErrors = validateForm(form);
+        setFieldErrors(nextFieldErrors);
         setError(null);
+
+        if (Object.keys(nextFieldErrors).length > 0) {
+            return;
+        }
+
+        setIsSubmitting(true);
 
         try {
             const evaluationMetrics = JSON.parse(
@@ -235,250 +496,403 @@ export default function AdminCreateSystemDesignPage() {
             setError(
                 err instanceof ApiError
                     ? err.message
-                    : err instanceof SyntaxError
-                      ? 'Evaluation metrics JSON is invalid'
-                      : `Failed to ${isEditing ? 'update' : 'create'} system design question`,
+                    : `Failed to ${isEditing ? 'update' : 'create'} system design question`,
             );
             setIsSubmitting(false);
         }
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading…
-            </div>
-        );
+        return <AdminLoading />;
     }
 
     if (isLoadingQuestion) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading question…
-            </div>
-        );
+        return <AdminLoading label="Loading question…" />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-3xl px-6 py-10">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <p className="section-label">
-                                {isEditing ? 'Edit' : 'Create'}
+        <AdminPageShell width="form">
+            <form onSubmit={handleSubmit} noValidate className="space-y-6">
+                <Card className="overflow-hidden border-emerald-200/60 shadow-soft">
+                    <CardHeader>
+                        <p className="section-label">
+                            {isEditing ? 'Edit' : 'Create'}
+                        </p>
+                        <CardTitle>
+                            {isEditing
+                                ? 'Edit System Design question'
+                                : 'System Design question'}
+                        </CardTitle>
+                        <CardDescription>
+                            Requirements, deliverables, and evaluation metrics (weights
+                            must sum to 100).
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-sm font-bold text-rose-600">
+                            Inputs should be in accordance to the placeholders and
+                            messages given with fields for smooth creation of
+                            question.
+                        </p>
+
+                        {error ? (
+                            <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                                {error}
                             </p>
-                            <CardTitle>
-                                {isEditing
-                                    ? 'Edit System Design question'
-                                    : 'System Design question'}
-                            </CardTitle>
-                            <CardDescription>
-                                Requirements, deliverables, and evaluation metrics (weights
-                                must sum to 100).
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {error ? (
-                                <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                                    {error}
+                        ) : null}
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="slug">Slug</Label>
+                                <Input
+                                    id="slug"
+                                    value={form.slug}
+                                    onChange={(e) =>
+                                        updateField('slug', e.target.value)
+                                    }
+                                    onBlur={(e) =>
+                                        handleFieldBlur('slug', e.target.value)
+                                    }
+                                    placeholder="design-url-shortener"
+                                    aria-invalid={Boolean(fieldErrors.slug)}
+                                />
+                                {fieldErrors.slug ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.slug}
+                                    </p>
+                                ) : null}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="difficulty">Difficulty</Label>
+                                <select
+                                    id="difficulty"
+                                    className="select-base"
+                                    value={form.difficulty}
+                                    onChange={(e) =>
+                                        updateField(
+                                            'difficulty',
+                                            e.target.value as Difficulty,
+                                        )
+                                    }
+                                    onBlur={(e) =>
+                                        handleFieldBlur(
+                                            'difficulty',
+                                            e.target.value as Difficulty,
+                                        )
+                                    }
+                                    aria-invalid={Boolean(fieldErrors.difficulty)}
+                                >
+                                    {DIFFICULTIES.map((level) => (
+                                        <option key={level} value={level}>
+                                            {level}
+                                        </option>
+                                    ))}
+                                </select>
+                                {fieldErrors.difficulty ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.difficulty}
+                                    </p>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="title">Title</Label>
+                            <Input
+                                id="title"
+                                value={form.title}
+                                onChange={(e) =>
+                                    updateField('title', e.target.value)
+                                }
+                                onBlur={(e) =>
+                                    handleFieldBlur('title', e.target.value)
+                                }
+                                placeholder="Design a URL Shortener"
+                                aria-invalid={Boolean(fieldErrors.title)}
+                            />
+                            {fieldErrors.title ? (
+                                <p className="text-sm text-rose-600">
+                                    {fieldErrors.title}
                                 </p>
                             ) : null}
+                        </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="slug">Slug</Label>
-                                    <Input
-                                        id="slug"
-                                        value={form.slug}
-                                        onChange={(e) => updateField('slug', e.target.value)}
-                                        placeholder="design-url-shortener"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="difficulty">Difficulty</Label>
-                                    <select
-                                        id="difficulty"
-                                        className="select-base"
-                                        value={form.difficulty}
-                                        onChange={(e) =>
-                                            updateField(
-                                                'difficulty',
-                                                e.target.value as Difficulty,
-                                            )
-                                        }
-                                    >
-                                        {DIFFICULTIES.map((level) => (
-                                            <option key={level} value={level}>
-                                                {level}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="title">Title</Label>
-                                <Input
-                                    id="title"
-                                    value={form.title}
-                                    onChange={(e) => updateField('title', e.target.value)}
-                                    required
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <textarea
-                                    id="description"
-                                    className="input-base min-h-28"
-                                    value={form.description}
-                                    onChange={(e) =>
-                                        updateField('description', e.target.value)
-                                    }
-                                    required
-                                />
-                            </div>
-
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="functional">Functional requirements</Label>
-                                    <textarea
-                                        id="functional"
-                                        className="input-base min-h-24"
-                                        value={form.functional}
-                                        onChange={(e) =>
-                                            updateField('functional', e.target.value)
-                                        }
-                                        placeholder="One per line"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="nonFunctional">
-                                        Non-functional requirements
-                                    </Label>
-                                    <textarea
-                                        id="nonFunctional"
-                                        className="input-base min-h-24"
-                                        value={form.nonFunctional}
-                                        onChange={(e) =>
-                                            updateField('nonFunctional', e.target.value)
-                                        }
-                                        placeholder="One per line"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="deliverables">Deliverables</Label>
-                                <textarea
-                                    id="deliverables"
-                                    className="input-base min-h-20"
-                                    value={form.deliverables}
-                                    onChange={(e) =>
-                                        updateField('deliverables', e.target.value)
-                                    }
-                                    required
-                                />
-                            </div>
-
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="constraints">Constraints</Label>
-                                    <textarea
-                                        id="constraints"
-                                        className="input-base min-h-20"
-                                        value={form.constraints}
-                                        onChange={(e) =>
-                                            updateField('constraints', e.target.value)
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="scaleFactors">Scale factors</Label>
-                                    <textarea
-                                        id="scaleFactors"
-                                        className="input-base min-h-20"
-                                        value={form.scaleFactors}
-                                        onChange={(e) =>
-                                            updateField('scaleFactors', e.target.value)
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="topics">Topics</Label>
-                                    <textarea
-                                        id="topics"
-                                        className="input-base min-h-20"
-                                        value={form.topics}
-                                        onChange={(e) =>
-                                            updateField('topics', e.target.value)
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="hints">Hints</Label>
-                                    <textarea
-                                        id="hints"
-                                        className="input-base min-h-20"
-                                        value={form.hints}
-                                        onChange={(e) =>
-                                            updateField('hints', e.target.value)
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="metricsJson">Evaluation metrics JSON</Label>
-                                <textarea
-                                    id="metricsJson"
-                                    className="input-base min-h-48 font-mono text-xs"
-                                    value={form.metricsJson}
-                                    onChange={(e) =>
-                                        updateField('metricsJson', e.target.value)
-                                    }
-                                    required
-                                />
-                                <p className="text-xs text-zinc-500">
-                                    Unique camelCase ids; weights must sum to 100.
+                        <div className="space-y-2">
+                            <Label htmlFor="description">Description</Label>
+                            <textarea
+                                id="description"
+                                className="input-base min-h-28"
+                                value={form.description}
+                                onChange={(e) =>
+                                    updateField('description', e.target.value)
+                                }
+                                onBlur={(e) =>
+                                    handleFieldBlur('description', e.target.value)
+                                }
+                                placeholder={
+                                    'Leave blank lines between points for a clear description.\n\nExample:\nDesign a URL shortening service like bit.ly.\n\nCover APIs, storage, and scale.\n\nDiscuss tradeoffs and bottlenecks.'
+                                }
+                                aria-invalid={Boolean(fieldErrors.description)}
+                            />
+                            {fieldErrors.description ? (
+                                <p className="text-sm text-rose-600">
+                                    {fieldErrors.description}
                                 </p>
-                            </div>
+                            ) : null}
+                        </div>
 
-                            <label className="flex items-center gap-2 text-sm text-zinc-700">
-                                <input
-                                    type="checkbox"
-                                    checked={form.isPublished}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="functional">
+                                    Functional requirements
+                                </Label>
+                                <textarea
+                                    id="functional"
+                                    className="input-base min-h-24"
+                                    value={form.functional}
                                     onChange={(e) =>
-                                        updateField('isPublished', e.target.checked)
+                                        updateField('functional', e.target.value)
                                     }
+                                    onBlur={(e) =>
+                                        handleFieldBlur(
+                                            'functional',
+                                            e.target.value,
+                                        )
+                                    }
+                                    placeholder={
+                                        'Stored as string[] — one per line:\nShorten a long URL\nRedirect short URL to original\nCustom aliases'
+                                    }
+                                    aria-invalid={Boolean(fieldErrors.functional)}
                                 />
-                                Published
-                            </label>
-                        </CardContent>
-                        <CardFooter className="justify-end gap-2">
-                            <Button type="button" variant="secondary" asChild>
-                                <Link href="/admin/create">Cancel</Link>
-                            </Button>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting
-                                    ? isEditing
-                                        ? 'Saving…'
-                                        : 'Creating…'
-                                    : isEditing
-                                      ? 'Save changes'
-                                      : 'Create question'}
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                </form>
-            </main>
-        </div>
+                                {fieldErrors.functional ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.functional}
+                                    </p>
+                                ) : null}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="nonFunctional">
+                                    Non-functional requirements
+                                </Label>
+                                <textarea
+                                    id="nonFunctional"
+                                    className="input-base min-h-24"
+                                    value={form.nonFunctional}
+                                    onChange={(e) =>
+                                        updateField(
+                                            'nonFunctional',
+                                            e.target.value,
+                                        )
+                                    }
+                                    onBlur={(e) =>
+                                        handleFieldBlur(
+                                            'nonFunctional',
+                                            e.target.value,
+                                        )
+                                    }
+                                    placeholder={
+                                        'Stored as string[] — one per line:\nLow latency redirects\nHigh availability\nHandle 100M URLs'
+                                    }
+                                    aria-invalid={Boolean(
+                                        fieldErrors.nonFunctional,
+                                    )}
+                                />
+                                {fieldErrors.nonFunctional ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.nonFunctional}
+                                    </p>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="deliverables">Deliverables</Label>
+                            <textarea
+                                id="deliverables"
+                                className="input-base min-h-20"
+                                value={form.deliverables}
+                                onChange={(e) =>
+                                    updateField('deliverables', e.target.value)
+                                }
+                                onBlur={(e) =>
+                                    handleFieldBlur('deliverables', e.target.value)
+                                }
+                                placeholder={
+                                    'Stored as string[] — one per line (titles must match metrics):\nHigh Level Design\nScalability\nTradeoffs'
+                                }
+                                aria-invalid={Boolean(fieldErrors.deliverables)}
+                            />
+                            {fieldErrors.deliverables ? (
+                                <p className="text-sm text-rose-600">
+                                    {fieldErrors.deliverables}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="constraints">Constraints</Label>
+                                <textarea
+                                    id="constraints"
+                                    className="input-base min-h-20"
+                                    value={form.constraints}
+                                    onChange={(e) =>
+                                        updateField('constraints', e.target.value)
+                                    }
+                                    onBlur={(e) =>
+                                        handleFieldBlur(
+                                            'constraints',
+                                            e.target.value,
+                                        )
+                                    }
+                                    placeholder={
+                                        'Stored as string[] — one per line:\nNo third-party shorteners\nLinks expire after 1 year'
+                                    }
+                                    aria-invalid={Boolean(fieldErrors.constraints)}
+                                />
+                                {fieldErrors.constraints ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.constraints}
+                                    </p>
+                                ) : null}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="scaleFactors">Scale factors</Label>
+                                <textarea
+                                    id="scaleFactors"
+                                    className="input-base min-h-20"
+                                    value={form.scaleFactors}
+                                    onChange={(e) =>
+                                        updateField('scaleFactors', e.target.value)
+                                    }
+                                    onBlur={(e) =>
+                                        handleFieldBlur(
+                                            'scaleFactors',
+                                            e.target.value,
+                                        )
+                                    }
+                                    placeholder={
+                                        'Stored as string[] — one per line:\n100M URLs\n10K writes/sec\n100K reads/sec'
+                                    }
+                                    aria-invalid={Boolean(fieldErrors.scaleFactors)}
+                                />
+                                {fieldErrors.scaleFactors ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.scaleFactors}
+                                    </p>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="topics">Topics</Label>
+                                <textarea
+                                    id="topics"
+                                    className="input-base min-h-20"
+                                    value={form.topics}
+                                    onChange={(e) =>
+                                        updateField('topics', e.target.value)
+                                    }
+                                    onBlur={(e) =>
+                                        handleFieldBlur('topics', e.target.value)
+                                    }
+                                    placeholder={
+                                        'Stored as string[] — one per line:\nCaching\nHashing\nDatabases'
+                                    }
+                                    aria-invalid={Boolean(fieldErrors.topics)}
+                                />
+                                {fieldErrors.topics ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.topics}
+                                    </p>
+                                ) : null}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="hints">Hints</Label>
+                                <textarea
+                                    id="hints"
+                                    className="input-base min-h-20"
+                                    value={form.hints}
+                                    onChange={(e) =>
+                                        updateField('hints', e.target.value)
+                                    }
+                                    onBlur={(e) =>
+                                        handleFieldBlur('hints', e.target.value)
+                                    }
+                                    placeholder={
+                                        'Stored as string[] — one per line:\nStart with API design\nConsider read-heavy traffic\nThink about hash collisions'
+                                    }
+                                    aria-invalid={Boolean(fieldErrors.hints)}
+                                />
+                                {fieldErrors.hints ? (
+                                    <p className="text-sm text-rose-600">
+                                        {fieldErrors.hints}
+                                    </p>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="metricsJson">
+                                Evaluation metrics JSON
+                            </Label>
+                            <textarea
+                                id="metricsJson"
+                                className="input-base min-h-48 font-mono text-xs"
+                                value={form.metricsJson}
+                                onChange={(e) =>
+                                    updateField('metricsJson', e.target.value)
+                                }
+                                onBlur={(e) =>
+                                    handleFieldBlur('metricsJson', e.target.value)
+                                }
+                                placeholder={`[\n  {\n    "id": "highLevelDesign",\n    "title": "High Level Design",\n    "weight": 40,\n    "criteria": ["Clear components", "Data flow"]\n  }\n]`}
+                                aria-invalid={Boolean(fieldErrors.metricsJson)}
+                            />
+                            {fieldErrors.metricsJson ? (
+                                <p className="text-sm text-rose-600">
+                                    {fieldErrors.metricsJson}
+                                </p>
+                            ) : null}
+                            <p className="text-sm text-rose-600">
+                                <span className="font-semibold">*</span> Evaluation
+                                metrics should contain an object for each
+                                deliverable.
+                            </p>
+                            <p className="text-sm text-rose-600">
+                                <span className="font-semibold">*</span> The weights
+                                of all metric objects in the JSON must sum to 100.
+                            </p>
+                        </div>
+
+                        <label className="flex items-center gap-2 text-sm text-zinc-700">
+                            <input
+                                type="checkbox"
+                                checked={form.isPublished}
+                                onChange={(e) =>
+                                    updateField('isPublished', e.target.checked)
+                                }
+                            />
+                            Published
+                        </label>
+                    </CardContent>
+                    <CardFooter className="justify-end gap-2">
+                        <Button type="button" variant="secondary" asChild>
+                            <Link href="/admin/create">Cancel</Link>
+                        </Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting
+                                ? isEditing
+                                    ? 'Saving…'
+                                    : 'Creating…'
+                                : isEditing
+                                  ? 'Save changes'
+                                  : 'Create question'}
+                        </Button>
+                    </CardFooter>
+                </Card>
+            </form>
+        </AdminPageShell>
     );
 }

@@ -119,6 +119,9 @@ export interface ProblemDetail {
 export interface ListProblemsResult {
     problems: ProblemListItem[];
     pagination: Pagination;
+    filterOptions: {
+        topics: string[];
+    };
 }
 
 export interface GetProblemResponse {
@@ -127,7 +130,7 @@ export interface GetProblemResponse {
 
 export interface ListProblemsQuery {
     difficulty?: Difficulty;
-    topic?: string;
+    topics?: string[];
     search?: string;
     page?: number;
     limit?: number;

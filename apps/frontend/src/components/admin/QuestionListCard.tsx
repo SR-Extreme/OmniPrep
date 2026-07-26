@@ -1,13 +1,7 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import type { AdminQuestionListItem } from '@/types/admin';
 import type { Difficulty } from '@/types/dsa';
 
@@ -60,67 +54,78 @@ export function QuestionListCard({
     const isBusy = isPublishing || isDeleting;
 
     return (
-        <Card>
-            <CardHeader className="pb-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                        <CardTitle className="truncate">{question.title}</CardTitle>
-                        <CardDescription className="mt-1 flex flex-wrap items-center gap-2">
-                            <span className={difficultyBadgeClass(question.difficulty)}>
-                                {question.difficulty.charAt(0) +
-                                    question.difficulty.slice(1).toLowerCase()}
-                            </span>
-                            {question.topics.length > 0 ? (
-                                <span className="text-zinc-500">
-                                    {question.topics.slice(0, 3).join(' · ')}
-                                    {question.topics.length > 3
-                                        ? ` +${question.topics.length - 3}`
-                                        : ''}
-                                </span>
-                            ) : null}
-                        </CardDescription>
-                    </div>
+        <motion.article
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            whileHover={{ y: -2 }}
+            className="group relative overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-white via-white to-emerald-50/50 p-5 shadow-soft transition duration-300 hover:shadow-elevated sm:p-6"
+        >
+            <div
+                className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-200/30 to-transparent"
+                aria-hidden="true"
+            />
 
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                        {mode === 'draft' && onEdit ? (
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                disabled={isBusy}
-                                onClick={() => onEdit(question)}
-                            >
-                                Edit
-                            </Button>
-                        ) : null}
-                        {mode === 'draft' && onPublish ? (
-                            <Button
-                                type="button"
-                                size="sm"
-                                disabled={isBusy}
-                                onClick={() => onPublish(question)}
-                            >
-                                {isPublishing ? 'Publishing…' : 'Publish'}
-                            </Button>
-                        ) : null}
-                        {onDelete ? (
-                            <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                disabled={isBusy}
-                                onClick={() => onDelete(question)}
-                            >
-                                {isDeleting ? 'Deleting…' : 'Delete'}
-                            </Button>
+            <div className="relative flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-base font-semibold text-zinc-900 sm:text-lg">
+                        {question.title}
+                    </h3>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                        <span className={difficultyBadgeClass(question.difficulty)}>
+                            {question.difficulty.charAt(0) +
+                                question.difficulty.slice(1).toLowerCase()}
+                        </span>
+                        {question.topics.length > 0 ? (
+                            <span className="text-zinc-500">
+                                {question.topics.slice(0, 3).join(' · ')}
+                                {question.topics.length > 3
+                                    ? ` +${question.topics.length - 3}`
+                                    : ''}
+                            </span>
                         ) : null}
                     </div>
                 </div>
-            </CardHeader>
 
-            <CardContent>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                    {mode === 'draft' && onEdit ? (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() => onEdit(question)}
+                        >
+                            Edit
+                        </Button>
+                    ) : null}
+                    {mode === 'draft' && onPublish ? (
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() => onPublish(question)}
+                        >
+                            {isPublishing ? 'Publishing…' : 'Publish'}
+                        </Button>
+                    ) : null}
+                    {onDelete ? (
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() => onDelete(question)}
+                        >
+                            {isDeleting ? 'Deleting…' : 'Delete'}
+                        </Button>
+                    ) : null}
+                </div>
+            </div>
+
+            <div className="relative mt-4 border-t border-zinc-100 pt-4">
                 {mode === 'published' ? (
-                    <dl className="grid gap-2 text-sm text-zinc-600 sm:grid-cols-2">
+                    <dl className="grid gap-3 text-sm text-zinc-600 sm:grid-cols-2">
                         <div>
                             <dt className="section-label">{metricLabel}</dt>
                             <dd className="mt-1 font-medium text-zinc-900">
@@ -142,7 +147,7 @@ export function QuestionListCard({
                         </p>
                     </div>
                 )}
-            </CardContent>
-        </Card>
+            </div>
+        </motion.article>
     );
 }

@@ -1,8 +1,17 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { UserManagementCard } from '@/components/admin/UserManagementCard';
+import {
+    AdminEmptyState,
+    AdminErrorAlert,
+    AdminInlineLoading,
+    AdminLoading,
+    AdminPageHeader,
+    AdminPageShell,
+} from '@/components/admin/AdminPageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { deleteAdminUser, listAdminUsers } from '@/lib/api/admin';
@@ -120,38 +129,37 @@ export default function AdminUsersPage() {
     }
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading…
-            </div>
-        );
+        return <AdminLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-6xl space-y-6 px-6 py-10">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                        <p className="section-label">User management</p>
-                        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900">
-                            Candidates
-                        </h1>
-                        <p className="mt-2 text-sm text-zinc-600">
-                            Premium users first. Search by name or email.
+        <AdminPageShell>
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="space-y-6"
+            >
+                <AdminPageHeader
+                    label="User management"
+                    title="Candidates"
+                    description="Premium users first. Search by name or email."
+                    actions={
+                        <p className="rounded-xl border border-emerald-200/70 bg-emerald-50/60 px-3.5 py-2 text-sm font-medium text-emerald-800">
+                            {total} users
                         </p>
-                    </div>
-                    <p className="text-sm text-zinc-500">{total} users</p>
-                </div>
+                    }
+                />
 
                 <form
                     onSubmit={handleSearchSubmit}
-                    className="flex flex-col gap-2 sm:flex-row"
+                    className="flex flex-col gap-3 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-soft sm:flex-row sm:items-center sm:p-5"
                 >
                     <Input
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
                         placeholder="Search name or email"
-                        className="sm:max-w-sm"
+                        className="sm:max-w-md"
                     />
                     <div className="flex gap-2">
                         <Button type="submit" variant="secondary">
@@ -171,18 +179,12 @@ export default function AdminUsersPage() {
                     </div>
                 </form>
 
-                {error ? (
-                    <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                        {error}
-                    </p>
-                ) : null}
+                {error ? <AdminErrorAlert message={error} /> : null}
 
                 {isLoading ? (
-                    <p className="text-sm text-zinc-500">Loading users…</p>
+                    <AdminInlineLoading label="Loading users…" />
                 ) : users.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-10 text-center text-sm text-zinc-500">
-                        No users found.
-                    </p>
+                    <AdminEmptyState message="No users found." />
                 ) : (
                     <div className="space-y-4">
                         {users.map((row) => (
@@ -197,7 +199,7 @@ export default function AdminUsersPage() {
                 )}
 
                 {totalPages > 1 ? (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-soft sm:px-5">
                         <Button
                             type="button"
                             variant="secondary"
@@ -223,7 +225,7 @@ export default function AdminUsersPage() {
                         </Button>
                     </div>
                 ) : null}
-            </main>
-        </div>
+            </motion.div>
+        </AdminPageShell>
     );
 }

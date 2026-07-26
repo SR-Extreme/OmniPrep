@@ -1,6 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { AdminFooter } from '@/components/admin/AdminFooter';
+import { AdminNavbar } from '@/components/admin/AdminNavbar';
 import { Footer } from '@/components/layout/Footer';
 import { Navbar } from '@/components/layout/Navbar';
 
@@ -12,12 +14,27 @@ function shouldHideShell(pathname: string): boolean {
     );
 }
 
+function isAdminRoute(pathname: string): boolean {
+    return pathname === '/admin' || pathname.startsWith('/admin/');
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const hideShell = shouldHideShell(pathname);
+    const adminShell = isAdminRoute(pathname);
 
     if (hideShell) {
         return <>{children}</>;
+    }
+
+    if (adminShell) {
+        return (
+            <div className="flex min-h-screen flex-col overflow-x-hidden">
+                <AdminNavbar />
+                <main className="flex-1">{children}</main>
+                <AdminFooter />
+            </div>
+        );
     }
 
     return (

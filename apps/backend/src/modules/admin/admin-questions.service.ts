@@ -34,6 +34,44 @@ export interface AdminQuestionListResult {
         total: number;
         totalPages: number;
     };
+    filterOptions?: {
+        companies?: string[];
+        roles?: string[];
+        topics?: string[];
+    };
+}
+
+function uniqueSortedTopics(rows: Array<{ topics: string[] }>): string[] {
+    return [...new Set(rows.flatMap((row) => row.topics))].sort((a, b) =>
+        a.localeCompare(b),
+    );
+}
+
+function buildTopicSearchWhere(query: ListAdminQuestionsQuery) {
+    return {
+        ...(query.difficulty ? { difficulty: query.difficulty } : {}),
+        ...(query.topics && query.topics.length > 0
+            ? { topics: { hasSome: query.topics } }
+            : {}),
+        ...(query.search
+            ? {
+                  OR: [
+                      {
+                          title: {
+                              contains: query.search,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                      {
+                          slug: {
+                              contains: query.search,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                  ],
+              }
+            : {}),
+    };
 }
 
 function publishedAtFor(isPublished: boolean, existing?: Date | null): Date | null {
@@ -98,9 +136,13 @@ export async function listDsaQuestions(
     query: ListAdminQuestionsQuery,
 ): Promise<AdminQuestionListResult> {
     const isPublished = query.status === 'published';
-    const where = { isPublished };
+    const statusWhere = { isPublished };
+    const where = {
+        ...statusWhere,
+        ...buildTopicSearchWhere(query),
+    };
 
-    const [total, rows] = await Promise.all([
+    const [total, rows, topicRows] = await Promise.all([
         prisma.problem.count({ where }),
         prisma.problem.findMany({
             where,
@@ -120,6 +162,10 @@ export async function listDsaQuestions(
                 : [{ updatedAt: 'desc' }],
             skip: (query.page - 1) * query.limit,
             take: query.limit,
+        }),
+        prisma.problem.findMany({
+            where: statusWhere,
+            select: { topics: true },
         }),
     ]);
 
@@ -141,6 +187,9 @@ export async function listDsaQuestions(
             total,
             totalPages: Math.max(1, Math.ceil(total / query.limit)),
         },
+        filterOptions: {
+            topics: uniqueSortedTopics(topicRows),
+        },
     };
 }
 
@@ -148,9 +197,13 @@ export async function listSystemDesignQuestions(
     query: ListAdminQuestionsQuery,
 ): Promise<AdminQuestionListResult> {
     const isPublished = query.status === 'published';
-    const where = { isPublished };
+    const statusWhere = { isPublished };
+    const where = {
+        ...statusWhere,
+        ...buildTopicSearchWhere(query),
+    };
 
-    const [total, rows] = await Promise.all([
+    const [total, rows, topicRows] = await Promise.all([
         prisma.systemDesignQuestion.count({ where }),
         prisma.systemDesignQuestion.findMany({
             where,
@@ -171,6 +224,10 @@ export async function listSystemDesignQuestions(
             skip: (query.page - 1) * query.limit,
             take: query.limit,
         }),
+        prisma.systemDesignQuestion.findMany({
+            where: statusWhere,
+            select: { topics: true },
+        }),
     ]);
 
     return {
@@ -190,6 +247,9 @@ export async function listSystemDesignQuestions(
             limit: query.limit,
             total,
             totalPages: Math.max(1, Math.ceil(total / query.limit)),
+        },
+        filterOptions: {
+            topics: uniqueSortedTopics(topicRows),
         },
     };
 }
@@ -439,9 +499,59 @@ export async function listBehavioralQuestions(
     query: ListAdminQuestionsQuery,
 ): Promise<AdminQuestionListResult> {
     const isPublished = query.status === 'published';
-    const where = { isPublished };
+    const statusWhere = { isPublished };
+    const where = {
+        ...statusWhere,
+        ...(query.difficulty ? { difficulty: query.difficulty } : {}),
+        ...(query.company
+            ? {
+                  companyName: {
+                      equals: query.company,
+                      mode: 'insensitive' as const,
+                  },
+              }
+            : {}),
+        ...(query.role
+            ? {
+                  roleName: {
+                      equals: query.role,
+                      mode: 'insensitive' as const,
+                  },
+              }
+            : {}),
+        ...(query.search
+            ? {
+                  OR: [
+                      {
+                          title: {
+                              contains: query.search,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                      {
+                          slug: {
+                              contains: query.search,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                      {
+                          companyName: {
+                              contains: query.search,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                      {
+                          roleName: {
+                              contains: query.search,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                  ],
+              }
+            : {}),
+    };
 
-    const [total, rows] = await Promise.all([
+    const [total, rows, companies, roles] = await Promise.all([
         prisma.behavioralQuestion.count({ where }),
         prisma.behavioralQuestion.findMany({
             where,
@@ -463,6 +573,18 @@ export async function listBehavioralQuestions(
             skip: (query.page - 1) * query.limit,
             take: query.limit,
         }),
+        prisma.behavioralQuestion.findMany({
+            where: statusWhere,
+            select: { companyName: true },
+            distinct: ['companyName'],
+            orderBy: { companyName: 'asc' },
+        }),
+        prisma.behavioralQuestion.findMany({
+            where: statusWhere,
+            select: { roleName: true },
+            distinct: ['roleName'],
+            orderBy: { roleName: 'asc' },
+        }),
     ]);
 
     return {
@@ -482,6 +604,10 @@ export async function listBehavioralQuestions(
             limit: query.limit,
             total,
             totalPages: Math.max(1, Math.ceil(total / query.limit)),
+        },
+        filterOptions: {
+            companies: companies.map((row) => row.companyName),
+            roles: roles.map((row) => row.roleName),
         },
     };
 }

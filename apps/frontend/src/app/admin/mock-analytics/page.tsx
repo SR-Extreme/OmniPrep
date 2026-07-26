@@ -1,8 +1,17 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MockAnalyticsCharts } from '@/components/admin/MockAnalyticsCharts';
+import {
+    AdminEmptyState,
+    AdminErrorAlert,
+    AdminInlineLoading,
+    AdminLoading,
+    AdminPageHeader,
+    AdminPageShell,
+} from '@/components/admin/AdminPageShell';
 import { getMockAnalytics } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
 import { useAuthStore } from '@/store/authStore';
@@ -73,38 +82,33 @@ export default function AdminMockAnalyticsPage() {
     }, [hydrated, accessToken, user]);
 
     if (!hydrated || !accessToken || !user || user.role !== 'ADMIN') {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
-                Loading…
-            </div>
-        );
+        return <AdminLoading />;
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50">
-            <main className="mx-auto max-w-6xl space-y-6 px-6 py-10">
-                <div>
-                    <p className="section-label">Analytics</p>
-                    <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900">
-                        Mock analytics
-                    </h1>
-                    <p className="mt-2 text-sm text-zinc-600">
-                        Premium mock usage and hiring-band distribution.
-                    </p>
-                </div>
+        <AdminPageShell>
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="space-y-6"
+            >
+                <AdminPageHeader
+                    label="Analytics"
+                    title="Mock analytics"
+                    description="Premium mock usage and hiring-band distribution."
+                />
 
-                {error ? (
-                    <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                        {error}
-                    </p>
-                ) : null}
+                {error ? <AdminErrorAlert message={error} /> : null}
 
                 {data ? (
                     <MockAnalyticsCharts data={data} />
                 ) : isLoading ? (
-                    <p className="text-sm text-zinc-500">Loading mock analytics…</p>
-                ) : null}
-            </main>
-        </div>
+                    <AdminInlineLoading label="Loading mock analytics…" />
+                ) : (
+                    <AdminEmptyState message="No mock analytics available." />
+                )}
+            </motion.div>
+        </AdminPageShell>
     );
 }

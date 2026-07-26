@@ -7,16 +7,10 @@ import { formatExampleDisplayFromObjects } from "../../src/services/problem-runn
 import { buildTenCases } from "./build-test-cases.js";
 import { PROBLEM_DESCRIPTIONS } from "./problem-descriptions.js";
 import { ALL_PROBLEM_SPECS } from "./specs/index.js";
-import {
-    buildCppSolution,
-    buildJavaSolution,
-    buildPythonSolution,
-} from "./specs/solution-builders.js";
 import type { ProblemSeedFile } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, "problems");
-const MULTI_LANG_DIR = join(__dirname, "multi-lang-solutions");
 
 /** LeetCode-style starter for design / ops-driven problems. */
 const STARTER_OVERRIDES: Record<string, ProblemSeedFile["starterCode"]> = {
@@ -293,41 +287,10 @@ function toProblemSeedFile(
         timeLimitMs: spec.difficulty === "HARD" ? 3000 : 2000,
         memoryLimitKb: 256000,
         starterCode,
-        solutionCode: {
-            python: buildPythonSolution(spec),
-            java: buildJavaSolution(spec),
-            cpp: buildCppSolution(spec),
-        },
         hints: spec.hints,
         isPublished: true,
         testCases,
     };
-}
-
-function writeMultiLangBatches(): void {
-    const chunks: (typeof ALL_PROBLEM_SPECS)[] = [];
-    for (let i = 0; i < 4; i++) {
-        chunks.push(ALL_PROBLEM_SPECS.slice(i * 25, (i + 1) * 25));
-    }
-
-    chunks.forEach((chunk, idx) => {
-        const batchNum = String(idx + 1).padStart(2, "0");
-        const entries = chunk
-            .map((spec) => {
-                const java = JSON.stringify(buildJavaSolution(spec));
-                const cpp = JSON.stringify(buildCppSolution(spec));
-                return `    "${spec.slug}": {\n        java: ${java},\n        cpp: ${cpp},\n    }`;
-            })
-            .join(",\n");
-
-        const content = `import type { MultiLangSolutionMap } from "../solution-wrappers.js";
-
-export const BATCH_${batchNum}: MultiLangSolutionMap = {
-${entries},
-};
-`;
-        writeFileSync(join(MULTI_LANG_DIR, `batch-${batchNum}.ts`), content, "utf8");
-    });
 }
 
 function main(): void {
@@ -340,11 +303,7 @@ function main(): void {
         writeFileSync(filepath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
     }
 
-    writeMultiLangBatches();
-
-    console.log(
-        `Generated ${ALL_PROBLEM_SPECS.length} problem JSON files and 4 multi-lang batches`,
-    );
+    console.log(`Generated ${ALL_PROBLEM_SPECS.length} problem JSON files`);
 }
 
 main();

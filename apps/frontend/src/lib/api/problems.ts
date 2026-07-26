@@ -7,8 +7,8 @@ function buildProblemsQueryString(query: ListProblemsQuery): string {
     if (query.difficulty) {
         params.set("difficulty", query.difficulty);
     }
-    if (query.topic) {
-        params.set("topic", query.topic);
+    for (const topic of query.topics ?? []) {
+        params.append("topics", topic);
     }
     if (query.search) {
         params.set("search", query.search);

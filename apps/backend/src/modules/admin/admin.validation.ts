@@ -5,7 +5,6 @@ import {
 } from '../../types/admin.types.js';
 import {
     examplesSchema,
-    solutionCodeSchema,
     starterCodeSchema,
 } from '../../types/dsa.types.js';
 import { behavioralPhasesSchema } from '../../types/behavioral.types.js';
@@ -17,6 +16,17 @@ import {
 import { DIFFICULTIES } from '../problems/problems.validation.js';
 
 export const QUESTION_LIST_STATUSES = ['published', 'draft'] as const;
+
+const topicsQuerySchema = z.preprocess((value) => {
+    if (value == null || value === '') {
+        return undefined;
+    }
+    const values = Array.isArray(value) ? value : String(value).split(',');
+    const topics = values
+        .map((item) => String(item).trim())
+        .filter((item) => item.length > 0);
+    return topics.length > 0 ? topics : undefined;
+}, z.array(z.string().trim().min(1).max(100)).max(50).optional());
 
 export const revenueDashboardQuerySchema = z.object({
     range: z
@@ -48,6 +58,26 @@ export const listAdminQuestionsQuerySchema = z.object({
     status: z.enum(QUESTION_LIST_STATUSES, {
         message: 'Status must be published or draft',
     }),
+    difficulty: z.enum(DIFFICULTIES).optional(),
+    topics: topicsQuerySchema,
+    company: z
+        .string()
+        .trim()
+        .min(1, 'Company filter cannot be empty')
+        .max(100, 'Company filter must be at most 100 characters')
+        .optional(),
+    role: z
+        .string()
+        .trim()
+        .min(1, 'Role filter cannot be empty')
+        .max(100, 'Role filter must be at most 100 characters')
+        .optional(),
+    search: z
+        .string()
+        .trim()
+        .min(1, 'Search query cannot be empty')
+        .max(200, 'Search query must be at most 200 characters')
+        .optional(),
     page: z.coerce.number().int().min(1, 'Page must be at least 1').default(1),
     limit: z.coerce
         .number()
@@ -90,7 +120,6 @@ export const createDsaQuestionBodySchema = z.object({
     timeLimitMs: z.number().int().positive().default(2000),
     memoryLimitKb: z.number().int().positive().default(256000),
     starterCode: starterCodeSchema.optional(),
-    solutionCode: solutionCodeSchema.optional(),
     hints: z.array(z.string().trim().min(1)).default([]),
     isPublished: z.boolean().default(false),
     testCases: z.array(adminTestCaseSchema).default([]),

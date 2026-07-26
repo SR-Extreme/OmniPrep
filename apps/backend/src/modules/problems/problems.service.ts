@@ -66,6 +66,9 @@ export interface ListProblemsResult {
         total: number;
         totalPages: number;
     };
+    filterOptions: {
+        topics: string[];
+    };
 }
 
 function isAdmin(role: Role | undefined): boolean {
@@ -136,10 +139,13 @@ export async function listProblems(
     query: ListProblemsQuery,
     role?: Role,
 ): Promise<ListProblemsResult> {
+    const statusWhere = publishedWhere(role);
     const where = {
-        ...publishedWhere(role),
+        ...statusWhere,
         ...(query.difficulty ? { difficulty: query.difficulty } : {}),
-        ...(query.topic ? { topics: { has: query.topic } } : {}),
+        ...(query.topics && query.topics.length > 0
+            ? { topics: { hasSome: query.topics } }
+            : {}),
         ...(query.search
             ? {
                 OR: [
@@ -150,7 +156,7 @@ export async function listProblems(
             : {}),
     };
     const skip = (query.page - 1) * query.limit;
-    const [total, problems] = await Promise.all([
+    const [total, problems, topicRows] = await Promise.all([
         prisma.problem.count({ where }),
         prisma.problem.findMany({
             where,
@@ -166,6 +172,10 @@ export async function listProblems(
                 acceptanceRate: true,
             },
         }),
+        prisma.problem.findMany({
+            where: statusWhere,
+            select: { topics: true },
+        }),
     ]);
     return {
         problems: problems.map(toProblemListItem),
@@ -174,6 +184,11 @@ export async function listProblems(
             limit: query.limit,
             total,
             totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+        },
+        filterOptions: {
+            topics: [...new Set(topicRows.flatMap((row) => row.topics))].sort((a, b) =>
+                a.localeCompare(b),
+            ),
         },
     };
 }

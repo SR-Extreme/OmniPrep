@@ -196,10 +196,20 @@ export interface AdminQuestionListItem {
 export interface AdminQuestionListResult {
     questions: AdminQuestionListItem[];
     pagination: Pagination;
+    filterOptions?: {
+        companies?: string[];
+        roles?: string[];
+        topics?: string[];
+    };
 }
 
 export interface ListAdminQuestionsQuery {
     status: QuestionListStatus;
+    difficulty?: Difficulty;
+    topics?: string[];
+    company?: string;
+    role?: string;
+    search?: string;
     page?: number;
     limit?: number;
 }
@@ -225,7 +235,6 @@ export interface CreateDsaQuestionBody {
     timeLimitMs?: number;
     memoryLimitKb?: number;
     starterCode?: StarterCode;
-    solutionCode?: StarterCode;
     hints?: string[];
     isPublished?: boolean;
     testCases?: AdminTestCaseInput[];
