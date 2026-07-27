@@ -7,7 +7,7 @@
     "main": "dist/server.js",
     "scripts": {
         "dev": "tsx watch src/server.ts",
-        "build": "prisma generate && tsc",
+        "build": "prisma generate && tsc && node scripts/copy-runtime-assets.mjs",
         "start": "node dist/server.js",
         "seed:generate": "tsx prisma/seeds/generate-json-files.ts",
         "seed": "tsx prisma/seed.ts"
