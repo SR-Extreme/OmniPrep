@@ -6,6 +6,11 @@ import './globals.css';
 export const metadata: Metadata = {
     title: 'OmniPrep',
     description: 'AI Interview Preparation Platform',
+    icons: {
+        icon: '/logo.png',
+        shortcut: '/logo.png',
+        apple: '/logo.png',
+    },
 };
 
 export default function RootLayout({
