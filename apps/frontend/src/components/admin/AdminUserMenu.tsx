@@ -22,7 +22,7 @@ function initials(name: string): string {
 
 export function AdminUserMenu() {
     const router = useRouter();
-    const { user, logout } = useAuthStore();
+    const { user, logout, isReady } = useAuthStore();
     const [open, setOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +47,7 @@ export function AdminUserMenu() {
         };
     }, []);
 
-    if (!user) {
+    if (!isReady || !user) {
         return null;
     }
 

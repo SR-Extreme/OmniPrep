@@ -8,7 +8,6 @@ import type {
     MessageResponse,
     OtpChallengeResponse,
     PasswordResetVerifiedResponse,
-    RefreshBody,
     ResendOtpBody,
     ResetPasswordBody,
     SignupBody,
@@ -27,7 +26,6 @@ export type {
     MessageResponse,
     OtpChallengeResponse,
     PasswordResetVerifiedResponse,
-    RefreshBody,
     ResendOtpBody,
     ResetPasswordBody,
     Role,
@@ -92,16 +90,15 @@ export function resetPassword(body: ResetPasswordBody): Promise<MessageResponse>
     });
 }
 
-export function refresh(body: RefreshBody): Promise<AuthResult> {
+export function refresh(): Promise<AuthResult> {
     return apiRequest<AuthResult>('/api/auth/refresh', {
         method: 'POST',
-        body,
         skipAuthRefresh: true,
     });
 }
 
-export function logout(body: RefreshBody): Promise<void> {
-    return apiRequest<void>('/api/auth/logout', { method: 'POST', body });
+export function logout(): Promise<void> {
+    return apiRequest<void>('/api/auth/logout', { method: 'POST' });
 }
 
 export function getMe(accessToken: string): Promise<MeResponse> {

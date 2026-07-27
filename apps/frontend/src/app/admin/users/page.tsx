@@ -26,9 +26,8 @@ const PAGE_SIZE = 20;
 
 export default function AdminUsersPage() {
     const router = useRouter();
-    const { user, accessToken } = useAuthStore();
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [users, setUsers] = useState<AdminUserListItem[]>([]);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
@@ -40,9 +39,6 @@ export default function AdminUsersPage() {
     const [error, setError] = useState<string | null>(null);
     const { errors, touch, clear } = useFieldErrors<'search'>();
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

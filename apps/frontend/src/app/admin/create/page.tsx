@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Code2, MessageSquare, Network } from 'lucide-react';
 import { AdminFeatureCard } from '@/components/admin/AdminFeatureCard';
 import {
@@ -14,12 +14,7 @@ import { useAuthStore } from '@/store/authStore';
 
 export default function AdminCreateHubPage() {
     const router = useRouter();
-    const { user, accessToken } = useAuthStore();
-    const [hydrated, setHydrated] = useState(false);
-
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
 
     useEffect(() => {
         if (!hydrated) {

@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { env } from './config/env.js';
 import authRouter from './modules/auth/auth.routes.js';
@@ -21,6 +22,8 @@ app.use(cors({
     origin: env.FRONTEND_URL,
     credentials: true,
 }));
+
+app.use(cookieParser());
 
 // Stripe webhook needs the raw body for signature verification.
 // Must be registered before express.json().

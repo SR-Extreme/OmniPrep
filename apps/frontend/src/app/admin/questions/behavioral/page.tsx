@@ -36,10 +36,9 @@ function parseStatus(value: string | null): QuestionListStatus {
 function AdminBehavioralQuestionsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user, accessToken } = useAuthStore();
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
 
     const status = parseStatus(searchParams.get('status'));
-    const [hydrated, setHydrated] = useState(false);
     const [questions, setQuestions] = useState<AdminQuestionListItem[]>([]);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
@@ -57,10 +56,6 @@ function AdminBehavioralQuestionsPageContent() {
     const [appliedFilters, setAppliedFilters] = useState<AdminBehavioralFilters>(
         {},
     );
-
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

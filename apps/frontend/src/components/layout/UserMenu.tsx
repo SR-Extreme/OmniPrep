@@ -22,7 +22,7 @@ function initials(name: string): string {
 
 export function UserMenu() {
     const router = useRouter();
-    const { user, logout } = useAuthStore();
+    const { user, logout, isReady } = useAuthStore();
     const [open, setOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +46,10 @@ export function UserMenu() {
             document.removeEventListener('keydown', handleEscape);
         };
     }, []);
+
+    if (!isReady) {
+        return <div className="h-11 w-24" aria-hidden="true" />;
+    }
 
     if (!user) {
         return (

@@ -51,9 +51,8 @@ function defaultSelection(
 export default function MockInterviewSessionPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
-    const { accessToken } = useAuthStore();
+    const { accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [interview, setInterview] = useState<MockInterviewSessionDetail | null>(
         null,
     );
@@ -71,9 +70,6 @@ export default function MockInterviewSessionPage() {
     const [isLoadingPlan, setIsLoadingPlan] = useState(false);
     const [planError, setPlanError] = useState<string | null>(null);
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

@@ -368,8 +368,7 @@ function AdminCreateDsaPageContent() {
     const editId = searchParams.get('id');
     const isEditing = Boolean(editId);
 
-    const { user, accessToken } = useAuthStore();
-    const [hydrated, setHydrated] = useState(false);
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
     const [form, setForm] = useState<FormState>(INITIAL);
     const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
     const [testCaseErrors, setTestCaseErrors] = useState<Record<number, string>>(
@@ -378,10 +377,6 @@ function AdminCreateDsaPageContent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingQuestion, setIsLoadingQuestion] = useState(Boolean(editId));
     const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

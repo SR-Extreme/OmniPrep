@@ -27,10 +27,9 @@ import type {
 
 export default function ProfilePage() {
     const router = useRouter();
-    const { accessToken, logout, setUser } =
+    const { accessToken, logout, setUser, isReady: hydrated } =
         useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
     const [plans, setPlans] = useState<StudyPlanHistoryItem[]>([]);
     const [selectedPlan, setSelectedPlan] = useState<StudyPlanDetailResponse | null>(
@@ -41,10 +40,6 @@ export default function ProfilePage() {
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
     const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

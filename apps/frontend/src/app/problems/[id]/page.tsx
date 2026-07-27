@@ -140,10 +140,9 @@ export default function ProblemSolverPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
 
-    const { accessToken } = useAuthStore();
+    const { accessToken, isReady: hydrated } = useAuthStore();
     const { errors, touch, clear, setMany } = useFieldErrors<DsaField>();
 
-    const [hydrated, setHydrated] = useState(false);
 
     const [problem, setProblem] = useState<ProblemDetail | null>(null);
     const [problemError, setProblemError] = useState<string | null>(null);
@@ -183,9 +182,6 @@ export default function ProblemSolverPage() {
     const resumeReadyRef = useRef(false);
     const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) return;

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, CreditCard } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -18,12 +18,17 @@ const HIGHLIGHTS = [
     'One active plan at a time—choose the duration that fits your timeline',
 ] as const;
 
+const STRIPE_TEST_CARD = {
+    number: '4242 4242 4242 4242',
+    expiry: 'Any future date',
+    cvv: 'Any 3 digits',
+} as const;
+
 function PremiumPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { accessToken } = useAuthStore();
+    const { accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [status, setStatus] = useState<PremiumStatusResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [loadingPlan, setLoadingPlan] = useState<BillingPlan | null>(null);
@@ -31,9 +36,6 @@ function PremiumPageContent() {
 
     const canceled = searchParams.get('checkout') === 'canceled';
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {
@@ -186,6 +188,55 @@ function PremiumPageContent() {
                             Subscribe to unlock the full interview preparation loop
                         </p>
                     </div>
+
+                    <section
+                        className="mb-8 rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft sm:p-6"
+                        aria-labelledby="stripe-test-card-heading"
+                    >
+                        <div className="flex items-start gap-3">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700">
+                                <CreditCard className="h-5 w-5" aria-hidden="true" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <h3
+                                    id="stripe-test-card-heading"
+                                    className="text-sm font-semibold text-zinc-900 sm:text-base"
+                                >
+                                    Stripe test card
+                                </h3>
+                                <p className="mt-1 text-sm text-zinc-500">
+                                    Use these dummy credentials on Stripe Checkout. No real charge is made.
+                                </p>
+                                <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+                                    <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3.5 py-3">
+                                        <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                                            Card number
+                                        </dt>
+                                        <dd className="mt-1 font-mono text-sm font-semibold tracking-wide text-zinc-900">
+                                            {STRIPE_TEST_CARD.number}
+                                        </dd>
+                                    </div>
+                                    <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3.5 py-3">
+                                        <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                                            Expiry
+                                        </dt>
+                                        <dd className="mt-1 text-sm font-semibold text-zinc-900">
+                                            {STRIPE_TEST_CARD.expiry}
+                                        </dd>
+                                    </div>
+                                    <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3.5 py-3">
+                                        <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                                            CVV
+                                        </dt>
+                                        <dd className="mt-1 text-sm font-semibold text-zinc-900">
+                                            {STRIPE_TEST_CARD.cvv}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    </section>
+
                     {isLoading && !status ? (
                         <div className="flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-6 py-16 text-sm text-zinc-500 shadow-soft">
                             <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-600" />

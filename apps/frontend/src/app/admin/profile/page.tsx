@@ -46,11 +46,10 @@ function initials(name: string): string {
 
 export default function AdminProfilePage() {
     const router = useRouter();
-    const { user, accessToken, logout, setUser } =
+    const { user, accessToken, logout, setUser, isReady: hydrated } =
         useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [hydrated, setHydrated] = useState(false);
     const [profile, setProfile] = useState<AdminProfileResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -61,10 +60,6 @@ export default function AdminProfilePage() {
     const [avatarError, setAvatarError] = useState<string | null>(null);
     const { errors, touch, clear, setMany } = useFieldErrors<'name' | 'phoneNo'>();
     const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

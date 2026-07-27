@@ -111,10 +111,9 @@ function phaseLabel(type: BehavioralPhaseType): string {
 export default function BehavioralPracticePage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
-    const { accessToken } = useAuthStore();
+    const { accessToken, isReady: hydrated } = useAuthStore();
     const { errors, touch, clear, setMany } = useFieldErrors<BehavioralField>();
 
-    const [hydrated, setHydrated] = useState(false);
     const [question, setQuestion] = useState<BehavioralQuestionDetail | null>(null);
     const [questionError, setQuestionError] = useState<string | null>(null);
     const [isQuestionLoading, setIsQuestionLoading] = useState(true);
@@ -173,7 +172,6 @@ export default function BehavioralPracticePage() {
         [historySessions],
     );
 
-    useEffect(() => setHydrated(true), []);
 
     useEffect(() => {
         if (!hydrated) return;

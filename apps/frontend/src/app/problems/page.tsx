@@ -56,9 +56,8 @@ function formatAcceptance(rate: number | null): string {
 
 export default function ProblemsPage() {
     const router = useRouter();
-    const { accessToken } = useAuthStore();
+    const { accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [problems, setProblems] = useState<ProblemListItem[]>([]);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
@@ -73,9 +72,6 @@ export default function ProblemsPage() {
     const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
     const { errors, touch, clear } = useFieldErrors<'search'>();
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

@@ -1,10 +1,10 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import {
     login as loginApi,
     logout as logoutApi,
+    refresh as refreshApi,
     signup as signupApi,
     verifyLoginOtp as verifyLoginOtpApi,
     type AuthUser,
@@ -15,10 +15,14 @@ import {
 } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/client';
 
+const LEGACY_AUTH_STORAGE_KEY = 'omniprep-auth';
+
 interface AuthState {
     user: AuthUser | null;
+    /** In-memory only — never persisted to localStorage. */
     accessToken: string | null;
-    refreshToken: string | null;
+    /** False until the initial cookie-based session restore finishes. */
+    isReady: boolean;
     isLoading: boolean;
     error: string | null;
 
@@ -26,136 +30,170 @@ interface AuthState {
     login: (body: LoginBody) => Promise<LoginResponse>;
     verifyLoginOtp: (body: VerifyOtpBody) => Promise<void>;
     logout: () => Promise<void>;
+    /** Rehydrate access token from the httpOnly refresh cookie (page load). */
+    restoreSession: () => Promise<void>;
 
     clearError: () => void;
-    setSession: (user: AuthUser, accessToken: string, refreshToken: string) => void;
+    setSession: (user: AuthUser, accessToken: string) => void;
     setUser: (user: AuthUser) => void;
     clearSession: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-    persist(
-        (set, get) => ({
+let restoreInFlight: Promise<void> | null = null;
+
+function clearLegacyAuthStorage(): void {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    try {
+        window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+    } catch {
+        // Ignore quota / private-mode errors.
+    }
+}
+
+export const useAuthStore = create<AuthState>()((set, get) => ({
+    user: null,
+    accessToken: null,
+    isReady: false,
+    isLoading: false,
+    error: null,
+
+    setSession: (user, accessToken) => {
+        set({ user, accessToken, error: null });
+    },
+
+    setUser: (user) => {
+        set({ user, error: null });
+    },
+
+    clearSession: () => {
+        set({
             user: null,
             accessToken: null,
-            refreshToken: null,
-            isLoading: false,
             error: null,
+        });
+    },
 
-            setSession: (user, accessToken, refreshToken) => {
-                set({ user, accessToken, refreshToken, error: null });
-            },
+    clearError: () => {
+        set({ error: null });
+    },
 
-            setUser: (user) => {
-                set({ user, error: null });
-            },
+    restoreSession: () => {
+        if (get().isReady) {
+            return Promise.resolve();
+        }
 
-            clearSession: () => {
+        if (restoreInFlight) {
+            return restoreInFlight;
+        }
+
+        restoreInFlight = (async () => {
+            clearLegacyAuthStorage();
+
+            try {
+                const result = await refreshApi();
                 set({
-                    user: null,
-                    accessToken: null,
-                    refreshToken: null,
+                    user: result.user,
+                    accessToken: result.tokens.accessToken,
+                    isReady: true,
                     error: null,
                 });
-            },
-
-            clearError: () => {
-                set({ error: null });
-            },
-
-            signup: async (body) => {
-                set({ isLoading: true, error: null });
-                try {
-                    await signupApi(body);
-                    // Account created — user must sign in with OTP on the login page
-                    set({
-                        user: null,
-                        accessToken: null,
-                        refreshToken: null,
-                        isLoading: false,
-                    });
-                } catch (err) {
-                    const message =
-                        err instanceof ApiError ? err.message : 'Sign up failed';
-                    set({ error: message, isLoading: false });
-                    throw err;
-                }
-            },
-
-            login: async (body) => {
-                set({ isLoading: true, error: null });
-                try {
-                    const result = await loginApi(body);
-                    if (!result.requiresOtp) {
-                        set({
-                            user: result.user,
-                            accessToken: result.tokens.accessToken,
-                            refreshToken: result.tokens.refreshToken,
-                            isLoading: false,
-                        });
-                    } else {
-                        set({ isLoading: false });
-                    }
-                    return result;
-                } catch (err) {
-                    const message =
-                        err instanceof ApiError ? err.message : 'Login failed';
-                    set({ error: message, isLoading: false });
-                    throw err;
-                }
-            },
-
-            verifyLoginOtp: async (body) => {
-                set({ isLoading: true, error: null });
-                try {
-                    const result = await verifyLoginOtpApi(body);
-                    set({
-                        user: result.user,
-                        accessToken: result.tokens.accessToken,
-                        refreshToken: result.tokens.refreshToken,
-                        isLoading: false,
-                    });
-                } catch (err) {
-                    const message =
-                        err instanceof ApiError
-                            ? err.message
-                            : 'OTP verification failed';
-                    set({ error: message, isLoading: false });
-                    throw err;
-                }
-            },
-
-            logout: async () => {
-                const { refreshToken } = get();
-
-                // Clear local session immediately so UI never sits on a loading gate.
+            } catch {
                 set({
                     user: null,
                     accessToken: null,
-                    refreshToken: null,
+                    isReady: true,
                     error: null,
+                });
+            } finally {
+                restoreInFlight = null;
+            }
+        })();
+
+        return restoreInFlight;
+    },
+
+    signup: async (body) => {
+        set({ isLoading: true, error: null });
+        try {
+            await signupApi(body);
+            // Account created — user must sign in with OTP on the login page
+            set({
+                user: null,
+                accessToken: null,
+                isLoading: false,
+            });
+        } catch (err) {
+            const message =
+                err instanceof ApiError ? err.message : 'Sign up failed';
+            set({ error: message, isLoading: false });
+            throw err;
+        }
+    },
+
+    login: async (body) => {
+        // Wait for cookie restore so login doesn't race refresh-token rotation.
+        await get().restoreSession();
+
+        set({ isLoading: true, error: null });
+        try {
+            const result = await loginApi(body);
+            if (!result.requiresOtp) {
+                set({
+                    user: result.user,
+                    accessToken: result.tokens.accessToken,
+                    isReady: true,
                     isLoading: false,
                 });
+            } else {
+                set({ isLoading: false });
+            }
+            return result;
+        } catch (err) {
+            const message =
+                err instanceof ApiError ? err.message : 'Login failed';
+            set({ error: message, isLoading: false });
+            throw err;
+        }
+    },
 
-                if (!refreshToken) {
-                    return;
-                }
+    verifyLoginOtp: async (body) => {
+        await get().restoreSession();
 
-                try {
-                    await logoutApi({ refreshToken });
-                } catch {
-                    // Local session is already cleared.
-                }
-            },
-        }),
+        set({ isLoading: true, error: null });
+        try {
+            const result = await verifyLoginOtpApi(body);
+            set({
+                user: result.user,
+                accessToken: result.tokens.accessToken,
+                isReady: true,
+                isLoading: false,
+            });
+        } catch (err) {
+            const message =
+                err instanceof ApiError
+                    ? err.message
+                    : 'OTP verification failed';
+            set({ error: message, isLoading: false });
+            throw err;
+        }
+    },
 
-        {
-            name: 'omniprep-auth',
-            partialize: (state) => ({
-                user: state.user,
-                accessToken: state.accessToken,
-                refreshToken: state.refreshToken,
-            }),
-        },
-    ),
-);
+    logout: async () => {
+        // Clear memory session immediately so UI never sits on a loading gate.
+        set({
+            user: null,
+            accessToken: null,
+            error: null,
+            isLoading: false,
+            isReady: true,
+        });
+
+        try {
+            await logoutApi();
+        } catch {
+            // Local session is already cleared; cookie clear is best-effort.
+        }
+    },
+}));

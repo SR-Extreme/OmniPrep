@@ -13,7 +13,6 @@ export interface AuthUser {
 
 export interface AuthTokens {
     accessToken: string;
-    refreshToken: string;
 }
 
 export interface AuthResult {
@@ -76,10 +75,6 @@ export interface PasswordResetVerifiedResponse {
 
 export interface MessageResponse {
     message: string;
-}
-
-export interface RefreshBody {
-    refreshToken: string;
 }
 
 export interface MeResponse {

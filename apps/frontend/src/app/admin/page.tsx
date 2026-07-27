@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { AdminAuthGate } from '@/components/admin/AdminPageShell';
 import { AdminFeatureCards } from '@/components/admin/AdminFeatureCards';
 import { AdminHero } from '@/components/admin/AdminHero';
@@ -9,12 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 
 export default function AdminHomePage() {
     const router = useRouter();
-    const { user, accessToken } = useAuthStore();
-    const [hydrated, setHydrated] = useState(false);
-
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
 
     useEffect(() => {
         if (!hydrated) {

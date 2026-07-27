@@ -78,9 +78,8 @@ async function loadInterviewStats(
 
 export default function MockInterviewPage() {
     const router = useRouter();
-    const { user, accessToken } = useAuthStore();
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [interviews, setInterviews] = useState<MockInterviewListItem[]>([]);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
@@ -93,9 +92,6 @@ export default function MockInterviewPage() {
     const [error, setError] = useState<string | null>(null);
     const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

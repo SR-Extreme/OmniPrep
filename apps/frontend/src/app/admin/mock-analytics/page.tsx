@@ -19,16 +19,12 @@ import type { MockAnalyticsResponse } from '@/types/admin';
 
 export default function AdminMockAnalyticsPage() {
     const router = useRouter();
-    const { user, accessToken } = useAuthStore();
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [data, setData] = useState<MockAnalyticsResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

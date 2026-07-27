@@ -97,29 +97,23 @@ async function readResponseBody(response: Response): Promise<unknown> {
 }
 
 /**
- * Single-flight refresh so concurrent 401s share one /api/auth/refresh call
- * (backend rotates refresh tokens).
+ * Single-flight refresh so concurrent 401s share one /api/auth/refresh call.
+ * Refresh token is sent automatically via the httpOnly cookie.
  */
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
     if (refreshInFlight) {
         return refreshInFlight;
     }
 
     refreshInFlight = (async () => {
         const { useAuthStore } = await import('@/store/authStore');
-        const { refreshToken, setSession, clearSession } = useAuthStore.getState();
-
-        if (!refreshToken) {
-            clearSession();
-            return null;
-        }
+        const { setSession, clearSession } = useAuthStore.getState();
 
         try {
             const response = await fetch(`${API_URL}/api/auth/refresh`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken }),
             });
 
             const data = await readResponseBody(response);
@@ -130,11 +124,7 @@ async function refreshAccessToken(): Promise<string | null> {
             }
 
             const result = data as AuthResult;
-            setSession(
-                result.user,
-                result.tokens.accessToken,
-                result.tokens.refreshToken,
-            );
+            setSession(result.user, result.tokens.accessToken);
             return result.tokens.accessToken;
         } catch {
             clearSession();

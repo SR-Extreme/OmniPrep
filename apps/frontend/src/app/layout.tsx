@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AuthSessionProvider } from '@/components/auth/AuthSessionProvider';
 import { AppShell } from '@/components/layout/AppShell';
 import { ToastViewport } from '@/components/ui/Toast';
 import './globals.css';
@@ -21,8 +22,10 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className="overflow-x-hidden">
-                <AppShell>{children}</AppShell>
-                <ToastViewport />
+                <AuthSessionProvider>
+                    <AppShell>{children}</AppShell>
+                    <ToastViewport />
+                </AuthSessionProvider>
             </body>
         </html>
     );

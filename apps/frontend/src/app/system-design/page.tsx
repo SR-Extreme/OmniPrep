@@ -52,9 +52,7 @@ function difficultyBadgeClass(difficulty: Difficulty): string {
 
 export default function SystemDesignPage() {
     const router = useRouter();
-    const { accessToken } = useAuthStore();
-
-    const [hydrated, setHydrated] = useState(false);
+    const { accessToken, isReady: hydrated } = useAuthStore();
     const [questions, setQuestions] = useState<SystemDesignQuestionListItem[]>([]);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
@@ -68,10 +66,6 @@ export default function SystemDesignPage() {
     const [search, setSearch] = useState('');
     const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
     const { errors, touch, clear } = useFieldErrors<'search'>();
-
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

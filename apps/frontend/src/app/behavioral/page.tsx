@@ -53,9 +53,8 @@ function difficultyBadgeClass(difficulty: Difficulty): string {
 
 export default function BehavioralPage() {
     const router = useRouter();
-    const { accessToken } = useAuthStore();
+    const { accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [questions, setQuestions] = useState<BehavioralQuestionListItem[]>([]);
     const [companies, setCompanies] = useState<string[]>([]);
     const [roles, setRoles] = useState<string[]>([]);
@@ -72,9 +71,6 @@ export default function BehavioralPage() {
     const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
     const { errors, touch, clear } = useFieldErrors<'search'>();
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {

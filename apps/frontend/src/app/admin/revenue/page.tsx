@@ -23,17 +23,13 @@ import {
 
 export default function AdminRevenuePage() {
     const router = useRouter();
-    const { user, accessToken } = useAuthStore();
+    const { user, accessToken, isReady: hydrated } = useAuthStore();
 
-    const [hydrated, setHydrated] = useState(false);
     const [range, setRange] = useState<RevenueTimeRange>(DEFAULT_REVENUE_TIME_RANGE);
     const [data, setData] = useState<RevenueDashboardResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        setHydrated(true);
-    }, []);
 
     useEffect(() => {
         if (!hydrated) {
