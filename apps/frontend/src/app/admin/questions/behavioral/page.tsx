@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import {
     AdminQuestionFilters,
     type AdminBehavioralFilters,
@@ -33,7 +33,7 @@ function parseStatus(value: string | null): QuestionListStatus {
     return value === 'draft' ? 'draft' : 'published';
 }
 
-export default function AdminBehavioralQuestionsPage() {
+function AdminBehavioralQuestionsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user, accessToken } = useAuthStore();
@@ -300,5 +300,13 @@ export default function AdminBehavioralQuestionsPage() {
                 </section>
             </div>
         </AdminPageShell>
+    );
+}
+
+export default function AdminBehavioralQuestionsPage() {
+    return (
+        <Suspense fallback={<AdminAuthGate hydrated={false} />}>
+            <AdminBehavioralQuestionsPageContent />
+        </Suspense>
     );
 }

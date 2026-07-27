@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import {
     AdminLoading,
     AdminAuthGate,
@@ -304,7 +304,7 @@ function validateForm(form: FormState): FieldErrors {
     return errors;
 }
 
-export default function AdminCreateSystemDesignPage() {
+function AdminCreateSystemDesignPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const editId = searchParams.get('id');
@@ -895,5 +895,13 @@ export default function AdminCreateSystemDesignPage() {
                 </Card>
             </form>
         </AdminPageShell>
+    );
+}
+
+export default function AdminCreateSystemDesignPage() {
+    return (
+        <Suspense fallback={<AdminAuthGate hydrated={false} />}>
+            <AdminCreateSystemDesignPageContent />
+        </Suspense>
     );
 }

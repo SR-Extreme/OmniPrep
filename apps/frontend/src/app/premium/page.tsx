@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { PracticeAuthGate } from '@/components/practice/PracticeListShell';
 import { PricingCards } from '@/components/PricingCards';
 import { createCheckoutSession, getPremiumStatus } from '@/lib/api/billing';
@@ -18,7 +18,7 @@ const HIGHLIGHTS = [
     'One active plan at a time—choose the duration that fits your timeline',
 ] as const;
 
-export default function PremiumPage() {
+function PremiumPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { accessToken } = useAuthStore();
@@ -203,5 +203,13 @@ export default function PremiumPage() {
                 </div>
             </main>
         </div>
+    );
+}
+
+export default function PremiumPage() {
+    return (
+        <Suspense fallback={<PracticeAuthGate hydrated={false} />}>
+            <PremiumPageContent />
+        </Suspense>
     );
 }

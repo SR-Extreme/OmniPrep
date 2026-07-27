@@ -52,6 +52,8 @@ interface Judge0SubmissionResponse {
 }
 
 const JUDGE0_AUTH_HEADER = "X-Auth-Token";
+const RAPIDAPI_KEY_HEADER = "X-RapidAPI-Key";
+const RAPIDAPI_HOST_HEADER = "X-RapidAPI-Host";
 const POLL_INTERVAL_MS = 500;
 const DEFAULT_MAX_POLL_MS = 15 * 60 * 1000;
 const COMPILED_LANGUAGE_EXTRA_POLL_MS = 10 * 60 * 1000;
@@ -86,11 +88,25 @@ function judge0BaseUrl(): string {
     return env.JUDGE0_BASE_URL.replace(/\/$/, "");
 }
 
+function isRapidApiJudge0(baseUrl: string): boolean {
+    return baseUrl.includes("rapidapi.com");
+}
+
 function judge0Headers(): Record<string, string> {
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
     };
-    if (env.JUDGE0_API_KEY) {
+    if (!env.JUDGE0_API_KEY) {
+        return headers;
+    }
+
+    const baseUrl = judge0BaseUrl();
+    if (isRapidApiJudge0(baseUrl)) {
+        // RapidAPI Judge0 expects these headers, not X-Auth-Token.
+        headers[RAPIDAPI_KEY_HEADER] = env.JUDGE0_API_KEY;
+        headers[RAPIDAPI_HOST_HEADER] = new URL(baseUrl).host;
+    } else {
+        // Self-hosted Judge0 CE auth.
         headers[JUDGE0_AUTH_HEADER] = env.JUDGE0_API_KEY;
     }
     return headers;

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import {
     AdminLoading,
     AdminAuthGate,
@@ -314,7 +314,7 @@ const INITIAL: FormState = {
     phasesJson: JSON.stringify(buildDefaultPhases(), null, 2),
 };
 
-export default function AdminCreateBehavioralPage() {
+function AdminCreateBehavioralPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const editId = searchParams.get('id');
@@ -731,5 +731,13 @@ export default function AdminCreateBehavioralPage() {
                     </Card>
                 </form>
         </AdminPageShell>
+    );
+}
+
+export default function AdminCreateBehavioralPage() {
+    return (
+        <Suspense fallback={<AdminAuthGate hydrated={false} />}>
+            <AdminCreateBehavioralPageContent />
+        </Suspense>
     );
 }
